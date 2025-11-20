@@ -13,8 +13,20 @@ import { Shield, BarChart3, Activity, Download, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function AnalyticsPage() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin mx-auto mb-4 rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Only allow admin users to access analytics
   if (!user || user.role === "student") {
