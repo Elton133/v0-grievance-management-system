@@ -12,6 +12,9 @@ import {
 
 const router = Router();
 
+// Apply rate limiting to all petition routes first
+router.use(apiLimiter);
+
 // All petition routes require authentication
 router.use(authMiddleware);
 
@@ -19,18 +22,18 @@ router.use(authMiddleware);
 router.post("/", createLimiter, createPetition);
 
 // GET /api/petitions - Get all petitions
-router.get("/", apiLimiter, getPetitions);
+router.get("/", getPetitions);
 
 // GET /api/petitions/my - Get current user's petitions
-router.get("/my", apiLimiter, getUserPetitions);
+router.get("/my", getUserPetitions);
 
 // GET /api/petitions/:id - Get a single petition by ID
-router.get("/:id", apiLimiter, getPetitionById);
+router.get("/:id", getPetitionById);
 
 // PATCH /api/petitions/:id/status - Update petition status
-router.patch("/:id/status", apiLimiter, updatePetitionStatus);
+router.patch("/:id/status", updatePetitionStatus);
 
 // POST /api/petitions/:id/comments - Add comment to petition
-router.post("/:id/comments", apiLimiter, addComment);
+router.post("/:id/comments", addComment);
 
 export default router;
