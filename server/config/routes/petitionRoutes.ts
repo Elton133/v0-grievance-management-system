@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { apiLimiter, createLimiter } from "../middleware/rateLimiter";
 import {
   createPetition,
   getPetitions,
@@ -14,22 +15,22 @@ const router = Router();
 // All petition routes require authentication
 router.use(authMiddleware);
 
-// POST /api/petitions - Create a new petition
-router.post("/", createPetition);
+// POST /api/petitions - Create a new petition (with stricter rate limit)
+router.post("/", createLimiter, createPetition);
 
 // GET /api/petitions - Get all petitions
-router.get("/", getPetitions);
+router.get("/", apiLimiter, getPetitions);
 
 // GET /api/petitions/my - Get current user's petitions
-router.get("/my", getUserPetitions);
+router.get("/my", apiLimiter, getUserPetitions);
 
 // GET /api/petitions/:id - Get a single petition by ID
-router.get("/:id", getPetitionById);
+router.get("/:id", apiLimiter, getPetitionById);
 
 // PATCH /api/petitions/:id/status - Update petition status
-router.patch("/:id/status", updatePetitionStatus);
+router.patch("/:id/status", apiLimiter, updatePetitionStatus);
 
 // POST /api/petitions/:id/comments - Add comment to petition
-router.post("/:id/comments", addComment);
+router.post("/:id/comments", apiLimiter, addComment);
 
 export default router;
