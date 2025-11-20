@@ -1,4 +1,4 @@
-# Grievance management system
+# Student Grievance Management System
 
 *Automatically synced with your [v0.app](https://v0.app) deployments*
 
@@ -7,8 +7,58 @@
 
 ## Overview
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+A modern, responsive web application for managing student grievances and petitions built with Next.js 14, TypeScript, and Tailwind CSS.
+
+### Features
+- ✅ Student petition submission and tracking
+- ✅ Multi-role admin dashboard (Class Advisor, HOD, Registrar)
+- ✅ Real-time notifications
+- ✅ Analytics and reporting
+- ✅ Audit logging
+- ✅ Responsive design with professional blue color scheme
+
+## Tech Stack
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4, shadcn/ui components
+- **State Management**: React Context API
+- **Icons**: Lucide React
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Demo Accounts
+
+**Student:**
+- Email: student@university.edu
+- Password: password123
+
+**Class Advisor:**
+- Email: advisor@university.edu
+- Password: password123
+
+**HOD:**
+- Email: hod@university.edu
+- Password: password123
+
+**Registrar:**
+- Email: registrar@university.edu
+- Password: password123
 
 ## Deployment
 

@@ -82,7 +82,7 @@ export default function LoginPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full bg-blue-900 hover:bg-blue-950" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -35,7 +35,7 @@ const priorityLevels: { value: PetitionPriority; label: string; description: str
 const yearOptions = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Graduate", "PhD"]
 
 export default function NewPetitionPage() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   const [formData, setFormData] = useState({
@@ -49,8 +49,20 @@ export default function NewPetitionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin mx-auto mb-4 rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   // Redirect if not a student
-  if (user?.role !== "student") {
+  if (!user || user.role !== "student") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -122,7 +134,7 @@ export default function NewPetitionPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 ">
-            <Card className="bg-white">
+            <Card>
               <CardHeader>
                 <CardTitle>Petition Details</CardTitle>
                 <CardDescription>

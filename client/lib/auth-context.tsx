@@ -58,12 +58,21 @@ const mockUsers: User[] = [
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
+    setIsMounted(true)
     // Check for stored user session
-    const storedUser = localStorage.getItem("grievance_user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem("grievance_user")
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser))
+        } catch (error) {
+          console.error("Failed to parse stored user:", error)
+          localStorage.removeItem("grievance_user")
+        }
+      }
     }
     setIsLoading(false)
   }, [])
@@ -79,7 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (foundUser && password === "password123") {
       setUser(foundUser)
-      localStorage.setItem("grievance_user", JSON.stringify(foundUser))
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("grievance_user", JSON.stringify(foundUser))
+      }
       setIsLoading(false)
       return true
     }
@@ -90,7 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null)
-    localStorage.removeItem("grievance_user")
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("grievance_user")
+    }
   }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
