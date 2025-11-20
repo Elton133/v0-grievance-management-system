@@ -37,8 +37,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="">
-              <Image src="../../public/logo.png" alt="Logo" width={300} height={32} />
+            <div className="bg-primary rounded-full p-3">
+              <GraduationCap className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-foreground">Student Grievance Portal</h1>
