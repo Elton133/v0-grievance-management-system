@@ -1,0 +1,187 @@
+"use client"
+
+import { useAuth } from "@/lib/auth-context"
+import { getAnalyticsData, getAuditLogs } from "@/lib/analytics-store"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { AnalyticsCharts } from "@/components/analytics-charts"
+import { AuditLogTable } from "@/components/audit-log-table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Shield, BarChart3, Activity, Download, Calendar } from "lucide-react"
+import { useRouter } from "next/navigation"
+
+export default function AnalyticsPage() {
+  const { user } = useAuth()
+  const router = useRouter()
+
+  // Only allow admin users to access analytics
+  if (!user || user.role === "student") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <Alert variant="destructive">
+              <Shield className="h-4 w-4" />
+              <AlertDescription>Access denied. Administrative privileges required to view analytics.</AlertDescription>
+            </Alert>
+            <Button onClick={() => router.push("/dashboard")} className="w-full mt-4">
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const analyticsData = getAnalyticsData()
+  const auditLogs = getAuditLogs(50) // Get last 50 audit logs
+
+  const handleExportData = () => {
+    // In a real app, this would generate and download a report
+    alert("Export functionality would be implemented here")
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardHeader />
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
+            <p className="text-muted-foreground">
+              Comprehensive insights into petition management and system performance
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportData}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Report
+            </Button>
+            <Button variant="outline">
+              <Calendar className="mr-2 h-4 w-4" />
+              Date Range
+            </Button>
+          </div>
+        </div>
+
+        {/* Analytics Tabs */}
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="overview">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="audit">
+              <Activity className="mr-2 h-4 w-4" />
+              Audit Log
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{analyticsData.totalPetitions}</div>
+                  <p className="text-xs text-muted-foreground">All time submissions</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {analyticsData.totalPetitions > 0
+                      ? Math.round(
+                          ((analyticsData.petitionsByStatus.resolved || 0) / analyticsData.totalPetitions) * 100,
+                        )
+                      : 0}
+                    %
+                  </div>
+                  <p className="text-xs text-muted-foreground">Successfully resolved</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{analyticsData.responseTimeMetrics.averageResponseTime}</div>
+                  <p className="text-xs text-muted-foreground">Days to first response</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Escalation Rate</CardTitle>
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {Math.round(analyticsData.responseTimeMetrics.escalationRate * 100)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Require escalation</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Charts */}
+            <AnalyticsCharts data={analyticsData} />
+
+            {/* Department Performance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Department Performance</CardTitle>
+                <CardDescription>Petition volume and resolution metrics by department</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(analyticsData.petitionsByDepartment).map(([dept, count]) => {
+                    const resolvedCount = Math.floor(count * 0.7) // Mock resolved count
+                    const resolutionRate = Math.round((resolvedCount / count) * 100)
+
+                    return (
+                      <div key={dept} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <h4 className="font-medium">{dept}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {count} petitions • {resolvedCount} resolved
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{resolutionRate}%</div>
+                          <p className="text-xs text-muted-foreground">Resolution rate</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="audit" className="space-y-6">
+            <AuditLogTable
+              logs={auditLogs}
+              title="System Audit Log"
+              description="Complete record of all system activities and changes"
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
