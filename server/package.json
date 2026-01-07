@@ -5,11 +5,11 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only config/server.ts",
-    "build": "npm run prisma:generate && tsc",
+    "build": "npm run prisma:generate && npx tsc",
     "start": "node dist/server.js",
-    "prisma:generate": "prisma generate --schema=config/prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema=config/prisma/schema.prisma",
-    "prisma:push": "prisma db push --schema=config/prisma/schema.prisma",
+    "prisma:generate": "npx prisma generate --schema=config/prisma/schema.prisma",
+    "prisma:migrate": "npx prisma migrate dev --schema=config/prisma/schema.prisma",
+    "prisma:push": "npx prisma db push --schema=config/prisma/schema.prisma",
     "seed": "ts-node config/seed.ts"
   },
   "keywords": [],
@@ -24,7 +24,8 @@
     "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.15",
-    "prisma": "^6.16.2"
+    "prisma": "^6.16.2",
+    "typescript": "^5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -35,7 +36,6 @@
     "@types/node": "^22.19.3",
     "@types/nodemailer": "^6.4.14",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5"
+    "ts-node-dev": "^2.0.0"
   }
 }
