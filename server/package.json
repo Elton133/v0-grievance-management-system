@@ -2,11 +2,11 @@
   "name": "grievance-management-server",
   "version": "1.0.0",
   "description": "Backend server for grievance management system",
-  "main": "dist/server.js",
+  "main": "dist/config/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only config/server.ts",
     "build": "npm run prisma:generate && npx tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/config/server.js",
     "prisma:generate": "npx prisma generate --schema=config/prisma/schema.prisma",
     "prisma:migrate": "npx prisma migrate dev --schema=config/prisma/schema.prisma",
     "prisma:push": "npx prisma db push --schema=config/prisma/schema.prisma",
