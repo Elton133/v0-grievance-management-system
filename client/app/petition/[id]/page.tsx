@@ -2,6 +2,7 @@
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 import { getPetitionById, updatePetitionDetails, deletePetitionById, type Petition } from "@/lib/petition-store"
 import { PetitionTimeline } from "@/components/petition-timeline"
 import { Button } from "@/components/ui/button"
@@ -103,11 +104,18 @@ export default function PetitionDetailPage() {
     try {
       const updated = await updatePetitionDetails(petition.id, editFormData)
       if (updated) {
+        toast.success("Petition updated successfully!", {
+          description: "Your changes have been saved.",
+        })
         setPetition(updated)
         setIsEditDialogOpen(false)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update petition")
+      const errorMsg = err instanceof Error ? err.message : "Failed to update petition"
+      toast.error("Failed to update petition", {
+        description: errorMsg,
+      })
+      setError(errorMsg)
     } finally {
       setIsSaving(false)
     }
@@ -122,12 +130,20 @@ export default function PetitionDetailPage() {
     try {
       const success = await deletePetitionById(petition.id)
       if (success) {
+        toast.success("Petition deleted successfully")
         router.push("/dashboard")
       } else {
+        toast.error("Failed to delete petition", {
+          description: "Please try again.",
+        })
         setError("Failed to delete petition")
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete petition")
+      const errorMsg = err instanceof Error ? err.message : "Failed to delete petition"
+      toast.error("Failed to delete petition", {
+        description: errorMsg,
+      })
+      setError(errorMsg)
     } finally {
       setIsDeleting(false)
     }
@@ -190,7 +206,7 @@ export default function PetitionDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
             <Link href={user?.role === "student" ? "/dashboard" : "/admin"}>
@@ -199,18 +215,19 @@ export default function PetitionDetailPage() {
             </Link>
           </Button>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Petition #{petition.id}</h1>
-              <p className="text-muted-foreground">{petition.subject}</p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">Petition #{petition.id.slice(0, 8)}...</h1>
+              <p className="text-sm sm:text-base text-muted-foreground break-words">{petition.subject}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {canEditOrDelete && (
-                <>
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setIsEditDialogOpen(true)}
+                    className="flex-1 sm:flex-initial"
                   >
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
@@ -219,24 +236,25 @@ export default function PetitionDetailPage() {
                     variant="destructive"
                     size="sm"
                     onClick={() => setIsDeleteDialogOpen(true)}
+                    className="flex-1 sm:flex-initial"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </Button>
-                </>
+                </div>
               )}
-              <div className="flex gap-2">
-                <Badge className={statusColors[petition.status]}>
+              <div className="flex gap-2 flex-wrap">
+                <Badge className={`${statusColors[petition.status]} text-xs`}>
                   {petition.status.replace(/_/g, " ").toUpperCase()}
                 </Badge>
-                <Badge className={priorityColors[petition.priority]}>{petition.priority.toUpperCase()}</Badge>
+                <Badge className={`${priorityColors[petition.priority]} text-xs`}>{petition.priority.toUpperCase()}</Badge>
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
             <Card>
               <CardHeader>
                 <CardTitle>Petition Details</CardTitle>
@@ -263,7 +281,7 @@ export default function PetitionDetailPage() {
             <PetitionTimeline petition={petition} />
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Student Information</CardTitle>
@@ -340,7 +358,7 @@ export default function PetitionDetailPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
             <DialogTitle>Edit Petition</DialogTitle>
             <DialogDescription>
@@ -439,7 +457,7 @@ export default function PetitionDetailPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
             <DialogTitle>Delete Petition</DialogTitle>
             <DialogDescription>

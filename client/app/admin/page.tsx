@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 import { getPetitionsByRole, updatePetitionStatus, type Petition } from "@/lib/petition-store"
 import type { PetitionStatus, PetitionType } from "@/lib/types"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -105,12 +106,22 @@ export default function AdminPage() {
     try {
       const success = await updatePetitionStatus(petitionId as string, newStatus as PetitionStatus)
       if (success) {
+        toast.success("Status updated successfully!", {
+          description: `Petition status changed to ${newStatus.replace(/_/g, " ")}`,
+        })
         // Refresh petitions after status update
         const petitions = await getPetitionsByRole(user.role, user.email, user.department)
         setAllPetitions(petitions)
+      } else {
+        toast.error("Failed to update status", {
+          description: "Please try again.",
+        })
       }
     } catch (error) {
       console.error("Error updating petition status:", error)
+      toast.error("Failed to update status", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      })
     } finally {
       setUpdatingPetitionId(null)
     }
@@ -187,11 +198,11 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-2">{getRoleTitle()}</h2>
-          <p className="text-muted-foreground">{getRoleDescription()}</p>
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">{getRoleTitle()}</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">{getRoleDescription()}</p>
           {user.department && (
             <Badge variant="outline" className="mt-2">
               {user.department} Department
@@ -259,16 +270,16 @@ export default function AdminPage() {
 
         {/* Tabs and Filters */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="all">All Petitions</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="urgent">Urgent</TabsTrigger>
-              <TabsTrigger value="assigned">Assigned to Me</TabsTrigger>
+          <div className="flex flex-col gap-4">
+            <TabsList className="w-full sm:w-auto overflow-x-auto">
+              <TabsTrigger value="all" className="text-xs sm:text-sm">All Petitions</TabsTrigger>
+              <TabsTrigger value="pending" className="text-xs sm:text-sm">Pending</TabsTrigger>
+              <TabsTrigger value="urgent" className="text-xs sm:text-sm">Urgent</TabsTrigger>
+              <TabsTrigger value="assigned" className="text-xs sm:text-sm">Assigned to Me</TabsTrigger>
             </TabsList>
 
-            <div className="flex gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search petitions..."
@@ -278,35 +289,37 @@ export default function AdminPage() {
                 />
               </div>
 
-              <Select value={statusFilter} onValueChange={(value: PetitionStatus | "all") => setStatusFilter(value)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
-                  <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={statusFilter} onValueChange={(value: PetitionStatus | "all") => setStatusFilter(value)}>
+                  <SelectTrigger className="w-full sm:w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
+                    <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Select value={typeFilter} onValueChange={(value: PetitionType | "all") => setTypeFilter(value)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="academic_issue">Academic</SelectItem>
-                  <SelectItem value="administrative_issue">Administrative</SelectItem>
-                  <SelectItem value="facility_issue">Facility</SelectItem>
-                  <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
-                  <SelectItem value="financial_issue">Financial</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select value={typeFilter} onValueChange={(value: PetitionType | "all") => setTypeFilter(value)}>
+                  <SelectTrigger className="w-full sm:w-[140px]">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="academic_issue">Academic</SelectItem>
+                    <SelectItem value="administrative_issue">Administrative</SelectItem>
+                    <SelectItem value="facility_issue">Facility</SelectItem>
+                    <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
+                    <SelectItem value="financial_issue">Financial</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -336,7 +349,7 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {filteredPetitions.map((petition) => (
                   <AdminPetitionCard
                     key={petition.id}

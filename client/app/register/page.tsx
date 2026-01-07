@@ -4,6 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,26 +35,31 @@ export default function RegisterPage() {
 
     // Validation
     if (!formData.name || !formData.email || !formData.password) {
+      toast.error("Please fill in all required fields")
       setError("Please fill in all required fields")
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match")
       setError("Passwords do not match")
       return
     }
 
     if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters long")
       setError("Password must be at least 6 characters long")
       return
     }
 
     if (formData.role === "student" && !formData.studentId) {
+      toast.error("Student ID is required for students")
       setError("Student ID is required for students")
       return
     }
 
     if (formData.role !== "student" && !formData.department) {
+      toast.error("Department is required for staff members")
       setError("Department is required for staff members")
       return
     }
@@ -68,10 +74,17 @@ export default function RegisterPage() {
     })
 
     if (result.success) {
+      toast.success("Account created successfully!", {
+        description: "Redirecting to login page...",
+      })
       // Redirect to login page with success message
       router.push("/login?registered=true")
     } else {
-      setError(result.error || "Registration failed. Please try again.")
+      const errorMsg = result.error || "Registration failed. Please try again."
+      toast.error("Registration failed", {
+        description: errorMsg,
+      })
+      setError(errorMsg)
     }
   }
 

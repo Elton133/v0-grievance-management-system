@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { submitPetition } from "@/lib/petition-store"
 import type { PetitionType, PetitionPriority } from "@/lib/types"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -86,6 +87,7 @@ export default function NewPetitionPage() {
 
     try {
       if (!formData.type || !formData.subject || !formData.description || !formData.year) {
+        toast.error("Please fill in all required fields")
         setError("Please fill in all required fields")
         setIsSubmitting(false)
         return
@@ -103,9 +105,15 @@ export default function NewPetitionPage() {
         description: formData.description,
       })
 
+      toast.success("Petition submitted successfully!", {
+        description: "Your grievance has been submitted and is awaiting review.",
+      })
       router.push(`/petition/${petition.id}`)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to submit petition. Please try again."
+      toast.error("Failed to submit petition", {
+        description: errorMessage,
+      })
       setError(errorMessage)
     } finally {
       setIsSubmitting(false)
@@ -114,7 +122,7 @@ export default function NewPetitionPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
             <Link href="/dashboard">
@@ -123,19 +131,19 @@ export default function NewPetitionPage() {
             </Link>
           </Button>
 
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-primary/10 rounded-lg p-2">
-              <FileText className="h-6 w-6 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <div className="bg-primary/10 rounded-lg p-2 flex-shrink-0">
+              <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Submit New Petition</h1>
-              <p className="text-muted-foreground">File a grievance or petition for review</p>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Submit New Petition</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">File a grievance or petition for review</p>
             </div>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 ">
+          <div className="lg:col-span-2 order-2 lg:order-1">
             <Card>
               <CardHeader>
                 <CardTitle>Petition Details</CardTitle>
@@ -259,7 +267,7 @@ export default function NewPetitionPage() {
             </Card>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Student Information</CardTitle>

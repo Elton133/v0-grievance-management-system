@@ -33,9 +33,9 @@ async function apiRequest<T>(
   const token = getToken();
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   if (token) {
@@ -62,7 +62,7 @@ async function apiRequest<T>(
     }
 
     // Handle empty responses
-    if (response.status === 204 || response.contentLength === 0) {
+    if (response.status === 204) {
       return {} as T;
     }
 

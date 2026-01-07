@@ -30,20 +30,20 @@ export function DashboardHeader() {
   return (
     <header className="border-b bg-card">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="">
-              <Image src="/logo.png" alt="Logo" width={50} height={32} />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="flex-shrink-0">
+              <Image src="/logo.png" alt="Logo" width={50} height={32} className="w-10 h-6 sm:w-12 sm:h-8" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Student Grievance Portal</h1>
-              <p className="text-sm text-muted-foreground">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-xl font-bold text-foreground truncate">Student Grievance Portal</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
                 {user.role === "student" ? "Student Dashboard" : "Administrative Dashboard"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
 
             {user.role !== "student" && (
               <Button variant="ghost" size="sm" asChild>

@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +28,9 @@ export default function LoginPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       if (params.get("registered") === "true") {
+        toast.success("Registration successful!", {
+          description: "Please log in with your credentials.",
+        })
         setSuccess("Registration successful! Please log in with your credentials.")
         // Clean up URL
         router.replace("/login")
@@ -41,6 +45,9 @@ export default function LoginPage() {
 
     const result = await login(email, password)
     if (result.success) {
+      toast.success("Login successful!", {
+        description: "Welcome back!",
+      })
       // Redirect based on user role
       // Students go to /dashboard, admins go to /admin
       const storedUser = localStorage.getItem("grievance_user")
@@ -59,7 +66,11 @@ export default function LoginPage() {
         router.push("/dashboard")
       }
     } else {
-      setError(result.error || "Invalid email or password. Please try again.")
+      const errorMsg = result.error || "Invalid email or password. Please try again."
+      toast.error("Login failed", {
+        description: errorMsg,
+      })
+      setError(errorMsg)
     }
   }
 

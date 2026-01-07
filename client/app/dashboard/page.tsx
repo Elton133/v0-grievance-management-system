@@ -118,9 +118,9 @@ export default function DashboardPage() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
-          <p className="text-muted-foreground">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">
             {user.role === "student"
               ? "Track your petitions and submit new grievances"
               : "Manage and review student petitions"}
@@ -177,58 +177,61 @@ export default function DashboardPage() {
         </div>
 
         {/* Actions and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search petitions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search petitions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="flex gap-2">
-            <Select value={statusFilter} onValueChange={(value: PetitionStatus | "all") => setStatusFilter(value)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
-                <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2 flex-wrap">
+              <Select value={statusFilter} onValueChange={(value: PetitionStatus | "all") => setStatusFilter(value)}>
+                <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
+                  <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={typeFilter} onValueChange={(value: PetitionType | "all") => setTypeFilter(value)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="academic_issue">Academic</SelectItem>
-                <SelectItem value="administrative_issue">Administrative</SelectItem>
-                <SelectItem value="facility_issue">Facility</SelectItem>
-                <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
-                <SelectItem value="financial_issue">Financial</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={typeFilter} onValueChange={(value: PetitionType | "all") => setTypeFilter(value)}>
+                <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="academic_issue">Academic</SelectItem>
+                  <SelectItem value="administrative_issue">Administrative</SelectItem>
+                  <SelectItem value="facility_issue">Facility</SelectItem>
+                  <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
+                  <SelectItem value="financial_issue">Financial</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {user.role === "student" && (
-              <Button asChild>
-                <Link href="/petition/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Petition
-                </Link>
-              </Button>
-            )}
+              {user.role === "student" && (
+                <Button asChild className="w-full sm:w-auto">
+                  <Link href="/petition/new">
+                    <Plus className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">New Petition</span>
+                    <span className="sm:hidden">New</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -266,7 +269,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {filteredPetitions.map((petition) => (
                 <PetitionCard key={petition.id} petition={petition} />
               ))}

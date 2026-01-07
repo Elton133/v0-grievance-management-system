@@ -45,48 +45,50 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Auto-assign to first reviewer (Class Advisor)
-    const assigned = await autoAssignPetition(petition.id, 1, petitionDepartment);
+    // Auto-assign to first reviewer (Class Advisor) - optimized to get reviewer in one query
+    const reviewer = await getNextReviewer(1, petitionDepartment);
+    const assigned = reviewer ? await autoAssignPetition(petition.id, 1, petitionDepartment) : false;
     
-    // Create notification for student
-    await prisma.notification.create({
-      data: {
+    // Batch create notifications (non-blocking)
+    const notifications = [
+      {
         userId: req.user.id,
         petitionId: petition.id,
         title: "Grievance Submitted",
         message: `Your grievance "${subject}" has been submitted and is awaiting review.`,
-        type: "info",
+        type: "info" as const,
       },
-    });
+    ];
 
-    // Send email to first reviewer if assigned
-    if (assigned) {
-      const reviewer = await getNextReviewer(1, petitionDepartment);
-      if (reviewer) {
-        // Create notification for reviewer
-        await prisma.notification.create({
-          data: {
-            userId: reviewer.userId,
-            petitionId: petition.id,
-            title: "New Grievance Assigned",
-            message: `A new grievance "${subject}" has been assigned to you for review.`,
-            type: "info",
-          },
-        });
+    if (assigned && reviewer) {
+      notifications.push({
+        userId: reviewer.userId,
+        petitionId: petition.id,
+        title: "New Grievance Assigned",
+        message: `A new grievance "${subject}" has been assigned to you for review.`,
+        type: "info" as const,
+      });
+    }
 
-        // Send email to reviewer
-        const emailTemplate = emailTemplates.newPetitionAssigned(
-          reviewer.userName,
-          user.name,
-          subject,
-          petition.id
-        );
-        await sendEmail({
-          to: reviewer.userEmail,
-          subject: emailTemplate.subject,
-          html: emailTemplate.html,
-        });
-      }
+    // Create notifications in parallel (non-blocking for response)
+    prisma.notification.createMany({
+      data: notifications,
+    }).catch(err => console.error("Error creating notifications:", err));
+
+    // Send email asynchronously (non-blocking)
+    if (assigned && reviewer) {
+      const emailTemplate = emailTemplates.newPetitionAssigned(
+        reviewer.userName,
+        user.name,
+        subject,
+        petition.id
+      );
+      // Fire and forget - don't wait for email
+      sendEmail({
+        to: reviewer.userEmail,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+      }).catch(err => console.error("Error sending email:", err));
     }
 
     // Fetch the complete petition with assigned user
@@ -111,20 +113,26 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get all petitions
+// Get all petitions - optimized with select instead of include
 export const getPetitions = async (req: AuthRequest, res: Response) => {
   try {
     const petitions = await prisma.petition.findMany({
-      include: { 
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            department: true
-          }
-        },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        studentEmail: true,
+        department: true,
+        year: true,
+        type: true,
+        priority: true,
+        subject: true,
+        description: true,
+        status: true,
+        escalationLevel: true,
+        submittedAt: true,
+        updatedAt: true,
+        assignedTo: true,
         assignedUser: {
           select: {
             id: true,
@@ -136,7 +144,8 @@ export const getPetitions = async (req: AuthRequest, res: Response) => {
       },
       orderBy: {
         submittedAt: "desc"
-      }
+      },
+      take: 1000, // Limit results to prevent large queries
     });
 
     res.json(petitions);
@@ -284,63 +293,67 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
-    // Create notification for student
-    await prisma.notification.create({
-      data: {
+    // Batch create notifications and send emails asynchronously (non-blocking)
+    const notifications = [
+      {
         userId: petition.studentId,
         petitionId: id,
         title: "Grievance Status Updated",
         message: `Your grievance "${petition.subject}" status has been updated to ${newStatus.replace(/_/g, " ")}.`,
-        type: "info",
+        type: "info" as const,
       },
-    });
+    ];
 
-    // Send email to student
+    // If escalated, get next reviewer info and prepare notification
+    let nextReviewer: { id: string; email: string; name: string } | null = null;
+    if (requiresEscalation(newStatus) && assignedTo) {
+      nextReviewer = await prisma.user.findUnique({
+        where: { id: assignedTo },
+        select: { id: true, email: true, name: true },
+      });
+
+      if (nextReviewer) {
+        notifications.push({
+          userId: nextReviewer.id,
+          petitionId: id,
+          title: "Grievance Forwarded for Review",
+          message: `A grievance "${petition.subject}" has been forwarded to you for review.`,
+          type: "info" as const,
+        });
+      }
+    }
+
+    // Create notifications in parallel (non-blocking)
+    prisma.notification.createMany({
+      data: notifications,
+    }).catch(err => console.error("Error creating notifications:", err));
+
+    // Send emails asynchronously (fire and forget)
     const studentEmailTemplate = emailTemplates.petitionStatusUpdate(
       petition.studentName,
       petition.subject,
       newStatus,
       comment
     );
-    await sendEmail({
+    sendEmail({
       to: petition.studentEmail,
       subject: studentEmailTemplate.subject,
       html: studentEmailTemplate.html,
-    });
+    }).catch(err => console.error("Error sending email to student:", err));
 
-    // If escalated, notify next reviewer
-    if (requiresEscalation(newStatus) && assignedTo) {
-      const nextReviewer = await prisma.user.findUnique({
-        where: { id: assignedTo },
-        select: { id: true, email: true, name: true },
-      });
-
-      if (nextReviewer) {
-        // Create notification for next reviewer
-        await prisma.notification.create({
-          data: {
-            userId: nextReviewer.id,
-            petitionId: id,
-            title: "Grievance Forwarded for Review",
-            message: `A grievance "${petition.subject}" has been forwarded to you for review.`,
-            type: "info",
-          },
-        });
-
-        // Send email to next reviewer
-        const reviewerEmailTemplate = emailTemplates.nextReviewerAlert(
-          nextReviewer.name,
-          petition.studentName,
-          petition.subject,
-          id,
-          nextEscalationLevel.toString()
-        );
-        await sendEmail({
-          to: nextReviewer.email,
-          subject: reviewerEmailTemplate.subject,
-          html: reviewerEmailTemplate.html,
-        });
-      }
+    if (nextReviewer) {
+      const reviewerEmailTemplate = emailTemplates.nextReviewerAlert(
+        nextReviewer.name,
+        petition.studentName,
+        petition.subject,
+        id,
+        nextEscalationLevel.toString()
+      );
+      sendEmail({
+        to: nextReviewer.email,
+        subject: reviewerEmailTemplate.subject,
+        html: reviewerEmailTemplate.html,
+      }).catch(err => console.error("Error sending email to reviewer:", err));
     }
 
     // Fetch complete petition with relations

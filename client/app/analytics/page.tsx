@@ -78,20 +78,22 @@ export default function AnalyticsPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
-            <p className="text-muted-foreground">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Comprehensive insights into petition management and system performance
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportData}>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={handleExportData} className="text-xs sm:text-sm">
               <Download className="mr-2 h-4 w-4" />
-              Export Report
+              <span className="hidden sm:inline">Export Report</span>
+              <span className="sm:hidden">Export</span>
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" size="sm" className="text-xs sm:text-sm">
               <Calendar className="mr-2 h-4 w-4" />
-              Date Range
+              <span className="hidden sm:inline">Date Range</span>
+              <span className="sm:hidden">Date</span>
             </Button>
           </div>
         </div>
