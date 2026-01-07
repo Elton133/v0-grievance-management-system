@@ -23,7 +23,8 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^6.9.15"
+    "nodemailer": "^6.9.15",
+    "prisma": "^6.16.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -33,7 +34,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.19.3",
     "@types/nodemailer": "^6.4.14",
-    "prisma": "^6.16.2",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5"
