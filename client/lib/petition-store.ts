@@ -1,165 +1,186 @@
 "use client"
 
 import type { Petition, PetitionStatus, PetitionComment } from "./types"
-import { createStatusUpdateNotification } from "./notification-store"
-import { addAuditLog } from "./analytics-store"
+import { petitionApi } from "./api"
 
-// Mock data store - in real app this would be a database
-const petitions: Petition[] = [
-  {
-    id: "PET-2024-001",
-    studentId: "ST2024001",
-    studentName: "John Doe",
-    studentEmail: "student@university.edu",
-    department: "Computer Science",
-    year: "3rd Year",
-    type: "academic_issue",
-    priority: "medium",
-    subject: "Grade Discrepancy in Data Structures Course",
-    description:
-      "I believe there was an error in the calculation of my final grade for the Data Structures course. My internal assessment scores don't match the final grade awarded.",
-    status: "under_review",
-    submittedAt: new Date("2024-01-15"),
-    updatedAt: new Date("2024-01-16"),
-    escalationLevel: 1,
-    assignedTo: "advisor@university.edu",
-  },
-  {
-    id: "PET-2024-002",
-    studentId: "ST2024002",
-    studentName: "Jane Smith",
-    studentEmail: "jane.smith@university.edu",
-    department: "Computer Science",
-    year: "2nd Year",
-    type: "facility_issue",
-    priority: "high",
-    subject: "Library Computer Lab Issues",
-    description:
-      "The computers in the library lab are frequently crashing and preventing students from completing assignments.",
-    status: "forwarded_to_hod",
-    submittedAt: new Date("2024-01-10"),
-    updatedAt: new Date("2024-01-12"),
-    escalationLevel: 2,
-    assignedTo: "hod@university.edu",
-  },
-  {
-    id: "PET-2024-003",
-    studentId: "ST2024003",
-    studentName: "Mike Johnson",
-    studentEmail: "mike.johnson@university.edu",
-    department: "Computer Science",
-    year: "4th Year",
-    type: "administrative_issue",
-    priority: "urgent",
-    subject: "Transcript Processing Delay",
-    description: "My transcript has been pending for over 3 weeks, affecting my job application deadlines.",
-    status: "forwarded_to_registrar",
-    submittedAt: new Date("2024-01-05"),
-    updatedAt: new Date("2024-01-08"),
-    escalationLevel: 3,
-    assignedTo: "registrar@university.edu",
-  },
-]
+// Re-export types for convenience
+export type { Petition, PetitionStatus, PetitionComment }
 
-export function submitPetition(
-  petitionData: Omit<Petition, "id" | "submittedAt" | "updatedAt" | "status" | "escalationLevel">,
-): Petition {
-  const newPetition: Petition = {
-    ...petitionData,
-    id: `PET-2024-${String(petitions.length + 1).padStart(3, "0")}`,
-    status: "submitted",
-    submittedAt: new Date(),
-    updatedAt: new Date(),
-    escalationLevel: 1,
-  }
-
-  petitions.push(newPetition)
-
-  addAuditLog({
-    userId: petitionData.studentId,
-    userRole: "student",
-    action: "PETITION_SUBMITTED",
-    petitionId: newPetition.id,
-    details: `New petition submitted: ${petitionData.subject}`,
-  })
-
-  return newPetition
-}
-
-export function getPetitions(): Petition[] {
-  return petitions
-}
-
-export function getPetitionsByStudent(studentId: string): Petition[] {
-  return petitions.filter((p) => p.studentId === studentId)
-}
-
-export function getPetitionById(id: string): Petition | undefined {
-  return petitions.find((p) => p.id === id)
-}
-
-export function getPetitionsByRole(userRole: string, userEmail: string, department?: string): Petition[] {
-  switch (userRole) {
-    case "class_advisor":
-      return petitions.filter((p) => p.department === department && p.escalationLevel === 1)
-    case "hod":
-      return petitions.filter((p) => p.department === department && p.escalationLevel >= 2)
-    case "registrar":
-      return petitions.filter((p) => p.escalationLevel >= 3)
-    default:
-      return []
+// Transform backend petition to frontend Petition type
+function transformPetition(backendPetition: any): Petition {
+  // Backend returns studentId as the User ID (UUID), not the student ID string
+  // Also handle nested student object if present
+  const studentId = backendPetition.studentId || backendPetition.student?.id
+  const studentName = backendPetition.studentName || backendPetition.student?.name
+  const studentEmail = backendPetition.studentEmail || backendPetition.student?.email
+  
+  return {
+    id: backendPetition.id,
+    studentId: studentId, // This is the User ID (UUID), not the student ID string
+    studentName: studentName,
+    studentEmail: studentEmail,
+    department: backendPetition.department,
+    year: backendPetition.year,
+    type: backendPetition.type,
+    priority: backendPetition.priority,
+    subject: backendPetition.subject,
+    description: backendPetition.description,
+    status: backendPetition.status,
+    submittedAt: new Date(backendPetition.submittedAt),
+    updatedAt: new Date(backendPetition.updatedAt),
+    escalationLevel: backendPetition.escalationLevel || 1,
+    assignedTo: backendPetition.assignedUser?.email || backendPetition.assignedTo,
+    comments: backendPetition.comments?.map((c: any) => ({
+      id: c.id,
+      authorId: c.authorId,
+      authorName: c.authorName || c.author?.name,
+      authorRole: c.authorRole || c.author?.role,
+      content: c.content,
+      isInternal: c.isInternal,
+      createdAt: new Date(c.createdAt),
+    })) || [],
   }
 }
 
-export function updatePetitionStatus(petitionId: string, newStatus: PetitionStatus, assignedTo?: string): boolean {
-  const petition = petitions.find((p) => p.id === petitionId)
-  if (!petition) return false
-
-  const oldStatus = petition.status
-  petition.status = newStatus
-  petition.updatedAt = new Date()
-
-  if (assignedTo) {
-    petition.assignedTo = assignedTo
-  }
-
-  // Update escalation level based on status
-  if (newStatus === "forwarded_to_hod") {
-    petition.escalationLevel = 2
-  } else if (newStatus === "forwarded_to_registrar") {
-    petition.escalationLevel = 3
-  }
-
-  if (oldStatus !== newStatus) {
-    createStatusUpdateNotification(petitionId, petition.studentId, newStatus, petition.subject)
-
-    addAuditLog({
-      userId: assignedTo || "system",
-      userRole: "admin",
-      action: "STATUS_UPDATE",
-      petitionId,
-      details: `Changed petition status from '${oldStatus}' to '${newStatus}'`,
+export async function submitPetition(
+  petitionData: Omit<Petition, "id" | "submittedAt" | "updatedAt" | "status" | "escalationLevel" | "comments">
+): Promise<Petition> {
+  try {
+    const response = await petitionApi.create({
+      subject: petitionData.subject,
+      description: petitionData.description,
+      type: petitionData.type,
+      department: petitionData.department,
+      year: petitionData.year,
+      priority: petitionData.priority,
     })
+    return transformPetition(response)
+  } catch (error) {
+    console.error("Error submitting petition:", error)
+    throw error
   }
-
-  return true
 }
 
-export function addPetitionComment(petitionId: string, comment: Omit<PetitionComment, "id" | "createdAt">): boolean {
-  const petition = petitions.find((p) => p.id === petitionId)
-  if (!petition) return false
-
-  if (!petition.comments) {
-    petition.comments = []
+export async function getPetitions(): Promise<Petition[]> {
+  try {
+    const response = await petitionApi.getAll()
+    return response.map(transformPetition)
+  } catch (error) {
+    console.error("Error fetching petitions:", error)
+    return []
   }
+}
 
-  const newComment: PetitionComment = {
-    ...comment,
-    id: `COMMENT-${Date.now()}`,
-    createdAt: new Date(),
+export async function getPetitionsByStudent(studentId: string): Promise<Petition[]> {
+  try {
+    const response = await petitionApi.getMyPetitions()
+    return response.map(transformPetition)
+  } catch (error) {
+    console.error("Error fetching student petitions:", error)
+    return []
   }
+}
 
-  petition.comments.push(newComment)
-  petition.updatedAt = new Date()
-  return true
+export async function getPetitionById(id: string): Promise<Petition | null> {
+  try {
+    const response = await petitionApi.getById(id)
+    return transformPetition(response)
+  } catch (error) {
+    console.error("Error fetching petition:", error)
+    return null
+  }
+}
+
+export async function getPetitionsByRole(
+  userRole: string,
+  userEmail: string,
+  department?: string
+): Promise<Petition[]> {
+  try {
+    const allPetitions = await getPetitions()
+    
+    switch (userRole) {
+      case "class_advisor":
+        return allPetitions.filter(
+          (p) => p.department === department && p.escalationLevel === 1
+        )
+      case "hod":
+        return allPetitions.filter(
+          (p) => p.department === department && p.escalationLevel >= 2
+        )
+      case "registrar":
+        return allPetitions.filter((p) => p.escalationLevel >= 3)
+      default:
+        return []
+    }
+  } catch (error) {
+    console.error("Error fetching petitions by role:", error)
+    return []
+  }
+}
+
+export async function updatePetitionStatus(
+  petitionId: string,
+  newStatus: PetitionStatus,
+  comment?: string
+): Promise<boolean> {
+  try {
+    await petitionApi.updateStatus(petitionId, newStatus, comment)
+    return true
+  } catch (error) {
+    console.error("Error updating petition status:", error)
+    return false
+  }
+}
+
+export async function addPetitionComment(
+  petitionId: string,
+  content: string,
+  isInternal: boolean = false
+): Promise<PetitionComment | null> {
+  try {
+    const response = await petitionApi.addComment(petitionId, content, isInternal)
+    return {
+      id: response.id,
+      authorId: response.authorId,
+      authorName: response.authorName,
+      authorRole: response.authorRole,
+      content: response.content,
+      isInternal: response.isInternal,
+      createdAt: new Date(response.createdAt),
+    }
+  } catch (error) {
+    console.error("Error adding comment:", error)
+    return null
+  }
+}
+
+export async function updatePetitionDetails(
+  petitionId: string,
+  data: {
+    subject?: string
+    description?: string
+    type?: string
+    priority?: string
+    year?: string
+    department?: string
+  }
+): Promise<Petition | null> {
+  try {
+    const response = await petitionApi.update(petitionId, data)
+    return transformPetition(response)
+  } catch (error) {
+    console.error("Error updating petition:", error)
+    throw error
+  }
+}
+
+export async function deletePetitionById(petitionId: string): Promise<boolean> {
+  try {
+    await petitionApi.delete(petitionId)
+    return true
+  } catch (error) {
+    console.error("Error deleting petition:", error)
+    return false
+  }
 }

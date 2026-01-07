@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { getPetitionsByRole, updatePetitionStatus } from "@/lib/petition-store"
+import { getPetitionsByRole, updatePetitionStatus, type Petition } from "@/lib/petition-store"
 import type { PetitionStatus, PetitionType } from "@/lib/types"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { AdminPetitionCard } from "@/components/admin-petition-card"
@@ -14,20 +14,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
+import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield, Loader2 } from "lucide-react"
 
 export default function AdminPage() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<PetitionStatus | "all">("all")
   const [typeFilter, setTypeFilter] = useState<PetitionType | "all">("all")
   const [activeTab, setActiveTab] = useState("all")
+  const [allPetitions, setAllPetitions] = useState<Petition[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [updatingPetitionId, setUpdatingPetitionId] = useState<string | null>(null)
 
-  // Always run hooks safely
-  const allPetitions = useMemo(() => {
-    if (!user) return []
-    return getPetitionsByRole(user.role, user.email, user.department)
+  // Fetch petitions based on user role
+  useEffect(() => {
+    const fetchPetitions = async () => {
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      try {
+        const petitions = await getPetitionsByRole(user.role, user.email, user.department)
+        setAllPetitions(petitions)
+      } catch (error) {
+        console.error("Error fetching petitions:", error)
+        setAllPetitions([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPetitions()
   }, [user])
 
   const filteredPetitions = useMemo(() => {
@@ -78,10 +98,22 @@ export default function AdminPage() {
     return { total, pending, resolved, urgent, assigned }
   }, [allPetitions, user])
 
-  const handleStatusUpdate = (petitionId: string, newStatus: string) => {
+  const handleStatusUpdate = async (petitionId: string, newStatus: string) => {
     if (!user) return
-    const success = updatePetitionStatus(petitionId as string, newStatus as PetitionStatus, user.email)
-    if (success) window.location.reload()
+    
+    setUpdatingPetitionId(petitionId)
+    try {
+      const success = await updatePetitionStatus(petitionId as string, newStatus as PetitionStatus)
+      if (success) {
+        // Refresh petitions after status update
+        const petitions = await getPetitionsByRole(user.role, user.email, user.department)
+        setAllPetitions(petitions)
+      }
+    } catch (error) {
+      console.error("Error updating petition status:", error)
+    } finally {
+      setUpdatingPetitionId(null)
+    }
   }
 
   const getRoleTitle = () => {
@@ -111,19 +143,29 @@ export default function AdminPage() {
   }
 
   // Show loading state
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin mx-auto mb-4 rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-muted-foreground">Loading...</p>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading petitions...</p>
         </div>
       </div>
     )
   }
 
-  // Render access denied if user is student or missing
-  if (!user || user.role === "student") {
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Please log in to access this page.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Render access denied if user is student
+  if (user.role === "student") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -301,6 +343,7 @@ export default function AdminPage() {
                     petition={petition}
                     userRole={user.role}
                     onStatusUpdate={handleStatusUpdate}
+                    isUpdating={updatingPetitionId === petition.id}
                   />
                 ))}
               </div>
@@ -310,4 +353,6 @@ export default function AdminPage() {
       </div>
     </div>
   )
+
 }
+

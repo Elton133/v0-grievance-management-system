@@ -60,8 +60,8 @@ const auditLogs: AuditLog[] = [
   },
 ]
 
-export function getAnalyticsData(): AnalyticsData {
-  const petitions = getPetitions()
+export async function getAnalyticsData(): Promise<AnalyticsData> {
+  const petitions = await getPetitions()
 
   // Calculate basic metrics
   const totalPetitions = petitions.length

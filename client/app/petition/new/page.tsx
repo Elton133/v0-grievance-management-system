@@ -87,10 +87,11 @@ export default function NewPetitionPage() {
     try {
       if (!formData.type || !formData.subject || !formData.description || !formData.year) {
         setError("Please fill in all required fields")
+        setIsSubmitting(false)
         return
       }
 
-      const petition = submitPetition({
+      const petition = await submitPetition({
         studentId: user.studentId!,
         studentName: user.name,
         studentEmail: user.email,
@@ -104,7 +105,8 @@ export default function NewPetitionPage() {
 
       router.push(`/petition/${petition.id}`)
     } catch (err) {
-      setError("Failed to submit petition. Please try again.")
+      const errorMessage = err instanceof Error ? err.message : "Failed to submit petition. Please try again."
+      setError(errorMessage)
     } finally {
       setIsSubmitting(false)
     }

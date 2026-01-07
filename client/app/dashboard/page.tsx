@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { getPetitionsByStudent, getPetitions } from "@/lib/petition-store"
+import { getPetitionsByStudent, getPetitions, type Petition } from "@/lib/petition-store"
 import type { PetitionStatus, PetitionType } from "@/lib/types"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { PetitionCard } from "@/components/petition-card"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings } from "lucide-react"
+import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -19,14 +19,35 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<PetitionStatus | "all">("all")
   const [typeFilter, setTypeFilter] = useState<PetitionType | "all">("all")
+  const [allPetitions, setAllPetitions] = useState<Petition[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get petitions based on user role
-  const allPetitions = useMemo(() => {
-    if (!user) return []
-    if (user.role === "student") {
-      return getPetitionsByStudent(user.studentId!)
+  // Fetch petitions based on user role
+  useEffect(() => {
+    const fetchPetitions = async () => {
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      try {
+        let petitions: Petition[] = []
+        if (user.role === "student") {
+          petitions = await getPetitionsByStudent(user.studentId!)
+        } else {
+          petitions = await getPetitions()
+        }
+        setAllPetitions(petitions)
+      } catch (error) {
+        console.error("Error fetching petitions:", error)
+        setAllPetitions([])
+      } finally {
+        setIsLoading(false)
+      }
     }
-    return getPetitions()
+
+    fetchPetitions()
   }, [user])
 
   // Filter petitions
@@ -54,8 +75,15 @@ export default function DashboardPage() {
     return { total, pending, resolved, urgent }
   }, [allPetitions])
 
-  if (!user) {
-    return <div>Loading...</div>
+  if (!user || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading petitions...</p>
+        </div>
+      </div>
+    )
   }
 
   if (user.role !== "student") {

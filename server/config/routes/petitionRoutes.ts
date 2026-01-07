@@ -7,7 +7,9 @@ import {
   getPetitionById,
   updatePetitionStatus,
   addComment,
-  getUserPetitions
+  getUserPetitions,
+  updatePetition,
+  deletePetition
 } from "../controllers/petitionController";
 
 const router = Router();
@@ -35,5 +37,11 @@ router.patch("/:id/status", updatePetitionStatus);
 
 // POST /api/petitions/:id/comments - Add comment to petition
 router.post("/:id/comments", addComment);
+
+// PUT /api/petitions/:id - Update petition details (students only, submitted status only)
+router.put("/:id", updatePetition);
+
+// DELETE /api/petitions/:id - Delete petition (students only, submitted status only)
+router.delete("/:id", deletePetition);
 
 export default router;

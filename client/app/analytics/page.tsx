@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { getAnalyticsData, getAuditLogs } from "@/lib/analytics-store"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -17,12 +18,12 @@ export default function AnalyticsPage() {
   const router = useRouter()
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || isLoadingData || !analyticsData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin mx-auto mb-4 rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Loading analytics...</p>
         </div>
       </div>
     )
@@ -47,8 +48,23 @@ export default function AnalyticsPage() {
     )
   }
 
-  const analyticsData = getAnalyticsData()
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
   const auditLogs = getAuditLogs(50) // Get last 50 audit logs
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const data = await getAnalyticsData()
+        setAnalyticsData(data)
+      } catch (error) {
+        console.error("Error fetching analytics data:", error)
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+    fetchAnalytics()
+  }, [])
 
   const handleExportData = () => {
     // In a real app, this would generate and download a report

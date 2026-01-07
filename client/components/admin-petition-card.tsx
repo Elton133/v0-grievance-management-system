@@ -4,13 +4,14 @@ import type { Petition } from "@/lib/types"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Eye, User, GraduationCap, AlertCircle, CheckCircle, Clock, ArrowRight } from "lucide-react"
+import { Calendar, Eye, User, GraduationCap, AlertCircle, CheckCircle, Clock, ArrowRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 interface AdminPetitionCardProps {
   petition: Petition
   userRole: string
   onStatusUpdate?: (petitionId: string, newStatus: string) => void
+  isUpdating?: boolean
 }
 
 const statusConfig = {
@@ -53,7 +54,7 @@ const priorityConfig = {
   urgent: "bg-red-100 text-red-800 border-red-200",
 }
 
-export function AdminPetitionCard({ petition, userRole, onStatusUpdate }: AdminPetitionCardProps) {
+export function AdminPetitionCard({ petition, userRole, onStatusUpdate, isUpdating = false }: AdminPetitionCardProps) {
   const statusInfo = statusConfig[petition.status]
   const StatusIcon = statusInfo.icon
 
@@ -158,8 +159,16 @@ export function AdminPetitionCard({ petition, userRole, onStatusUpdate }: AdminP
                 variant="outline"
                 onClick={() => onStatusUpdate?.(petition.id, action.status)}
                 className="text-xs flex-1"
+                disabled={isUpdating}
               >
-                {action.label}
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  action.label
+                )}
               </Button>
             ))}
           </div>
