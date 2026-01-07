@@ -18,7 +18,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/petitions", petitionRoutes);
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (req: express.Request, res: express.Response) => {
   res.json({ status: "ok", message: "Server is running" });
 });
 

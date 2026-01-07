@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
@@ -25,5 +25,3 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     res.status(401).json({ error: "Invalid token" });
   }
 };
-
-export { AuthRequest };
