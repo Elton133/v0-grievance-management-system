@@ -7,6 +7,7 @@ export const apiLimiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  // Trust proxy is set in server.ts, so we can use the default keyGenerator
 });
 
 // Strict rate limiter for auth endpoints - 5 requests per 15 minutes

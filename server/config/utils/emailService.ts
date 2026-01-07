@@ -2,16 +2,28 @@ import nodemailer from "nodemailer";
 
 // Email service configuration
 const createTransporter = () => {
-  // For development, you can use a service like Gmail, SendGrid, or Resend
-  // For production with Supabase, you can use Resend or SendGrid
+  // For Gmail, you need to use an App Password, not your regular password
+  // Generate one at: https://myaccount.google.com/apppasswords
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = parseInt(process.env.SMTP_PORT || "587");
+  const isSecure = port === 465;
+  
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: false, // true for 465, false for other ports
+    host,
+    port,
+    secure: isSecure, // true for 465, false for other ports
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: process.env.SMTP_PASS, // Use App Password for Gmail
     },
+    // Gmail-specific settings
+    ...(host.includes("gmail.com") && {
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS, // App Password required
+      },
+    }),
   });
 };
 
@@ -25,12 +37,23 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
   try {
     // Skip email sending if SMTP is not configured (for development)
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log(`[Email Service] Would send email to ${to}: ${subject}`);
+      console.log(`[Email Service] SMTP not configured. Would send email to ${to}: ${subject}`);
+      console.log(`[Email Service] Set SMTP_USER and SMTP_PASS environment variables to enable email sending.`);
+      console.log(`[Email Service] For Gmail, use an App Password: https://myaccount.google.com/apppasswords`);
       return true; // Return true to not break the flow during development
     }
 
+    console.log(`[Email Service] Attempting to send email to ${to}...`);
+    console.log(`[Email Service] Using SMTP: ${process.env.SMTP_HOST || "smtp.gmail.com"}:${process.env.SMTP_PORT || "587"}`);
+    console.log(`[Email Service] From: ${process.env.SMTP_USER}`);
+
     const transporter = createTransporter();
-    await transporter.sendMail({
+    
+    // Verify connection
+    await transporter.verify();
+    console.log(`[Email Service] ✅ SMTP connection verified`);
+
+    const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || `"Grievance Management System" <${process.env.SMTP_USER}>`,
       to,
       subject,
@@ -38,9 +61,23 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
     });
 
     console.log(`✅ Email sent successfully to ${to}`);
+    console.log(`[Email Service] Message ID: ${info.messageId}`);
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error sending email:", error);
+    
+    // Provide helpful error messages
+    if (error.code === "EAUTH") {
+      console.error("❌ Authentication failed. For Gmail:");
+      console.error("   1. Make sure you're using an App Password, not your regular password");
+      console.error("   2. Generate one at: https://myaccount.google.com/apppasswords");
+      console.error("   3. Enable 2-Step Verification first if you haven't");
+    } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT") {
+      console.error("❌ Connection failed. Check your SMTP_HOST and SMTP_PORT settings");
+    } else {
+      console.error(`❌ Error details: ${error.message}`);
+    }
+    
     return false;
   }
 };

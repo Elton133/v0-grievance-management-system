@@ -45,17 +45,34 @@ Complete step-by-step guide to set up the Student Grievance Management System fr
 
 ## 📧 Step 3: Set Up Email Service (Optional but Recommended)
 
-### For Gmail:
+### For Gmail (Recommended for Development):
 
-1. Go to your Google Account settings
-2. Enable **2-Step Verification** (if not already enabled)
-3. Go to **Security** → **2-Step Verification** → **App passwords**
-4. Select **Mail** and **Other (Custom name)**
-5. Enter "Grievance System" as the name
+**⚠️ Important:** Gmail requires an **App Password**, not your regular password!
+
+1. Go to your Google Account: [https://myaccount.google.com](https://myaccount.google.com)
+2. Navigate to **Security** → **2-Step Verification**
+   - If 2-Step Verification is not enabled, enable it first (required for App Passwords)
+3. After enabling 2-Step Verification, go to **Security** → **App passwords**
+   - Direct link: [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+4. Select **Mail** as the app and **Other (Custom name)** as the device
+5. Enter "Grievance System" as the custom name
 6. Click **Generate**
-7. Copy the 16-character password
+7. **Copy the 16-character password** (you'll only see it once!)
+   - Format: `xxxx xxxx xxxx xxxx` (remove spaces when using in .env)
 
-**Note:** If you don't set up email now, the system will still work but will log emails instead of sending them (useful for development).
+**Example .env configuration:**
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=xxxx xxxx xxxx xxxx  # Use the App Password here (spaces optional)
+SMTP_FROM="Grievance Management System <your-email@gmail.com>"
+```
+
+**Note:** 
+- If you don't set up email now, the system will still work but will log emails instead of sending them (useful for development)
+- The server logs will show helpful error messages if email configuration is incorrect
+- For production, consider using a dedicated email service like SendGrid, Resend, or AWS SES
 
 ## ⚙️ Step 4: Configure Backend Environment
 
