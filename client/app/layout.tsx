@@ -11,7 +11,6 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Student Grievance Management System",
   description: "Institutional portal for managing student grievances and petitions",
-  generator: "v0.app",
 }
 
 export default function RootLayout({

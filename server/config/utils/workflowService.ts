@@ -36,9 +36,9 @@ export const getNextReviewer = async (
 
   try {
     // Find a user with the target role
-    // If department is specified, prefer users from that department
+    // If department is specified, filter users by that department (for class_advisor and hod)
     const whereClause: any = { role: targetRole };
-    if (department && targetRole === "hod") {
+    if (department && (targetRole === "class_advisor" || targetRole === "hod")) {
       whereClause.department = department;
     }
 

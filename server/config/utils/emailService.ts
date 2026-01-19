@@ -7,23 +7,34 @@ const createTransporter = () => {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "587");
   const isSecure = port === 465;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
   
+  // Validate configuration
+  if (!user || !pass) {
+    throw new Error("SMTP_USER and SMTP_PASS environment variables are required");
+  }
+  
+  // Gmail-specific configuration
+  if (host.includes("gmail.com")) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user,
+        pass, // App Password required for Gmail
+      },
+    });
+  }
+  
+  // Generic SMTP configuration
   return nodemailer.createTransport({
     host,
     port,
     secure: isSecure, // true for 465, false for other ports
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS, // Use App Password for Gmail
+      user,
+      pass,
     },
-    // Gmail-specific settings
-    ...(host.includes("gmail.com") && {
-      service: "gmail",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS, // App Password required
-      },
-    }),
   });
 };
 
@@ -34,48 +45,115 @@ interface EmailOptions {
 }
 
 export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<boolean> => {
+  const startTime = Date.now();
+  
   try {
-    // Skip email sending if SMTP is not configured (for development)
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log(`[Email Service] SMTP not configured. Would send email to ${to}: ${subject}`);
-      console.log(`[Email Service] Set SMTP_USER and SMTP_PASS environment variables to enable email sending.`);
-      console.log(`[Email Service] For Gmail, use an App Password: https://myaccount.google.com/apppasswords`);
-      return true; // Return true to not break the flow during development
+    // Check if SMTP is configured
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+    const smtpPort = process.env.SMTP_PORT || "587";
+    
+    if (!smtpUser || !smtpPass) {
+      console.error(`[Email Service] ❌ SMTP not configured. Cannot send email to ${to}`);
+      console.error(`[Email Service] Missing environment variables:`);
+      console.error(`   - SMTP_USER: ${smtpUser ? "✅ Set" : "❌ Missing"}`);
+      console.error(`   - SMTP_PASS: ${smtpPass ? "✅ Set" : "❌ Missing"}`);
+      console.error(`[Email Service] Set SMTP_USER and SMTP_PASS environment variables to enable email sending.`);
+      console.error(`[Email Service] For Gmail, use an App Password: https://myaccount.google.com/apppasswords`);
+      return false; // Return false in production to indicate failure
     }
 
-    console.log(`[Email Service] Attempting to send email to ${to}...`);
-    console.log(`[Email Service] Using SMTP: ${process.env.SMTP_HOST || "smtp.gmail.com"}:${process.env.SMTP_PORT || "587"}`);
-    console.log(`[Email Service] From: ${process.env.SMTP_USER}`);
+    console.log(`[Email Service] 📧 Attempting to send email...`);
+    console.log(`[Email Service]   To: ${to}`);
+    console.log(`[Email Service]   Subject: ${subject}`);
+    console.log(`[Email Service]   SMTP: ${smtpHost}:${smtpPort}`);
+    console.log(`[Email Service]   From: ${smtpUser}`);
 
     const transporter = createTransporter();
     
-    // Verify connection
-    await transporter.verify();
-    console.log(`[Email Service] ✅ SMTP connection verified`);
+    // Verify connection with timeout (optional - skip if it causes issues)
+    const skipVerification = process.env.SKIP_SMTP_VERIFY === "true";
+    
+    if (!skipVerification) {
+      console.log(`[Email Service] 🔍 Verifying SMTP connection...`);
+      try {
+        await Promise.race([
+          transporter.verify(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("SMTP verification timeout after 10 seconds")), 10000)
+          )
+        ]);
+        console.log(`[Email Service] ✅ SMTP connection verified`);
+      } catch (verifyError: any) {
+        console.error(`[Email Service] ⚠️ SMTP verification failed:`, verifyError.message);
+        console.error(`[Email Service] ⚠️ Continuing anyway - will attempt to send email...`);
+        if (verifyError.code === "EAUTH") {
+          console.error(`[Email Service] ❌ Authentication issue detected. Check your SMTP credentials:`);
+          console.error(`   - Make sure you're using an App Password for Gmail, not your regular password`);
+          console.error(`   - Generate App Password at: https://myaccount.google.com/apppasswords`);
+          console.error(`   - Enable 2-Step Verification first if you haven't`);
+          console.error(`   - App Password should be 16 characters with NO spaces`);
+        } else if (verifyError.code === "ECONNECTION" || verifyError.code === "ETIMEDOUT") {
+          console.error(`[Email Service] ⚠️ Connection issue detected. Check:`);
+          console.error(`   - SMTP_HOST: ${smtpHost}`);
+          console.error(`   - SMTP_PORT: ${smtpPort}`);
+          console.error(`   - Network connectivity`);
+        }
+        // Don't throw - continue to try sending anyway
+      }
+    } else {
+      console.log(`[Email Service] ⚠️ Skipping SMTP verification (SKIP_SMTP_VERIFY=true)`);
+    }
 
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || `"Grievance Management System" <${process.env.SMTP_USER}>`,
-      to,
-      subject,
-      html,
-    });
+    const fromAddress = process.env.SMTP_FROM || `"Grievance Management System" <${smtpUser}>`;
+    console.log(`[Email Service] 📤 Sending email...`);
+    console.log(`[Email Service]   From: ${fromAddress}`);
+    console.log(`[Email Service]   To: ${to}`);
+    console.log(`[Email Service]   Subject: ${subject}`);
+    
+    try {
+      const info = await transporter.sendMail({
+        from: fromAddress,
+        to,
+        subject,
+        html,
+      });
 
-    console.log(`✅ Email sent successfully to ${to}`);
-    console.log(`[Email Service] Message ID: ${info.messageId}`);
-    return true;
+      const duration = Date.now() - startTime;
+      console.log(`[Email Service] ✅ Email sent successfully!`);
+      console.log(`[Email Service]   Message ID: ${info.messageId}`);
+      console.log(`[Email Service]   Duration: ${duration}ms`);
+      return true;
+    } catch (sendError: any) {
+      // If sendMail fails, log it but don't throw yet - let outer catch handle it
+      console.error(`[Email Service] ❌ sendMail failed:`, sendError.message);
+      throw sendError;
+    }
   } catch (error: any) {
-    console.error("❌ Error sending email:", error);
+    const duration = Date.now() - startTime;
+    console.error(`[Email Service] ❌ Error sending email (took ${duration}ms):`);
+    console.error(`[Email Service]   To: ${to}`);
+    console.error(`[Email Service]   Subject: ${subject}`);
+    console.error(`[Email Service]   Error Code: ${error.code || "UNKNOWN"}`);
+    console.error(`[Email Service]   Error Message: ${error.message}`);
     
     // Provide helpful error messages
     if (error.code === "EAUTH") {
-      console.error("❌ Authentication failed. For Gmail:");
-      console.error("   1. Make sure you're using an App Password, not your regular password");
-      console.error("   2. Generate one at: https://myaccount.google.com/apppasswords");
-      console.error("   3. Enable 2-Step Verification first if you haven't");
+      console.error(`[Email Service] ❌ Authentication failed. For Gmail:`);
+      console.error(`   1. Make sure you're using an App Password, not your regular password`);
+      console.error(`   2. Generate one at: https://myaccount.google.com/apppasswords`);
+      console.error(`   3. Enable 2-Step Verification first if you haven't`);
+      console.error(`   4. Check that SMTP_USER matches the email used to generate the App Password`);
     } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT") {
-      console.error("❌ Connection failed. Check your SMTP_HOST and SMTP_PORT settings");
+      console.error(`[Email Service] ❌ Connection failed. Check:`);
+      console.error(`   - SMTP_HOST: ${process.env.SMTP_HOST || "smtp.gmail.com"}`);
+      console.error(`   - SMTP_PORT: ${process.env.SMTP_PORT || "587"}`);
+      console.error(`   - Network connectivity and firewall settings`);
+    } else if (error.message?.includes("timeout")) {
+      console.error(`[Email Service] ❌ Connection timeout. The SMTP server may be unreachable.`);
     } else {
-      console.error(`❌ Error details: ${error.message}`);
+      console.error(`[Email Service] ❌ Error details:`, error);
     }
     
     return false;
@@ -154,5 +232,30 @@ export const emailTemplates = {
       `,
     };
   },
+};
+
+/**
+ * Check email service configuration status
+ * Useful for debugging production issues
+ */
+export const checkEmailConfiguration = () => {
+  const config = {
+    smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
+    smtpPort: process.env.SMTP_PORT || "587",
+    smtpUser: process.env.SMTP_USER,
+    smtpPass: process.env.SMTP_PASS ? "***" : undefined,
+    smtpFrom: process.env.SMTP_FROM,
+    isConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
+  };
+  
+  console.log("[Email Service] Configuration Status:");
+  console.log(`  SMTP_HOST: ${config.smtpHost}`);
+  console.log(`  SMTP_PORT: ${config.smtpPort}`);
+  console.log(`  SMTP_USER: ${config.smtpUser || "❌ NOT SET"}`);
+  console.log(`  SMTP_PASS: ${config.smtpPass ? "✅ SET" : "❌ NOT SET"}`);
+  console.log(`  SMTP_FROM: ${config.smtpFrom || "Using default"}`);
+  console.log(`  Status: ${config.isConfigured ? "✅ CONFIGURED" : "❌ NOT CONFIGURED"}`);
+  
+  return config;
 };
 

@@ -52,10 +52,17 @@ export default function RegisterPage() {
       return
     }
 
-    if (formData.role === "student" && !formData.studentId) {
-      toast.error("Student ID is required for students")
-      setError("Student ID is required for students")
-      return
+    if (formData.role === "student") {
+      if (!formData.studentId) {
+        toast.error("Student ID is required for students")
+        setError("Student ID is required for students")
+        return
+      }
+      if (!formData.department) {
+        toast.error("Department is required for students")
+        setError("Department is required for students")
+        return
+      }
     }
 
     if (formData.role !== "student" && !formData.department) {
@@ -149,17 +156,35 @@ export default function RegisterPage() {
               </div>
 
               {formData.role === "student" && (
-                <div className="space-y-2">
-                  <Label htmlFor="studentId">Student ID *</Label>
-                  <Input
-                    id="studentId"
-                    type="text"
-                    placeholder="BIT0001526"
-                    value={formData.studentId}
-                    onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                    required
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="studentId">Student ID *</Label>
+                    <Input
+                      id="studentId"
+                      type="text"
+                      placeholder="BIT0001526"
+                      value={formData.studentId}
+                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department *</Label>
+                    <Select
+                      value={formData.department}
+                      onValueChange={(value) => setFormData({ ...formData, department: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ICT">ICT</SelectItem>
+                        <SelectItem value="Transport">Transport</SelectItem>
+                        <SelectItem value="Marine Electrical & Electronic Engineering">Marine Electrical & Electronic Engineering</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               {formData.role !== "student" && (

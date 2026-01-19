@@ -83,12 +83,18 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
         subject,
         petition.id
       );
-      // Fire and forget - don't wait for email
+      // Fire and forget - don't wait for email, but log errors
       sendEmail({
         to: reviewer.userEmail,
         subject: emailTemplate.subject,
         html: emailTemplate.html,
-      }).catch(err => console.error("Error sending email:", err));
+      }).then(success => {
+        if (!success) {
+          console.error(`[Petition Controller] Failed to send email to reviewer: ${reviewer.userEmail}`);
+        }
+      }).catch(err => {
+        console.error(`[Petition Controller] Error sending email to reviewer:`, err);
+      });
     }
 
     // Fetch the complete petition with assigned user
@@ -339,7 +345,13 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
       to: petition.studentEmail,
       subject: studentEmailTemplate.subject,
       html: studentEmailTemplate.html,
-    }).catch(err => console.error("Error sending email to student:", err));
+    }).then(success => {
+      if (!success) {
+        console.error(`[Petition Controller] Failed to send status update email to student: ${petition.studentEmail}`);
+      }
+    }).catch(err => {
+      console.error(`[Petition Controller] Error sending email to student:`, err);
+    });
 
     if (nextReviewer) {
       const reviewerEmailTemplate = emailTemplates.nextReviewerAlert(
@@ -353,7 +365,13 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
         to: nextReviewer.email,
         subject: reviewerEmailTemplate.subject,
         html: reviewerEmailTemplate.html,
-      }).catch(err => console.error("Error sending email to reviewer:", err));
+      }).then(success => {
+        if (!success) {
+          console.error(`[Petition Controller] Failed to send escalation email to reviewer: ${nextReviewer.email}`);
+        }
+      }).catch(err => {
+        console.error(`[Petition Controller] Error sending email to reviewer:`, err);
+      });
     }
 
     // Fetch complete petition with relations
