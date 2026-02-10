@@ -25,7 +25,8 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.15",
     "prisma": "6.19.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
