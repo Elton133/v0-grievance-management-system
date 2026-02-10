@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings, Loader2 } from "lucide-react"
+import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings } from "lucide-react"
+import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -77,11 +78,8 @@ export default function DashboardPage() {
 
   if (!user || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading petitions...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AppLoader message="Loading petitions..." />
       </div>
     )
   }

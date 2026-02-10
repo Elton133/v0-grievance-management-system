@@ -15,7 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield, Loader2 } from "lucide-react"
+import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
+import { AppLoader } from "@/components/ui/app-loader"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -156,11 +157,8 @@ export default function AdminPage() {
   // Show loading state
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading petitions...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AppLoader message="Loading petitions..." />
       </div>
     )
   }

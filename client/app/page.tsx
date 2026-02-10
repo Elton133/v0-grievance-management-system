@@ -3,28 +3,22 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { Loader2 } from "lucide-react"
+import { AppLoader } from "@/components/ui/app-loader"
 
 export default function HomePage() {
-  const { user, isLoading } = useAuth()
+  const { isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
     if (!isLoading) {
-      if (user) {
-        router.push("/dashboard")
-      } else {
-        router.push("/login")
-      }
+      // Always start at the login page when the app loads
+      router.replace("/login")
     }
-  }, [user, isLoading, router])
+  }, [isLoading, router])
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <AppLoader message="Preparing your experience..." />
     </div>
   )
 }

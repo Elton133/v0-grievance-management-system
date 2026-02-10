@@ -37,28 +37,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Inactivity timeout (e.g. 4 hours)
+  const INACTIVITY_LIMIT_MS = 4 * 60 * 60 * 1000
+
   useEffect(() => {
-    // Check for stored user session and token
-    if (typeof window !== "undefined") {
-      const storedUser = localStorage.getItem("grievance_user")
-      const token = getToken()
-      
-      if (storedUser && token) {
-        try {
-          const parsedUser = JSON.parse(storedUser)
-          setUser(parsedUser)
-        } catch (error) {
-          console.error("Failed to parse stored user:", error)
-          localStorage.removeItem("grievance_user")
-          removeToken()
-        }
-      } else {
-        // Clear invalid session
-        if (storedUser && !token) {
-          localStorage.removeItem("grievance_user")
-        }
-      }
+    if (typeof window === "undefined") {
+      setIsLoading(false)
+      return
     }
+
+    const storedUser = localStorage.getItem("grievance_user")
+    const token = getToken()
+
+    const updateLastActivity = () => {
+      localStorage.setItem("grievance_last_activity", Date.now().toString())
+    }
+
+    if (storedUser && token) {
+      try {
+        const parsedUser = JSON.parse(storedUser)
+        setUser(parsedUser)
+
+        const now = Date.now()
+        const lastActivityRaw = localStorage.getItem("grievance_last_activity")
+        const lastActivity = lastActivityRaw ? parseInt(lastActivityRaw, 10) : now
+
+        // If we've been inactive for longer than the limit, log out
+        if (now - lastActivity > INACTIVITY_LIMIT_MS) {
+          console.log("Session expired due to inactivity")
+          localStorage.removeItem("grievance_user")
+          localStorage.removeItem("grievance_last_activity")
+          removeToken()
+          window.location.href = "/login"
+        } else {
+          // Record current activity time
+          updateLastActivity()
+
+          // Schedule automatic logout when inactivity limit is reached
+          const remaining = INACTIVITY_LIMIT_MS - (now - lastActivity)
+          const timeoutId = window.setTimeout(() => {
+            console.log("Inactivity timeout reached, logging out")
+            localStorage.removeItem("grievance_user")
+            localStorage.removeItem("grievance_last_activity")
+            removeToken()
+            window.location.href = "/login"
+          }, remaining)
+
+          // Listen to user activity to keep the session alive
+          window.addEventListener("click", updateLastActivity)
+          window.addEventListener("keydown", updateLastActivity)
+
+          return () => {
+            window.clearTimeout(timeoutId)
+            window.removeEventListener("click", updateLastActivity)
+            window.removeEventListener("keydown", updateLastActivity)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to parse stored user:", error)
+        localStorage.removeItem("grievance_user")
+        localStorage.removeItem("grievance_last_activity")
+        removeToken()
+      }
+    } else {
+      // Clear invalid session data
+      if (storedUser && !token) {
+        localStorage.removeItem("grievance_user")
+      }
+      localStorage.removeItem("grievance_last_activity")
+    }
+
     setIsLoading(false)
   }, [])
 
@@ -83,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData)
       if (typeof window !== "undefined") {
         localStorage.setItem("grievance_user", JSON.stringify(userData))
+        localStorage.setItem("grievance_last_activity", Date.now().toString())
       }
       setIsLoading(false)
       return { success: true }
@@ -122,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     removeToken()
     if (typeof window !== "undefined") {
       localStorage.removeItem("grievance_user")
+      localStorage.removeItem("grievance_last_activity")
       // Redirect to login page
       window.location.href = "/login"
     }

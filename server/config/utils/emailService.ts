@@ -113,21 +113,37 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
     console.log(`[Email Service]   Subject: ${subject}`);
     
     try {
-      const info = await transporter.sendMail({
-        from: fromAddress,
-        to,
-        subject,
-        html,
-      });
+      // Add timeout to sendMail to prevent hanging indefinitely
+      const sendTimeout = 30000; // 30 seconds
+      console.log(`[Email Service]   Timeout: ${sendTimeout}ms`);
+      
+      const info = await Promise.race([
+        transporter.sendMail({
+          from: fromAddress,
+          to,
+          subject,
+          html,
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Email send timeout after ${sendTimeout}ms`)), sendTimeout)
+        )
+      ]) as any;
 
       const duration = Date.now() - startTime;
       console.log(`[Email Service] ✅ Email sent successfully!`);
-      console.log(`[Email Service]   Message ID: ${info.messageId}`);
+      console.log(`[Email Service]   Message ID: ${info.messageId || "N/A"}`);
       console.log(`[Email Service]   Duration: ${duration}ms`);
       return true;
     } catch (sendError: any) {
       // If sendMail fails, log it but don't throw yet - let outer catch handle it
       console.error(`[Email Service] ❌ sendMail failed:`, sendError.message);
+      if (sendError.message?.includes("timeout")) {
+        console.error(`[Email Service] ❌ Email send timed out. Possible issues:`);
+        console.error(`   1. Network connectivity from Render to Gmail`);
+        console.error(`   2. Gmail blocking the connection`);
+        console.error(`   3. Firewall/proxy blocking SMTP port 587`);
+        console.error(`   4. Consider using a dedicated email service (SendGrid, Resend, etc.)`);
+      }
       throw sendError;
     }
   } catch (error: any) {

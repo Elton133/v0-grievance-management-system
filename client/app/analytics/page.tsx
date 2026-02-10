@@ -6,6 +6,7 @@ import { getAnalyticsData, getAuditLogs } from "@/lib/analytics-store"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { AnalyticsCharts } from "@/components/analytics-charts"
 import { AuditLogTable } from "@/components/audit-log-table"
+import { AppLoader } from "@/components/ui/app-loader"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,18 +17,6 @@ import { useRouter } from "next/navigation"
 export default function AnalyticsPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-
-  // Show loading state
-  if (isLoading || isLoadingData || !analyticsData) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin mx-auto mb-4 rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-muted-foreground">Loading analytics...</p>
-        </div>
-      </div>
-    )
-  }
 
   // Only allow admin users to access analytics
   if (!user || user.role === "student") {
@@ -65,6 +54,15 @@ export default function AnalyticsPage() {
     }
     fetchAnalytics()
   }, [])
+
+  // Show loading state
+  if (isLoading || isLoadingData || !analyticsData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AppLoader message="Loading analytics..." />
+      </div>
+    )
+  }
 
   const handleExportData = () => {
     // In a real app, this would generate and download a report

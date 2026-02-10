@@ -14,7 +14,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, Calendar, User, Mail, GraduationCap, AlertCircle, Loader2, Edit, Trash2 } from "lucide-react"
+import { ArrowLeft, Calendar, User, Mail, GraduationCap, AlertCircle, Edit, Trash2, Loader2 } from "lucide-react"
+import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
 import type { PetitionType, PetitionPriority } from "@/lib/types"
 
@@ -154,11 +155,8 @@ export default function PetitionDetailPage() {
   // Show loading state while checking auth or fetching petition
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading petition...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AppLoader message="Loading petition..." />
       </div>
     )
   }
