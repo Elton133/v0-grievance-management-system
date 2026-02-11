@@ -10,10 +10,11 @@ import {
   getNextReviewer,
 } from "../utils/workflowService";
 import { sendEmail, emailTemplates } from "../utils/emailService";
+import { sanitizeInput, sanitizeText } from "../utils/sanitize";
 
 // Create a new petition
 export const createPetition = async (req: AuthRequest, res: Response) => {
-  const { subject, description, type, department, year, priority } = req.body;
+  const { subject, description, type, department, year, priority, attachments } = req.body;
   
   try {
     if (!req.user) {
@@ -25,8 +26,11 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const petitionDepartment = department || user.department || "Unknown";
-    const petitionYear = year || "Unknown";
+    // Sanitize inputs
+    const sanitizedSubject = sanitizeInput(subject);
+    const sanitizedDescription = sanitizeText(description);
+    const petitionDepartment = department ? sanitizeInput(department) : (user.department || "Unknown");
+    const petitionYear = year ? sanitizeInput(year) : "Unknown";
 
     // Create petition
     const petition = await prisma.petition.create({
@@ -37,13 +41,26 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
         department: petitionDepartment,
         year: petitionYear,
         type,
-        subject,
-        description,
+        subject: sanitizedSubject,
+        description: sanitizedDescription,
         priority: priority || "medium",
         status: "submitted",
         escalationLevel: 1, // Start at level 1 (Class Advisor)
       },
     });
+
+    // Create attachments if provided
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+      await prisma.petitionAttachment.createMany({
+        data: attachments.map((att: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }) => ({
+          petitionId: petition.id,
+          fileName: sanitizeInput(att.fileName),
+          fileUrl: att.fileUrl, // URL is already validated from Supabase
+          fileSize: att.fileSize || null,
+          mimeType: att.mimeType || null,
+        })),
+      });
+    }
 
     // Auto-assign to first reviewer (Class Advisor) - optimized to get reviewer in one query
     const reviewer = await getNextReviewer(1, petitionDepartment);
@@ -119,9 +136,16 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get all petitions - optimized with select instead of include
+// Get all petitions - optimized with select instead of include, with pagination
 export const getPetitions = async (req: AuthRequest, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await prisma.petition.count();
+
     const petitions = await prisma.petition.findMany({
       select: {
         id: true,
@@ -151,10 +175,21 @@ export const getPetitions = async (req: AuthRequest, res: Response) => {
       orderBy: {
         submittedAt: "desc"
       },
-      take: 1000, // Limit results to prevent large queries
+      skip,
+      take: limit,
     });
 
-    res.json(petitions);
+    res.json({
+      data: petitions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
@@ -416,13 +451,16 @@ export const addComment = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Petition not found" });
     }
 
+    // Sanitize comment content
+    const sanitizedContent = sanitizeText(content);
+
     const comment = await prisma.petitionComment.create({
       data: {
         petitionId: id,
         authorId: req.user.id,
         authorName: user.name,
         authorRole: user.role,
-        content,
+        content: sanitizedContent,
         isInternal: isInternal || false,
       },
       include: {
@@ -444,12 +482,21 @@ export const addComment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get user's petitions
+// Get user's petitions with pagination
 export const getUserPetitions = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await prisma.petition.count({
+      where: { studentId: req.user.id },
+    });
 
     const petitions = await prisma.petition.findMany({
       where: { studentId: req.user.id },
@@ -465,10 +512,22 @@ export const getUserPetitions = async (req: AuthRequest, res: Response) => {
       },
       orderBy: {
         submittedAt: "desc"
-      }
+      },
+      skip,
+      take: limit,
     });
 
-    res.json(petitions);
+    res.json({
+      data: petitions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
@@ -502,15 +561,21 @@ export const updatePetition = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Sanitize inputs
+    const sanitizedSubject = subject ? sanitizeInput(subject) : petition.subject;
+    const sanitizedDescription = description ? sanitizeText(description) : petition.description;
+    const sanitizedYear = year ? sanitizeInput(year) : petition.year;
+    const sanitizedDepartment = department ? sanitizeInput(department) : petition.department;
+
     const updatedPetition = await prisma.petition.update({
       where: { id },
       data: {
-        subject: subject || petition.subject,
-        description: description || petition.description,
+        subject: sanitizedSubject,
+        description: sanitizedDescription,
         type: type || petition.type,
         priority: priority || petition.priority,
-        year: year || petition.year,
-        department: department || petition.department,
+        year: sanitizedYear,
+        department: sanitizedDepartment,
         updatedAt: new Date(),
       },
       include: {
@@ -567,7 +632,102 @@ export const deletePetition = async (req: AuthRequest, res: Response) => {
       prisma.petition.delete({ where: { id } }),
     ]);
 
+    // TODO: Delete files from Supabase Storage when petition is deleted
+    // This should be done before deleting the petition record
+
     res.json({ message: "Petition deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error", details: err });
+  }
+};
+
+// Add attachment to petition
+export const addAttachment = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { fileName, fileUrl, fileSize, mimeType } = req.body;
+
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const petition = await prisma.petition.findUnique({ where: { id } });
+    if (!petition) {
+      return res.status(404).json({ error: "Petition not found" });
+    }
+
+    // Only the owner (student) can add attachments, and only if status is "submitted"
+    if (petition.studentId !== req.user.id) {
+      return res.status(403).json({ error: "You can only add attachments to your own petitions" });
+    }
+
+    if (petition.status !== "submitted") {
+      return res.status(400).json({ 
+        error: "Cannot add attachment", 
+        message: "You can only add attachments to petitions that are still in 'submitted' status" 
+      });
+    }
+
+    const attachment = await prisma.petitionAttachment.create({
+      data: {
+        petitionId: id,
+        fileName: sanitizeInput(fileName),
+        fileUrl, // URL is already validated from Supabase
+        fileSize: fileSize || null,
+        mimeType: mimeType || null,
+      },
+    });
+
+    res.status(201).json(attachment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error", details: err });
+  }
+};
+
+// Delete attachment from petition
+export const deleteAttachment = async (req: AuthRequest, res: Response) => {
+  const { id, attachmentId } = req.params;
+
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const petition = await prisma.petition.findUnique({ where: { id } });
+    if (!petition) {
+      return res.status(404).json({ error: "Petition not found" });
+    }
+
+    const attachment = await prisma.petitionAttachment.findUnique({
+      where: { id: attachmentId },
+    });
+
+    if (!attachment || attachment.petitionId !== id) {
+      return res.status(404).json({ error: "Attachment not found" });
+    }
+
+    // Only the owner (student) can delete attachments, and only if status is "submitted"
+    if (petition.studentId !== req.user.id) {
+      return res.status(403).json({ error: "You can only delete attachments from your own petitions" });
+    }
+
+    if (petition.status !== "submitted") {
+      return res.status(400).json({ 
+        error: "Cannot delete attachment", 
+        message: "You can only delete attachments from petitions that are still in 'submitted' status" 
+      });
+    }
+
+    // TODO: Delete file from Supabase Storage
+    // await deleteFile(attachment.fileUrl);
+
+    await prisma.petitionAttachment.delete({
+      where: { id: attachmentId },
+    });
+
+    res.json({ message: "Attachment deleted successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });

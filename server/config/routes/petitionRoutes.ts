@@ -9,7 +9,9 @@ import {
   addComment,
   getUserPetitions,
   updatePetition,
-  deletePetition
+  deletePetition,
+  addAttachment,
+  deleteAttachment,
 } from "../controllers/petitionController";
 
 const router = Router();
@@ -43,5 +45,11 @@ router.put("/:id", updatePetition);
 
 // DELETE /api/petitions/:id - Delete petition (students only, submitted status only)
 router.delete("/:id", deletePetition);
+
+// POST /api/petitions/:id/attachments - Add attachment to petition
+router.post("/:id/attachments", addAttachment);
+
+// DELETE /api/petitions/:id/attachments/:attachmentId - Delete attachment from petition
+router.delete("/:id/attachments/:attachmentId", deleteAttachment);
 
 export default router;
