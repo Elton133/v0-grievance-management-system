@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { sendEmailViaResend, isResendConfigured } from "./resendService";
 
 // Email service configuration
 const createTransporter = () => {
@@ -47,6 +48,19 @@ interface EmailOptions {
 export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<boolean> => {
   const startTime = Date.now();
   
+  // Prefer Resend if configured
+  if (isResendConfigured()) {
+    console.log(`[Email Service] Using Resend to send email to ${to}`);
+    const success = await sendEmailViaResend(to, subject, html);
+    if (success) {
+      const duration = Date.now() - startTime;
+      console.log(`[Email Service] ✅ Email sent via Resend (${duration}ms)`);
+      return true;
+    }
+    // Fall back to SMTP if Resend fails
+    console.log(`[Email Service] ⚠️ Resend failed, falling back to SMTP`);
+  }
+  
   try {
     // Check if SMTP is configured
     const smtpUser = process.env.SMTP_USER;
@@ -55,12 +69,10 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
     const smtpPort = process.env.SMTP_PORT || "587";
     
     if (!smtpUser || !smtpPass) {
-      console.error(`[Email Service] ❌ SMTP not configured. Cannot send email to ${to}`);
-      console.error(`[Email Service] Missing environment variables:`);
-      console.error(`   - SMTP_USER: ${smtpUser ? "✅ Set" : "❌ Missing"}`);
-      console.error(`   - SMTP_PASS: ${smtpPass ? "✅ Set" : "❌ Missing"}`);
-      console.error(`[Email Service] Set SMTP_USER and SMTP_PASS environment variables to enable email sending.`);
-      console.error(`[Email Service] For Gmail, use an App Password: https://myaccount.google.com/apppasswords`);
+      console.error(`[Email Service] ❌ Neither Resend nor SMTP configured. Cannot send email to ${to}`);
+      console.error(`[Email Service] Configure one of the following:`);
+      console.error(`   Option 1 (Recommended): Set RESEND_API_KEY and RESEND_FROM_EMAIL`);
+      console.error(`   Option 2: Set SMTP_USER and SMTP_PASS`);
       return false; // Return false in production to indicate failure
     }
 
@@ -248,6 +260,52 @@ export const emailTemplates = {
       `,
     };
   },
+
+  emailVerification: (userName: string, verificationToken: string) => {
+    const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+    return {
+      subject: "Verify Your Email Address - Grievance Management System",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb;">Verify Your Email Address</h2>
+          <p>Dear ${userName},</p>
+          <p>Thank you for registering with the Grievance Management System. Please verify your email address to complete your registration.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email Address</a>
+          </div>
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="color: #6b7280; word-break: break-all;">${verificationUrl}</p>
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">This link will expire in 24 hours.</p>
+          <p style="margin-top: 30px;">Best regards,<br>Grievance Management System</p>
+        </div>
+      `,
+    };
+  },
+
+  passwordReset: (userName: string, resetToken: string) => {
+    const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+
+    return {
+      subject: "Reset Your Password - Grievance Management System",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb;">Reset Your Password</h2>
+          <p>Dear ${userName},</p>
+          <p>We received a request to reset your password for your Grievance Management System account.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
+          </div>
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="color: #6b7280; word-break: break-all;">${resetUrl}</p>
+          <p style="color: #dc2626; font-size: 14px; margin-top: 20px;"><strong>⚠️ Important:</strong> This link will expire in 1 hour. If you didn't request this, please ignore this email.</p>
+          <p style="margin-top: 30px;">Best regards,<br>Grievance Management System</p>
+        </div>
+      `,
+    };
+  },
 };
 
 /**
@@ -255,21 +313,34 @@ export const emailTemplates = {
  * Useful for debugging production issues
  */
 export const checkEmailConfiguration = () => {
+  const resendConfigured = isResendConfigured();
+  const smtpConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+  
   const config = {
+    provider: resendConfigured ? "Resend" : smtpConfigured ? "SMTP" : "None",
+    resendApiKey: process.env.RESEND_API_KEY ? "✅ SET" : "❌ NOT SET",
+    resendFromEmail: process.env.RESEND_FROM_EMAIL || "Using default",
     smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
     smtpPort: process.env.SMTP_PORT || "587",
     smtpUser: process.env.SMTP_USER,
     smtpPass: process.env.SMTP_PASS ? "***" : undefined,
     smtpFrom: process.env.SMTP_FROM,
-    isConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
+    isConfigured: resendConfigured || smtpConfigured,
   };
   
   console.log("[Email Service] Configuration Status:");
-  console.log(`  SMTP_HOST: ${config.smtpHost}`);
-  console.log(`  SMTP_PORT: ${config.smtpPort}`);
-  console.log(`  SMTP_USER: ${config.smtpUser || "❌ NOT SET"}`);
-  console.log(`  SMTP_PASS: ${config.smtpPass ? "✅ SET" : "❌ NOT SET"}`);
-  console.log(`  SMTP_FROM: ${config.smtpFrom || "Using default"}`);
+  console.log(`  Provider: ${config.provider}`);
+  if (resendConfigured) {
+    console.log(`  RESEND_API_KEY: ${config.resendApiKey}`);
+    console.log(`  RESEND_FROM_EMAIL: ${config.resendFromEmail}`);
+  }
+  if (smtpConfigured || !resendConfigured) {
+    console.log(`  SMTP_HOST: ${config.smtpHost}`);
+    console.log(`  SMTP_PORT: ${config.smtpPort}`);
+    console.log(`  SMTP_USER: ${config.smtpUser || "❌ NOT SET"}`);
+    console.log(`  SMTP_PASS: ${config.smtpPass ? "✅ SET" : "❌ NOT SET"}`);
+    console.log(`  SMTP_FROM: ${config.smtpFrom || "Using default"}`);
+  }
   console.log(`  Status: ${config.isConfigured ? "✅ CONFIGURED" : "❌ NOT CONFIGURED"}`);
   
   return config;

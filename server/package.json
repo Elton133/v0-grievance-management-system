@@ -28,6 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.15",
     "prisma": "6.19.1",
+    "resend": "^6.9.2",
     "typescript": "^5",
     "zod": "^4.3.6"
   },

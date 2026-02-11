@@ -5,6 +5,7 @@ import crypto from "crypto";
 import prisma from "../db";
 import { registrationSchema } from "../validation/registrationSchema";
 import { sanitizeInput } from "../utils/sanitize";
+import { sendEmail, emailTemplates } from "../utils/emailService";
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -50,9 +51,18 @@ export const registerUser = async (req: Request, res: Response) => {
       },
     });
 
-    // TODO: Send verification email when email service is configured
-    // For now, we'll auto-verify if email service is not configured
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    // Send verification email
+    const emailTemplate = emailTemplates.emailVerification(user.name, emailVerificationToken);
+    sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+    }).catch((err) => {
+      console.error("Error sending verification email:", err);
+    });
+
+    // Auto-verify if email service is not configured (for development)
+    if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) {
       await prisma.user.update({
         where: { id: user.id },
         data: { emailVerified: true },
@@ -185,8 +195,16 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
       },
     });
 
-    // TODO: Send verification email when email service is configured
-    // For now, just return success
+    // Send verification email
+    const emailTemplate = emailTemplates.emailVerification(user.name, emailVerificationToken);
+    sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+    }).catch((err) => {
+      console.error("Error sending verification email:", err);
+    });
+
     res.json({ msg: "If the email exists, a verification link has been sent" });
   } catch (err) {
     console.error("Resend verification error:", err);
@@ -224,13 +242,21 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       },
     });
 
-    // TODO: Send password reset email when email service is configured
-    // For now, just return success
+    // Send password reset email
+    const emailTemplate = emailTemplates.passwordReset(user.name, passwordResetToken);
+    sendEmail({
+      to: user.email,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+    }).catch((err) => {
+      console.error("Error sending password reset email:", err);
+    });
+
     res.json({ 
       msg: "If the email exists, a password reset link has been sent",
       // In development, you might want to return the token for testing
       // Remove this in production!
-      ...(process.env.NODE_ENV === "development" && { token: passwordResetToken }),
+      ...(process.env.NODE_ENV === "development" && !process.env.RESEND_API_KEY && !process.env.SMTP_USER && { token: passwordResetToken }),
     });
   } catch (err) {
     console.error("Password reset request error:", err);
