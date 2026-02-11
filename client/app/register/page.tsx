@@ -14,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { registrationSchema, type RegistrationFormData } from "@/lib/validation"
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegistrationFormData>({
     name: "",
     email: "",
     password: "",
@@ -25,6 +26,7 @@ export default function RegisterPage() {
     studentId: "",
     department: "",
   })
+  const [errors, setErrors] = useState<Partial<Record<keyof RegistrationFormData, string>>>({})
   const [error, setError] = useState("")
   const { register, isLoading } = useAuth()
   const router = useRouter()
@@ -32,42 +34,24 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrors({})
 
-    // Validation
-    if (!formData.name || !formData.email || !formData.password) {
-      toast.error("Please fill in all required fields")
-      setError("Please fill in all required fields")
-      return
-    }
+    // Validate with Zod
+    const validationResult = registrationSchema.safeParse(formData)
 
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match")
-      setError("Passwords do not match")
-      return
-    }
+    if (!validationResult.success) {
+      const fieldErrors: Partial<Record<keyof RegistrationFormData, string>> = {}
+      validationResult.error.errors.forEach((err) => {
+        const path = err.path[0] as keyof RegistrationFormData
+        if (path) {
+          fieldErrors[path] = err.message
+        }
+      })
+      setErrors(fieldErrors)
 
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters long")
-      setError("Password must be at least 6 characters long")
-      return
-    }
-
-    if (formData.role === "student") {
-      if (!formData.studentId) {
-        toast.error("Student ID is required for students")
-        setError("Student ID is required for students")
-        return
-      }
-      if (!formData.department) {
-        toast.error("Department is required for students")
-        setError("Department is required for students")
-        return
-      }
-    }
-
-    if (formData.role !== "student" && !formData.department) {
-      toast.error("Department is required for staff members")
-      setError("Department is required for staff members")
+      // Show first error as toast
+      const firstError = validationResult.error.errors[0]
+      toast.error(firstError.message)
       return
     }
 
@@ -120,9 +104,15 @@ export default function RegisterPage() {
                   type="text"
                   placeholder="John Doe"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value })
+                    if (errors.name) setErrors({ ...errors, name: undefined })
+                  }}
                   required
                 />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -130,11 +120,20 @@ export default function RegisterPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your.email@university.edu"
+                  placeholder="your.email@st.rmu.edu.gh"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value })
+                    if (errors.email) setErrors({ ...errors, email: undefined })
+                  }}
                   required
                 />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Must be from @st.rmu.edu.gh or @rmu.edu.gh
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -163,16 +162,26 @@ export default function RegisterPage() {
                       id="studentId"
                       type="text"
                       placeholder="BIT0001526"
-                      value={formData.studentId}
-                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                      value={formData.studentId || ""}
+                      onChange={(e) => {
+                        setFormData({ ...formData, studentId: e.target.value })
+                        if (errors.studentId) setErrors({ ...errors, studentId: undefined })
+                      }}
                       required
                     />
+                    {errors.studentId && (
+                      <p className="text-sm text-destructive">{errors.studentId}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department *</Label>
                     <Select
                       value={formData.department}
-                      onValueChange={(value) => setFormData({ ...formData, department: value })}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, department: value, studentId: "" })
+                        if (errors.department) setErrors({ ...errors, department: undefined })
+                        if (errors.studentId) setErrors({ ...errors, studentId: undefined })
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select department" />
@@ -181,8 +190,12 @@ export default function RegisterPage() {
                         <SelectItem value="ICT">ICT</SelectItem>
                         <SelectItem value="Transport">Transport</SelectItem>
                         <SelectItem value="Marine Electrical & Electronic Engineering">Marine Electrical & Electronic Engineering</SelectItem>
+                        <SelectItem value="Nautical Science">Nautical Science</SelectItem>
                       </SelectContent>
                     </Select>
+                    {errors.department && (
+                      <p className="text-sm text-destructive">{errors.department}</p>
+                    )}
                   </div>
                 </>
               )}
@@ -192,17 +205,26 @@ export default function RegisterPage() {
                   <Label htmlFor="department">Department *</Label>
                   <Select
                     value={formData.department}
-                    onValueChange={(value) => setFormData({ ...formData, department: value })}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, department: value })
+                      if (errors.department) setErrors({ ...errors, department: undefined })
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ICT">ICT</SelectItem>
+                      <SelectItem value="Transport">Transport</SelectItem>
+                      <SelectItem value="Marine Electrical & Electronic Engineering">Marine Electrical & Electronic Engineering</SelectItem>
+                      <SelectItem value="Nautical Science">Nautical Science</SelectItem>
                       <SelectItem value="Business">Business</SelectItem>
                       <SelectItem value="Engineering">Engineering</SelectItem>
                     </SelectContent>
                   </Select>
+                  {errors.department && (
+                    <p className="text-sm text-destructive">{errors.department}</p>
+                  )}
                 </div>
               )}
 
@@ -213,10 +235,16 @@ export default function RegisterPage() {
                   type="password"
                   placeholder="Enter your password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value })
+                    if (errors.password) setErrors({ ...errors, password: undefined })
+                  }}
                   required
                   minLength={6}
                 />
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
               </div>
 
@@ -227,9 +255,15 @@ export default function RegisterPage() {
                   type="password"
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, confirmPassword: e.target.value })
+                    if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: undefined })
+                  }}
                   required
                 />
+                {errors.confirmPassword && (
+                  <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                )}
               </div>
 
               {error && (
