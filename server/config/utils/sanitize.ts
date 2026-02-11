@@ -2,8 +2,8 @@ import DOMPurify from "dompurify"
 import { JSDOM } from "jsdom"
 
 // Create a DOMPurify instance for server-side use
-const window = new JSDOM("").window
-const purify = DOMPurify(window as unknown as Window)
+const window = new JSDOM("").window as unknown as Window & typeof globalThis
+const purify = DOMPurify(window)
 
 /**
  * Sanitize HTML content to prevent XSS attacks
