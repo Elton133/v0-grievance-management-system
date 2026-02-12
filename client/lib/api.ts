@@ -126,14 +126,34 @@ export const petitionApi = {
     });
   },
 
-  // Get all petitions
-  getAll: async () => {
-    return apiRequest<any[]>("/petitions");
+  // Get all petitions (with pagination)
+  getAll: async (page: number = 1, limit: number = 20) => {
+    return apiRequest<{
+      data: any[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/petitions?page=${page}&limit=${limit}`);
   },
 
-  // Get user's petitions
-  getMyPetitions: async () => {
-    return apiRequest<any[]>("/petitions/my");
+  // Get user's petitions (with pagination)
+  getMyPetitions: async (page: number = 1, limit: number = 20) => {
+    return apiRequest<{
+      data: any[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/petitions/my?page=${page}&limit=${limit}`);
   },
 
   // Get petition by ID
@@ -180,6 +200,32 @@ export const petitionApi = {
     return apiRequest<{ message: string }>(`/petitions/${id}`, {
       method: "DELETE",
     });
+  },
+
+  // Add attachment to petition
+  addAttachment: async (
+    petitionId: string,
+    data: {
+      fileName: string;
+      fileUrl: string;
+      fileSize?: number;
+      mimeType?: string;
+    }
+  ) => {
+    return apiRequest<any>(`/petitions/${petitionId}/attachments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete attachment from petition
+  deleteAttachment: async (petitionId: string, attachmentId: string) => {
+    return apiRequest<{ message: string }>(
+      `/petitions/${petitionId}/attachments/${attachmentId}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 };
 

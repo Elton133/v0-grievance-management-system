@@ -16,6 +16,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, FileText, Send } from "lucide-react"
 import Link from "next/link"
+import { FileUpload } from "@/components/file-upload"
+import { uploadFileToSupabase } from "@/lib/file-upload"
+import { petitionApi } from "@/lib/api"
 
 const petitionTypes: { value: PetitionType; label: string }[] = [
   { value: "academic_issue", label: "Academic Issue" },
@@ -49,6 +52,7 @@ export default function NewPetitionPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -104,6 +108,41 @@ export default function NewPetitionPage() {
         subject: formData.subject,
         description: formData.description,
       })
+
+      // Upload files to Supabase Storage and create attachment records
+      if (selectedFiles.length > 0 && petition.id && user.id) {
+        try {
+          // Upload files to Supabase Storage
+          const uploadPromises = selectedFiles.map((file) =>
+            uploadFileToSupabase(file, petition.id, user.id)
+          )
+          const uploadedResults = await Promise.all(uploadPromises)
+          const successfulUploads = uploadedResults.filter((result) => result !== null)
+
+          // Create attachment records in database
+          if (successfulUploads.length > 0) {
+            const attachmentPromises = successfulUploads.map((file) =>
+              petitionApi.addAttachment(petition.id, {
+                fileName: file!.fileName,
+                fileUrl: file!.url,
+                fileSize: file!.fileSize,
+                mimeType: file!.mimeType,
+              })
+            )
+            await Promise.all(attachmentPromises)
+            toast.success(`Successfully uploaded ${successfulUploads.length} attachment(s)`)
+          }
+
+          if (successfulUploads.length < selectedFiles.length) {
+            toast.warning(
+              `Petition created but ${selectedFiles.length - successfulUploads.length} file(s) failed to upload`
+            )
+          }
+        } catch (err) {
+          console.error("Error uploading attachments:", err)
+          toast.warning("Petition created but attachments failed to upload")
+        }
+      }
 
       toast.success("Petition submitted successfully!", {
         description: "Your grievance has been submitted and is awaiting review.",
@@ -237,6 +276,12 @@ export default function NewPetitionPage() {
                       required
                     />
                   </div>
+
+                  <FileUpload
+                    onFilesChange={setSelectedFiles}
+                    selectedFiles={selectedFiles}
+                    disabled={isSubmitting}
+                  />
 
                   {error && (
                     <Alert variant="destructive">

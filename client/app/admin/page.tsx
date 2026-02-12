@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
+import { Pagination } from "@/components/ui/pagination"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -28,6 +29,8 @@ export default function AdminPage() {
   const [allPetitions, setAllPetitions] = useState<Petition[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [updatingPetitionId, setUpdatingPetitionId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 12
 
   // Fetch petitions based on user role
   useEffect(() => {
@@ -87,6 +90,28 @@ export default function AdminPage() {
       return matchesSearch && matchesStatus && matchesType
     })
   }, [allPetitions, searchQuery, statusFilter, typeFilter, activeTab, user])
+
+  // Paginate filtered results
+  const paginatedPetitions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredPetitions.slice(startIndex, endIndex)
+  }, [filteredPetitions, currentPage, itemsPerPage])
+
+  const filteredPagination = useMemo(() => {
+    const totalPages = Math.ceil(filteredPetitions.length / itemsPerPage)
+    return {
+      page: currentPage,
+      totalPages,
+      hasNext: currentPage < totalPages,
+      hasPrev: currentPage > 1,
+    }
+  }, [filteredPetitions.length, currentPage, itemsPerPage])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, typeFilter, activeTab])
 
   const stats = useMemo(() => {
     if (!user) return { total: 0, pending: 0, resolved: 0, urgent: 0, assigned: 0 }
@@ -347,17 +372,28 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {filteredPetitions.map((petition) => (
-                  <AdminPetitionCard
-                    key={petition.id}
-                    petition={petition}
-                    userRole={user.role}
-                    onStatusUpdate={handleStatusUpdate}
-                    isUpdating={updatingPetitionId === petition.id}
+              <>
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {paginatedPetitions.map((petition) => (
+                    <AdminPetitionCard
+                      key={petition.id}
+                      petition={petition}
+                      userRole={user.role}
+                      onStatusUpdate={handleStatusUpdate}
+                      isUpdating={updatingPetitionId === petition.id}
+                    />
+                  ))}
+                </div>
+                {filteredPagination.totalPages > 1 && (
+                  <Pagination
+                    page={filteredPagination.page}
+                    totalPages={filteredPagination.totalPages}
+                    onPageChange={setCurrentPage}
+                    hasNext={filteredPagination.hasNext}
+                    hasPrev={filteredPagination.hasPrev}
                   />
-                ))}
-              </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
+import { Pagination } from "@/components/ui/pagination"
 import Link from "next/link"
 
 export default function DashboardPage() {
@@ -22,6 +23,14 @@ export default function DashboardPage() {
   const [typeFilter, setTypeFilter] = useState<PetitionType | "all">("all")
   const [allPetitions, setAllPetitions] = useState<Petition[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    totalPages: 1,
+    hasNext: false,
+    hasPrev: false,
+  })
+  const itemsPerPage = 12
 
   // Fetch petitions based on user role
   useEffect(() => {
@@ -33,13 +42,15 @@ export default function DashboardPage() {
 
       setIsLoading(true)
       try {
-        let petitions: Petition[] = []
+        // Fetch all petitions (we'll paginate client-side after filtering)
+        // For better performance, you can implement server-side filtering later
+        let result: { data: Petition[]; pagination: any }
         if (user.role === "student") {
-          petitions = await getPetitionsByStudent(user.studentId!)
+          result = await getPetitionsByStudent(user.studentId!, 1, 1000) // Fetch all for now
         } else {
-          petitions = await getPetitions()
+          result = await getPetitions(1, 1000) // Fetch all for now
         }
-        setAllPetitions(petitions)
+        setAllPetitions(result.data)
       } catch (error) {
         console.error("Error fetching petitions:", error)
         setAllPetitions([])
@@ -51,7 +62,7 @@ export default function DashboardPage() {
     fetchPetitions()
   }, [user])
 
-  // Filter petitions
+  // Filter petitions (client-side filtering for now)
   const filteredPetitions = useMemo(() => {
     return allPetitions.filter((petition) => {
       const matchesSearch =
@@ -65,6 +76,28 @@ export default function DashboardPage() {
       return matchesSearch && matchesStatus && matchesType
     })
   }, [allPetitions, searchQuery, statusFilter, typeFilter])
+
+  // Paginate filtered results
+  const paginatedPetitions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredPetitions.slice(startIndex, endIndex)
+  }, [filteredPetitions, currentPage, itemsPerPage])
+
+  const filteredPagination = useMemo(() => {
+    const totalPages = Math.ceil(filteredPetitions.length / itemsPerPage)
+    return {
+      page: currentPage,
+      totalPages,
+      hasNext: currentPage < totalPages,
+      hasPrev: currentPage > 1,
+    }
+  }, [filteredPetitions.length, currentPage, itemsPerPage])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, typeFilter])
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -267,11 +300,22 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPetitions.map((petition) => (
-                <PetitionCard key={petition.id} petition={petition} />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {paginatedPetitions.map((petition) => (
+                  <PetitionCard key={petition.id} petition={petition} />
+                ))}
+              </div>
+              {filteredPagination.totalPages > 1 && (
+                <Pagination
+                  page={filteredPagination.page}
+                  totalPages={filteredPagination.totalPages}
+                  onPageChange={setCurrentPage}
+                  hasNext={filteredPagination.hasNext}
+                  hasPrev={filteredPagination.hasPrev}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

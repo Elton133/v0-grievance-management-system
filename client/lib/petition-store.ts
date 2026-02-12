@@ -61,23 +61,36 @@ export async function submitPetition(
   }
 }
 
-export async function getPetitions(): Promise<Petition[]> {
+export async function getPetitions(
+  page: number = 1,
+  limit: number = 20
+): Promise<{ data: Petition[]; pagination: any }> {
   try {
-    const response = await petitionApi.getAll()
-    return response.map(transformPetition)
+    const response = await petitionApi.getAll(page, limit)
+    return {
+      data: response.data.map(transformPetition),
+      pagination: response.pagination,
+    }
   } catch (error) {
     console.error("Error fetching petitions:", error)
-    return []
+    return { data: [], pagination: { page: 1, totalPages: 0, hasNext: false, hasPrev: false } }
   }
 }
 
-export async function getPetitionsByStudent(studentId: string): Promise<Petition[]> {
+export async function getPetitionsByStudent(
+  studentId: string,
+  page: number = 1,
+  limit: number = 20
+): Promise<{ data: Petition[]; pagination: any }> {
   try {
-    const response = await petitionApi.getMyPetitions()
-    return response.map(transformPetition)
+    const response = await petitionApi.getMyPetitions(page, limit)
+    return {
+      data: response.data.map(transformPetition),
+      pagination: response.pagination,
+    }
   } catch (error) {
     console.error("Error fetching student petitions:", error)
-    return []
+    return { data: [], pagination: { page: 1, totalPages: 0, hasNext: false, hasPrev: false } }
   }
 }
 
