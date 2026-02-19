@@ -1,0 +1,95 @@
+"use client"
+
+import { useAuth } from "@/lib/auth-context"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowLeft, Mail, User, Phone, BookOpen, Building2 } from "lucide-react"
+import Link from "next/link"
+import { redirect } from "next/navigation"
+
+export default function ProfilePage() {
+  const { user } = useAuth()
+
+  if (!user) {
+    redirect("/login")
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8">
+        <Link href="/dashboard">
+          <Button variant="ghost" className="mb-6">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </Link>
+
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl">My Profile</CardTitle>
+            <CardDescription>View your personal information</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6">
+              <div className="flex items-start gap-4">
+                <User className="h-5 w-5 text-muted-foreground mt-1" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                  <p className="text-lg font-semibold">{user.name}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4">
+                <Mail className="h-5 w-5 text-muted-foreground mt-1" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Email</p>
+                  <p className="text-lg font-semibold">{user.email}</p>
+                </div>
+              </div>
+
+              {user.phone && (
+                <div className="flex items-start gap-4">
+                  <Phone className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Contact</p>
+                    <p className="text-lg font-semibold">{user.phone}</p>
+                  </div>
+                </div>
+              )}
+
+              {user.studentId && (
+                <div className="flex items-start gap-4">
+                  <BookOpen className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Student ID</p>
+                    <p className="text-lg font-semibold">{user.studentId}</p>
+                  </div>
+                </div>
+              )}
+
+              {user.class && (
+                <div className="flex items-start gap-4">
+                  <BookOpen className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Class</p>
+                    <p className="text-lg font-semibold">{user.class}</p>
+                  </div>
+                </div>
+              )}
+
+              {user.department && (
+                <div className="flex items-start gap-4">
+                  <Building2 className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Department</p>
+                    <p className="text-lg font-semibold">{user.department}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
