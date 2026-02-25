@@ -4,13 +4,14 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/lib/auth-context"
+import { SettingsProvider } from "@/lib/settings-context"
 import { Suspense } from "react"
 import { Toaster } from "sonner"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Student Grievance Management System",
-  description: "Institutional portal for managing student grievances and petitions",
+  title: "Grievance Management System",
+  description: "Institutional portal for managing grievances and tickets",
 }
 
 export default function RootLayout({
@@ -22,7 +23,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Suspense fallback={<div>Loading...</div>}>
-          <AuthProvider>{children}</AuthProvider>
+          <SettingsProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </SettingsProvider>
         </Suspense>
         <Toaster position="top-right" richColors closeButton />
         <Analytics />

@@ -8,93 +8,118 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")      // Connection pooling URL (for queries)
-  directUrl = env("DIRECT_URL")        // Direct connection URL (for migrations)
+  url       = env("DATABASE_URL") // Connection pooling URL (for queries)
+  directUrl = env("DIRECT_URL") // Direct connection URL (for migrations)
 }
 
+// Tenant/Organization settings — CMS-driven configuration
+model TenantSettings {
+  id               String  @id @default("default")
+  organizationName String  @default("Grievance Management System")
+  logoUrl          String?
+  primaryColor     String  @default("#2563eb")
+  accentColor      String  @default("#1e40af")
+  supportEmail     String?
 
-// User accounts (students + admins)
+  // Dynamic roles config: [{key: "submitter", label: "Submitter", level: 0, isSubmitter: true}, ...]
+  rolesConfig         Json @default("[]")
+  // Escalation chain: [{fromStatus: "submitted", toStatus: "under_review", requiredRoleKey: "class_advisor"}, ...]
+  escalationConfig    Json @default("[]")
+  // Ticket types: [{key: "academic_issue", label: "Academic Issue"}, ...]
+  ticketTypesConfig   Json @default("[]")
+  // Status labels: [{key: "submitted", label: "Submitted", color: "#f59e0b"}, ...]
+  statusLabelsConfig  Json @default("[]")
+  // Allowed email domains (empty = allow all): ["@st.rmu.edu.gh", "@rmu.edu.gh"]
+  allowedEmailDomains Json @default("[]")
+  // Group-to-index prefixes: {"ICT": ["BIT","BCS"], "Transport": ["BPS"]}
+  groupPrefixes       Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User accounts (submitters + admins)
 model User {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  passwordHash String
-  name         String
-  role         Role
-  studentId    String?    @unique
-  department   String?
-  emailVerified Boolean   @default(false)
-  emailVerificationToken String? @unique
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  passwordHash             String
+  name                     String
+  role                     String // Dynamic role key from TenantSettings.rolesConfig
+  submitterId              String?   @unique
+  group                    String?
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String?   @unique
   emailVerificationExpires DateTime?
-  passwordResetToken String? @unique
-  passwordResetExpires DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  passwordResetToken       String?   @unique
+  passwordResetExpires     DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  petitions        Petition[]       @relation("StudentPetitions")
-  assignedPetitions Petition[]      @relation("AssignedPetitions")
-  comments          PetitionComment[]
-  statusHistory     PetitionStatusHistory[]
-  notifications     Notification[]
-  auditLogs         AuditLog[]
+  tickets         Ticket[]              @relation("SubmitterTickets")
+  assignedTickets Ticket[]              @relation("AssignedTickets")
+  comments        TicketComment[]
+  statusHistory   TicketStatusHistory[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
 
-  @@index([role, department])
+  @@index([role, group])
   @@index([email])
   @@index([emailVerificationToken])
   @@index([passwordResetToken])
 }
 
-// Main petition table
-model Petition {
-  id             String                @id @default(uuid())
-  studentId      String
-  student        User                  @relation("StudentPetitions", fields: [studentId], references: [id])
-  studentName    String
-  studentEmail   String
-  department     String
-  year           String
-  type           PetitionType
-  priority       Priority              @default(medium)
-  subject        String
-  description    String
-  status         PetitionStatus        @default(submitted)
-  assignedTo     String?               
-  assignedUser   User?                 @relation("AssignedPetitions", fields: [assignedTo], references: [id])
-  escalationLevel Int                  @default(1)
-  submittedAt    DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+// Main ticket table
+model Ticket {
+  id              String   @id @default(uuid())
+  submitterId     String
+  submitter       User     @relation("SubmitterTickets", fields: [submitterId], references: [id])
+  submitterName   String
+  submitterEmail  String
+  group           String
+  year            String
+  type            String // Dynamic ticket type key from TenantSettings
+  priority        String   @default("medium") // low, medium, high, urgent
+  subject         String
+  description     String
+  status          String   @default("submitted") // Dynamic status key from TenantSettings
+  assignedTo      String?
+  assignedUser    User?    @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  escalationLevel Int      @default(1)
+  submittedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  comments       PetitionComment[]
-  attachments    PetitionAttachment[]
-  statusHistory  PetitionStatusHistory[]
-  notifications  Notification[]
+  comments      TicketComment[]
+  attachments   TicketAttachment[]
+  statusHistory TicketStatusHistory[]
+  notifications Notification[]
 
-  @@index([studentId])
+  @@index([submitterId])
   @@index([assignedTo])
   @@index([status])
-  @@index([department, escalationLevel])
+  @@index([group, escalationLevel])
   @@index([submittedAt])
-  @@index([status, department])
+  @@index([status, group])
 }
 
-// Petition comments
-model PetitionComment {
+// Ticket comments
+model TicketComment {
   id         String   @id @default(uuid())
-  petitionId String
-  petition   Petition @relation(fields: [petitionId], references: [id])
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
   authorId   String
   author     User     @relation(fields: [authorId], references: [id])
   authorName String
-  authorRole Role
+  authorRole String // Dynamic role key
   content    String
   isInternal Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
 
-// Petition attachments
-model PetitionAttachment {
+// Ticket attachments
+model TicketAttachment {
   id         String   @id @default(uuid())
-  petitionId String
-  petition   Petition @relation(fields: [petitionId], references: [id])
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
   fileName   String
   fileUrl    String
   fileSize   Int?
@@ -102,91 +127,51 @@ model PetitionAttachment {
   uploadedAt DateTime @default(now())
 }
 
-// Petition status history
-model PetitionStatusHistory {
-  id             String          @id @default(uuid())
-  petitionId     String
-  petition       Petition        @relation(fields: [petitionId], references: [id])
-  previousStatus PetitionStatus?
-  newStatus      PetitionStatus
+// Ticket status history
+model TicketStatusHistory {
+  id             String   @id @default(uuid())
+  ticketId       String
+  ticket         Ticket   @relation(fields: [ticketId], references: [id])
+  previousStatus String?
+  newStatus      String
   changedBy      String
-  changedUser    User            @relation(fields: [changedBy], references: [id])
+  changedUser    User     @relation(fields: [changedBy], references: [id])
   changedByName  String
-  changedByRole  Role
+  changedByRole  String // Dynamic role key
   comment        String?
-  changedAt      DateTime        @default(now())
+  changedAt      DateTime @default(now())
 }
 
 // Notifications
 model Notification {
-  id        String       @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  user      User         @relation(fields: [userId], references: [id])
-  petitionId String?
-  petition   Petition?   @relation(fields: [petitionId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  ticketId  String?
+  ticket    Ticket?  @relation(fields: [ticketId], references: [id])
   title     String
   message   String
-  type      NotificationType @default(info)
-  isRead    Boolean      @default(false)
-  createdAt DateTime     @default(now())
+  type      String   @default("info") // info, success, warning, error
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   @@index([userId, isRead])
-  @@index([petitionId])
+  @@index([ticketId])
   @@index([createdAt])
 }
 
 // Audit logs
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  userName    String?
-  userRole    Role?
-  action      String
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  userName     String?
+  userRole     String? // Dynamic role key
+  action       String
   resourceType String
-  resourceId  String?
-  details     Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-}
-
-// 🔹 Enums for better type-safety
-enum Role {
-  student
-  class_advisor
-  hod
-  registrar
-}
-
-enum PetitionType {
-  academic_issue
-  administrative_issue
-  facility_issue
-  disciplinary_issue
-  financial_issue
-  other
-}
-
-enum PetitionStatus {
-  submitted
-  under_review
-  forwarded_to_hod
-  forwarded_to_registrar
-  resolved
-  rejected
-}
-
-enum Priority {
-  low
-  medium
-  high
-  urgent
-}
-
-enum NotificationType {
-  info
-  success
-  warning
-  error
+  resourceId   String?
+  details      Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
 }

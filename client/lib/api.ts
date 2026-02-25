@@ -82,8 +82,8 @@ export const authApi = {
     email: string;
     password: string;
     role?: string;
-    studentId?: string;
-    department?: string;
+    submitterId?: string;
+    group?: string;
   }) => {
     return apiRequest<{ msg: string; user: any }>("/auth/register", {
       method: "POST",
@@ -96,11 +96,11 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    
+
     if (response.token) {
       setToken(response.token);
     }
-    
+
     return response;
   },
 
@@ -109,24 +109,24 @@ export const authApi = {
   },
 };
 
-// Petition API
-export const petitionApi = {
-  // Create a new petition
+// Ticket API
+export const ticketApi = {
+  // Create a new ticket
   create: async (data: {
     subject: string;
     description: string;
     type: string;
-    department?: string;
+    group?: string;
     year?: string;
     priority?: string;
   }) => {
-    return apiRequest<any>("/petitions", {
+    return apiRequest<any>("/tickets", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
 
-  // Get all petitions (with pagination)
+  // Get all tickets (with pagination)
   getAll: async (page: number = 1, limit: number = 20) => {
     return apiRequest<{
       data: any[];
@@ -138,11 +138,11 @@ export const petitionApi = {
         hasNext: boolean;
         hasPrev: boolean;
       };
-    }>(`/petitions?page=${page}&limit=${limit}`);
+    }>(`/tickets?page=${page}&limit=${limit}`);
   },
 
-  // Get user's petitions (with pagination)
-  getMyPetitions: async (page: number = 1, limit: number = 20) => {
+  // Get user's tickets (with pagination)
+  getMyTickets: async (page: number = 1, limit: number = 20) => {
     return apiRequest<{
       data: any[];
       pagination: {
@@ -153,31 +153,31 @@ export const petitionApi = {
         hasNext: boolean;
         hasPrev: boolean;
       };
-    }>(`/petitions/my?page=${page}&limit=${limit}`);
+    }>(`/tickets/my?page=${page}&limit=${limit}`);
   },
 
-  // Get petition by ID
+  // Get ticket by ID
   getById: async (id: string) => {
-    return apiRequest<any>(`/petitions/${id}`);
+    return apiRequest<any>(`/tickets/${id}`);
   },
 
-  // Update petition status
+  // Update ticket status
   updateStatus: async (id: string, status: string, comment?: string) => {
-    return apiRequest<any>(`/petitions/${id}/status`, {
+    return apiRequest<any>(`/tickets/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status, comment }),
     });
   },
 
-  // Add comment to petition
+  // Add comment to ticket
   addComment: async (id: string, content: string, isInternal?: boolean) => {
-    return apiRequest<any>(`/petitions/${id}/comments`, {
+    return apiRequest<any>(`/tickets/${id}/comments`, {
       method: "POST",
       body: JSON.stringify({ content, isInternal }),
     });
   },
 
-  // Update petition details (students only, submitted status only)
+  // Update ticket details (submitters only, submitted status only)
   update: async (
     id: string,
     data: {
@@ -186,25 +186,25 @@ export const petitionApi = {
       type?: string;
       priority?: string;
       year?: string;
-      department?: string;
+      group?: string;
     }
   ) => {
-    return apiRequest<any>(`/petitions/${id}`, {
+    return apiRequest<any>(`/tickets/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
-  // Delete petition (students only, submitted status only)
+  // Delete ticket (submitters only, submitted status only)
   delete: async (id: string) => {
-    return apiRequest<{ message: string }>(`/petitions/${id}`, {
+    return apiRequest<{ message: string }>(`/tickets/${id}`, {
       method: "DELETE",
     });
   },
 
-  // Add attachment to petition
+  // Add attachment to ticket
   addAttachment: async (
-    petitionId: string,
+    ticketId: string,
     data: {
       fileName: string;
       fileUrl: string;
@@ -212,16 +212,16 @@ export const petitionApi = {
       mimeType?: string;
     }
   ) => {
-    return apiRequest<any>(`/petitions/${petitionId}/attachments`, {
+    return apiRequest<any>(`/tickets/${ticketId}/attachments`, {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
 
-  // Delete attachment from petition
-  deleteAttachment: async (petitionId: string, attachmentId: string) => {
+  // Delete attachment from ticket
+  deleteAttachment: async (ticketId: string, attachmentId: string) => {
     return apiRequest<{ message: string }>(
-      `/petitions/${petitionId}/attachments/${attachmentId}`,
+      `/tickets/${ticketId}/attachments/${attachmentId}`,
       {
         method: "DELETE",
       }
@@ -237,5 +237,25 @@ export const healthCheck = async () => {
   } catch {
     return false;
   }
+};
+
+// Settings API (Tenant CMS Configuration)
+export const settingsApi = {
+  get: async () => {
+    return apiRequest<any>("/settings");
+  },
+
+  update: async (data: Record<string, any>) => {
+    return apiRequest<any>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  reset: async () => {
+    return apiRequest<any>("/settings/reset", {
+      method: "POST",
+    });
+  },
 };
 

@@ -1,14 +1,14 @@
-import type { Petition } from "@/lib/types"
+import type { Ticket } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Clock, ArrowRight, XCircle, User } from "lucide-react"
 
-interface PetitionTimelineProps {
-  petition: Petition
+interface TicketTimelineProps {
+  ticket: Ticket
 }
 
 const timelineSteps = [
-  { status: "submitted", label: "Petition Submitted", icon: CheckCircle, color: "text-green-600" },
+  { status: "submitted", label: "Ticket Submitted", icon: CheckCircle, color: "text-green-600" },
   { status: "under_review", label: "Under Review", icon: Clock, color: "text-yellow-600" },
   { status: "forwarded_to_hod", label: "Forwarded to HOD", icon: ArrowRight, color: "text-purple-600" },
   { status: "forwarded_to_registrar", label: "Forwarded to Registrar", icon: ArrowRight, color: "text-orange-600" },
@@ -16,9 +16,9 @@ const timelineSteps = [
   { status: "rejected", label: "Rejected", icon: XCircle, color: "text-red-600" },
 ]
 
-export function PetitionTimeline({ petition }: PetitionTimelineProps) {
+export function TicketTimeline({ ticket }: TicketTimelineProps) {
   const getCurrentStepIndex = () => {
-    return timelineSteps.findIndex((step) => step.status === petition.status)
+    return timelineSteps.findIndex((step) => step.status === ticket.status)
   }
 
   const currentStepIndex = getCurrentStepIndex()
@@ -31,8 +31,8 @@ export function PetitionTimeline({ petition }: PetitionTimelineProps) {
 
   // Filter out rejected/resolved steps if not applicable
   const relevantSteps = timelineSteps.filter((step) => {
-    if (step.status === "rejected" && petition.status !== "rejected") return false
-    if (step.status === "resolved" && petition.status !== "resolved") return false
+    if (step.status === "rejected" && ticket.status !== "rejected") return false
+    if (step.status === "resolved" && ticket.status !== "resolved") return false
     return true
   })
 
@@ -94,22 +94,22 @@ export function PetitionTimeline({ petition }: PetitionTimelineProps) {
 
                   {stepStatus === "completed" && step.status === "submitted" && (
                     <p className="text-sm text-muted-foreground">
-                      {petition.submittedAt.toLocaleDateString()} at{" "}
-                      {petition.submittedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {ticket.submittedAt.toLocaleDateString()} at{" "}
+                      {ticket.submittedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   )}
 
                   {stepStatus === "current" && (
                     <p className="text-sm text-muted-foreground">
-                      Last updated: {petition.updatedAt.toLocaleDateString()} at{" "}
-                      {petition.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      Last updated: {ticket.updatedAt.toLocaleDateString()} at{" "}
+                      {ticket.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   )}
 
-                  {petition.assignedTo && stepStatus === "current" && (
+                  {ticket.assignedTo && stepStatus === "current" && (
                     <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
                       <User className="h-3 w-3" />
-                      <span>Assigned to: {petition.assignedTo}</span>
+                      <span>Assigned to: {ticket.assignedTo}</span>
                     </div>
                   )}
                 </div>
@@ -118,11 +118,11 @@ export function PetitionTimeline({ petition }: PetitionTimelineProps) {
           })}
         </div>
 
-        {petition.comments && petition.comments.length > 0 && (
+        {ticket.comments && ticket.comments.length > 0 && (
           <div className="mt-6 pt-4 border-t">
             <h4 className="font-medium mb-3">Recent Updates</h4>
             <div className="space-y-3">
-              {petition.comments.slice(-3).map((comment) => (
+              {ticket.comments.slice(-3).map((comment) => (
                 <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium">{comment.authorName}</p>

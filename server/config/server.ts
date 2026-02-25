@@ -2,7 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./routes/authRoutes";
-import petitionRoutes from "./routes/petitionRoutes";
+import ticketRoutes from "./routes/ticketRoutes";
+import settingsRoutes from "./routes/settingsRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
 
 dotenv.config();
@@ -19,7 +20,8 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/petitions", petitionRoutes);
+app.use("/api/tickets", ticketRoutes);
+app.use("/api/settings", settingsRoutes);
 
 // Health check endpoint
 app.get("/health", (req: express.Request, res: express.Response) => {
@@ -35,8 +37,8 @@ app.get("/api/email/status", (req: express.Request, res: express.Response) => {
     port: config.smtpPort,
     user: config.smtpUser || null,
     from: config.smtpFrom || null,
-    message: config.isConfigured 
-      ? "Email service is configured" 
+    message: config.isConfigured
+      ? "Email service is configured"
       : "Email service is not configured. Set SMTP_USER and SMTP_PASS environment variables.",
   });
 });

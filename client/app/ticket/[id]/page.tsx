@@ -3,8 +3,8 @@ import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
-import { getPetitionById, updatePetitionDetails, deletePetitionById, type Petition } from "@/lib/petition-store"
-import { PetitionTimeline } from "@/components/petition-timeline"
+import { getTicketById, updateTicketDetails, deleteTicketById, type Ticket } from "@/lib/ticket-store"
+import { TicketTimeline } from "@/components/ticket-timeline"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ArrowLeft, Calendar, User, Mail, GraduationCap, AlertCircle, Edit, Trash2, Loader2 } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
-import type { PetitionType, PetitionPriority } from "@/lib/types"
+import type { TicketType, TicketPriority } from "@/lib/types"
 
 const statusColors = {
   submitted: "bg-blue-100 text-blue-800",
@@ -35,7 +35,7 @@ const priorityColors = {
   urgent: "bg-red-100 text-red-800",
 }
 
-const petitionTypes: { value: PetitionType; label: string }[] = [
+const ticketTypes: { value: TicketType; label: string }[] = [
   { value: "academic_issue", label: "Academic Issue" },
   { value: "administrative_issue", label: "Administrative Issue" },
   { value: "facility_issue", label: "Facility Issue" },
@@ -44,18 +44,18 @@ const petitionTypes: { value: PetitionType; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
-const priorityLevels: { value: PetitionPriority; label: string }[] = [
+const priorityLevels: { value: TicketPriority; label: string }[] = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" },
 ]
 
-export default function PetitionDetailPage() {
+export default function TicketDetailPage() {
   const params = useParams()
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
-  const [petition, setPetition] = useState<Petition | null>(null)
+  const [ticket, setTicket] = useState<Ticket | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -66,18 +66,18 @@ export default function PetitionDetailPage() {
   const [editFormData, setEditFormData] = useState({
     subject: "",
     description: "",
-    type: "" as PetitionType,
-    priority: "medium" as PetitionPriority,
+    type: "" as TicketType,
+    priority: "medium" as TicketPriority,
   })
 
   useEffect(() => {
-    const fetchPetition = async () => {
+    const fetchTicket = async () => {
       if (!params.id) return
       
       setIsLoading(true)
       try {
-        const data = await getPetitionById(params.id as string)
-        setPetition(data)
+        const data = await getTicketById(params.id as string)
+        setTicket(data)
         if (data) {
           setEditFormData({
             subject: data.subject,
@@ -87,33 +87,33 @@ export default function PetitionDetailPage() {
           })
         }
       } catch (error) {
-        console.error("Error fetching petition:", error)
+        console.error("Error fetching ticket:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchPetition()
+    fetchTicket()
   }, [params.id])
 
   const handleEdit = async () => {
-    if (!petition) return
+    if (!ticket) return
     
     setIsSaving(true)
     setError("")
     
     try {
-      const updated = await updatePetitionDetails(petition.id, editFormData)
+      const updated = await updateTicketDetails(ticket.id, editFormData)
       if (updated) {
-        toast.success("Petition updated successfully!", {
+        toast.success("Ticket updated successfully!", {
           description: "Your changes have been saved.",
         })
-        setPetition(updated)
+        setTicket(updated)
         setIsEditDialogOpen(false)
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to update petition"
-      toast.error("Failed to update petition", {
+      const errorMsg = err instanceof Error ? err.message : "Failed to update ticket"
+      toast.error("Failed to update ticket", {
         description: errorMsg,
       })
       setError(errorMsg)
@@ -123,25 +123,25 @@ export default function PetitionDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!petition) return
+    if (!ticket) return
     
     setIsDeleting(true)
     setError("")
     
     try {
-      const success = await deletePetitionById(petition.id)
+      const success = await deleteTicketById(ticket.id)
       if (success) {
-        toast.success("Petition deleted successfully")
+        toast.success("Ticket deleted successfully")
         router.push("/dashboard")
       } else {
-        toast.error("Failed to delete petition", {
+        toast.error("Failed to delete ticket", {
           description: "Please try again.",
         })
-        setError("Failed to delete petition")
+        setError("Failed to delete ticket")
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to delete petition"
-      toast.error("Failed to delete petition", {
+      const errorMsg = err instanceof Error ? err.message : "Failed to delete ticket"
+      toast.error("Failed to delete ticket", {
         description: errorMsg,
       })
       setError(errorMsg)
@@ -150,25 +150,25 @@ export default function PetitionDetailPage() {
     }
   }
 
-  const canEditOrDelete = user?.role === "student" && petition?.status === "submitted" && petition?.studentId === user?.id
+  const canEditOrDelete = user?.role === "submitter" && ticket?.status === "submitted" && ticket?.submitterId === user?.id
 
-  // Show loading state while checking auth or fetching petition
+  // Show loading state while checking auth or fetching ticket
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <AppLoader message="Loading petition..." />
+        <AppLoader message="Loading ticket..." />
       </div>
     )
   }
 
-  if (!petition) {
+  if (!ticket) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Petition not found.</AlertDescription>
+              <AlertDescription>Ticket not found.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -179,10 +179,10 @@ export default function PetitionDetailPage() {
     )
   }
 
-  // Check if user can view this petition
-  // For students: must be the owner (compare user ID with petition's studentId which is the user UUID)
-  // For staff: can view any petition
-  const canView = user?.role !== "student" || petition.studentId === user?.id
+  // Check if user can view this ticket
+  // For submitters: must be the owner (compare user ID with ticket's submitterId which is the user UUID)
+  // For staff: can view any ticket
+  const canView = user?.role !== "submitter" || ticket.submitterId === user?.id
 
   if (!canView) {
     return (
@@ -191,7 +191,7 @@ export default function PetitionDetailPage() {
           <CardContent className="pt-6">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>You don't have permission to view this petition.</AlertDescription>
+              <AlertDescription>You don't have permission to view this ticket.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -207,7 +207,7 @@ export default function PetitionDetailPage() {
       <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href={user?.role === "student" ? "/dashboard" : "/admin"}>
+            <Link href={user?.role === "submitter" ? "/dashboard" : "/admin"}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Dashboard
             </Link>
@@ -215,8 +215,8 @@ export default function PetitionDetailPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">Petition #{petition.id.slice(0, 8)}...</h1>
-              <p className="text-sm sm:text-base text-muted-foreground break-words">{petition.subject}</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">Ticket #{ticket.id.slice(0, 8)}...</h1>
+              <p className="text-sm sm:text-base text-muted-foreground break-words">{ticket.subject}</p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {canEditOrDelete && (
@@ -242,10 +242,10 @@ export default function PetitionDetailPage() {
                 </div>
               )}
               <div className="flex gap-2 flex-wrap">
-                <Badge className={`${statusColors[petition.status]} text-xs`}>
-                  {petition.status.replace(/_/g, " ").toUpperCase()}
+                <Badge className={`${statusColors[ticket.status]} text-xs`}>
+                  {ticket.status.replace(/_/g, " ").toUpperCase()}
                 </Badge>
-                <Badge className={`${priorityColors[petition.priority]} text-xs`}>{petition.priority.toUpperCase()}</Badge>
+                <Badge className={`${priorityColors[ticket.priority]} text-xs`}>{ticket.priority.toUpperCase()}</Badge>
               </div>
             </div>
           </div>
@@ -255,54 +255,54 @@ export default function PetitionDetailPage() {
           <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
             <Card>
               <CardHeader>
-                <CardTitle>Petition Details</CardTitle>
+                <CardTitle>Ticket Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <h3 className="font-semibold mb-2">Description</h3>
-                  <p className="text-muted-foreground leading-relaxed">{petition.description}</p>
+                  <p className="text-muted-foreground leading-relaxed">{ticket.description}</p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h4 className="font-medium mb-1">Type</h4>
-                    <p className="text-sm text-muted-foreground capitalize">{petition.type.replace(/_/g, " ")}</p>
+                    <p className="text-sm text-muted-foreground capitalize">{ticket.type.replace(/_/g, " ")}</p>
                   </div>
                   <div>
                     <h4 className="font-medium mb-1">Priority</h4>
-                    <p className="text-sm text-muted-foreground capitalize">{petition.priority}</p>
+                    <p className="text-sm text-muted-foreground capitalize">{ticket.priority}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <PetitionTimeline petition={petition} />
+            <TicketTimeline ticket={ticket} />
           </div>
 
           <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Student Information</CardTitle>
+                <CardTitle className="text-lg">Submitter Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="font-medium">{petition.studentName}</p>
-                    <p className="text-sm text-muted-foreground">{petition.studentId}</p>
+                    <p className="font-medium">{ticket.submitterName}</p>
+                    <p className="text-sm text-muted-foreground">{ticket.submitterId}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">{petition.studentEmail}</p>
+                  <p className="text-sm text-muted-foreground">{ticket.submitterEmail}</p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <GraduationCap className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">{petition.department}</p>
-                    <p className="text-sm text-muted-foreground">{petition.year}</p>
+                    <p className="text-sm font-medium">{ticket.group}</p>
+                    <p className="text-sm text-muted-foreground">{ticket.year}</p>
                   </div>
                 </div>
               </CardContent>
@@ -310,14 +310,14 @@ export default function PetitionDetailPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Petition Info</CardTitle>
+                <CardTitle className="text-lg">Ticket Info</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Submitted</p>
-                    <p className="text-sm text-muted-foreground">{petition.submittedAt.toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">{ticket.submittedAt.toLocaleDateString()}</p>
                   </div>
                 </div>
 
@@ -325,27 +325,27 @@ export default function PetitionDetailPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Last Updated</p>
-                    <p className="text-sm text-muted-foreground">{petition.updatedAt.toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">{ticket.updatedAt.toLocaleDateString()}</p>
                   </div>
                 </div>
 
-                {petition.assignedTo && (
+                {ticket.assignedTo && (
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium">Assigned To</p>
-                      <p className="text-sm text-muted-foreground">{petition.assignedTo}</p>
+                      <p className="text-sm text-muted-foreground">{ticket.assignedTo}</p>
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {petition.status === "submitted" && user?.role === "student" && (
+            {ticket.status === "submitted" && user?.role === "submitter" && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Your petition has been submitted successfully. You will receive email updates as it progresses through
+                  Your ticket has been submitted successfully. You will receive email updates as it progresses through
                   the review process.
                 </AlertDescription>
               </Alert>
@@ -358,9 +358,9 @@ export default function PetitionDetailPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Edit Petition</DialogTitle>
+            <DialogTitle>Edit Ticket</DialogTitle>
             <DialogDescription>
-              Update your petition details. You can only edit petitions that are still in "submitted" status.
+              Update your ticket details. You can only edit tickets that are still in "submitted" status.
             </DialogDescription>
           </DialogHeader>
           
@@ -371,7 +371,7 @@ export default function PetitionDetailPage() {
                 id="edit-subject"
                 value={editFormData.subject}
                 onChange={(e) => setEditFormData({ ...editFormData, subject: e.target.value })}
-                placeholder="Enter petition subject"
+                placeholder="Enter ticket subject"
                 required
               />
             </div>
@@ -393,13 +393,13 @@ export default function PetitionDetailPage() {
                 <Label htmlFor="edit-type">Type *</Label>
                 <Select
                   value={editFormData.type}
-                  onValueChange={(value) => setEditFormData({ ...editFormData, type: value as PetitionType })}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, type: value as TicketType })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {petitionTypes.map((type) => (
+                    {ticketTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}
                       </SelectItem>
@@ -412,7 +412,7 @@ export default function PetitionDetailPage() {
                 <Label htmlFor="edit-priority">Priority *</Label>
                 <Select
                   value={editFormData.priority}
-                  onValueChange={(value) => setEditFormData({ ...editFormData, priority: value as PetitionPriority })}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, priority: value as TicketPriority })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select priority" />
@@ -457,9 +457,9 @@ export default function PetitionDetailPage() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Delete Petition</DialogTitle>
+            <DialogTitle>Delete Ticket</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this petition? This action cannot be undone. You can only delete petitions that are still in "submitted" status.
+              Are you sure you want to delete this ticket? This action cannot be undone. You can only delete tickets that are still in "submitted" status.
             </DialogDescription>
           </DialogHeader>
 
@@ -480,7 +480,7 @@ export default function PetitionDetailPage() {
                   Deleting...
                 </>
               ) : (
-                "Delete Petition"
+                "Delete Ticket"
               )}
             </Button>
           </DialogFooter>

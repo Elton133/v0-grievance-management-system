@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { getPetitionsByStudent, getPetitions, type Petition } from "@/lib/petition-store"
-import type { PetitionStatus, PetitionType } from "@/lib/types"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { PetitionCard } from "@/components/petition-card"
+import { useSettings } from "@/lib/settings-context"
+import { getTicketsBySubmitter, getTickets, type Ticket } from "@/lib/ticket-store"
+import type { TicketStatus, TicketType } from "@/lib/types"
+import { DashboardLayout } from "@/components/dashboard-layout"
+import { TicketCard } from "@/components/ticket-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,10 +19,11 @@ import Link from "next/link"
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { settings, isSubmitterRole, getRoleLabel } = useSettings()
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<PetitionStatus | "all">("all")
-  const [typeFilter, setTypeFilter] = useState<PetitionType | "all">("all")
-  const [allPetitions, setAllPetitions] = useState<Petition[]>([])
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
+  const [typeFilter, setTypeFilter] = useState<TicketType | "all">("all")
+  const [allTickets, setAllTickets] = useState<Ticket[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState({
@@ -32,9 +34,9 @@ export default function DashboardPage() {
   })
   const itemsPerPage = 12
 
-  // Fetch petitions based on user role
+  // Fetch tickets based on user role
   useEffect(() => {
-    const fetchPetitions = async () => {
+    const fetchTickets = async () => {
       if (!user) {
         setIsLoading(false)
         return
@@ -42,57 +44,57 @@ export default function DashboardPage() {
 
       setIsLoading(true)
       try {
-        // Fetch all petitions (we'll paginate client-side after filtering)
+        // Fetch all tickets (we'll paginate client-side after filtering)
         // For better performance, you can implement server-side filtering later
-        let result: { data: Petition[]; pagination: any }
-        if (user.role === "student") {
-          result = await getPetitionsByStudent(user.studentId!, 1, 1000) // Fetch all for now
+        let result: { data: Ticket[]; pagination: any }
+        if (user.role === "submitter") {
+          result = await getTicketsBySubmitter(user.submitterId!, 1, 1000) // Fetch all for now
         } else {
-          result = await getPetitions(1, 1000) // Fetch all for now
+          result = await getTickets(1, 1000) // Fetch all for now
         }
-        setAllPetitions(result.data)
+        setAllTickets(result.data)
       } catch (error) {
-        console.error("Error fetching petitions:", error)
-        setAllPetitions([])
+        console.error("Error fetching tickets:", error)
+        setAllTickets([])
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchPetitions()
+    fetchTickets()
   }, [user])
 
-  // Filter petitions (client-side filtering for now)
-  const filteredPetitions = useMemo(() => {
-    return allPetitions.filter((petition) => {
+  // Filter tickets (client-side filtering for now)
+  const filteredTickets = useMemo(() => {
+    return allTickets.filter((ticket) => {
       const matchesSearch =
-        petition.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        petition.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        petition.id.toLowerCase().includes(searchQuery.toLowerCase())
+        ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
 
-      const matchesStatus = statusFilter === "all" || petition.status === statusFilter
-      const matchesType = typeFilter === "all" || petition.type === typeFilter
+      const matchesStatus = statusFilter === "all" || ticket.status === statusFilter
+      const matchesType = typeFilter === "all" || ticket.type === typeFilter
 
       return matchesSearch && matchesStatus && matchesType
     })
-  }, [allPetitions, searchQuery, statusFilter, typeFilter])
+  }, [allTickets, searchQuery, statusFilter, typeFilter])
 
   // Paginate filtered results
-  const paginatedPetitions = useMemo(() => {
+  const paginatedTickets = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
-    return filteredPetitions.slice(startIndex, endIndex)
-  }, [filteredPetitions, currentPage, itemsPerPage])
+    return filteredTickets.slice(startIndex, endIndex)
+  }, [filteredTickets, currentPage, itemsPerPage])
 
   const filteredPagination = useMemo(() => {
-    const totalPages = Math.ceil(filteredPetitions.length / itemsPerPage)
+    const totalPages = Math.ceil(filteredTickets.length / itemsPerPage)
     return {
       page: currentPage,
       totalPages,
       hasNext: currentPage < totalPages,
       hasPrev: currentPage > 1,
     }
-  }, [filteredPetitions.length, currentPage, itemsPerPage])
+  }, [filteredTickets.length, currentPage, itemsPerPage])
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -101,224 +103,217 @@ export default function DashboardPage() {
 
   // Calculate statistics
   const stats = useMemo(() => {
-    const total = allPetitions.length
-    const pending = allPetitions.filter((p) => !["resolved", "rejected"].includes(p.status)).length
-    const resolved = allPetitions.filter((p) => p.status === "resolved").length
-    const urgent = allPetitions.filter((p) => p.priority === "urgent").length
+    const total = allTickets.length
+    const pending = allTickets.filter((p) => !["resolved", "rejected"].includes(p.status)).length
+    const resolved = allTickets.filter((p) => p.status === "resolved").length
+    const urgent = allTickets.filter((p) => p.priority === "urgent").length
 
     return { total, pending, resolved, urgent }
-  }, [allPetitions])
+  }, [allTickets])
 
   if (!user || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <AppLoader message="Loading petitions..." />
+        <AppLoader message="Loading tickets..." />
       </div>
     )
   }
 
-  if (user.role !== "student") {
+  if (user.role !== "submitter" && !isSubmitterRole(user.role)) {
     return (
-      <div className="min-h-screen bg-background">
-        <DashboardHeader />
-        <div className="container mx-auto px-4 py-8">
-          <Card className="max-w-md mx-auto">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Administrative Access
-              </CardTitle>
-              <CardDescription>
-                You have administrative privileges. Access the admin portal to manage petitions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href="/admin">Go to Admin Portal</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <DashboardLayout>
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Administrative Access
+            </CardTitle>
+            <CardDescription>
+              You have administrative privileges. Access the admin portal to manage tickets.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/admin">Go to Admin Portal</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </DashboardLayout>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader />
+    <DashboardLayout>
+      {/* Welcome Section */}
+      <div className="mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          {isSubmitterRole(user.role)
+            ? "Track your tickets and submit new grievances"
+            : "Manage and review submitter tickets"}
+        </p>
+      </div>
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            {user.role === "student"
-              ? "Track your petitions and submit new grievances"
-              : "Manage and review student petitions"}
-          </p>
-        </div>
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {isSubmitterRole(user.role) ? "Submitted by you" : "All submissions"}
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {user.role === "student" ? "Submitted by you" : "All submissions"}
-              </p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pending}</div>
+            <p className="text-xs text-muted-foreground">Awaiting resolution</p>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Awaiting resolution</p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Resolved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.resolved}</div>
+            <p className="text-xs text-muted-foreground">Successfully completed</p>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.resolved}</div>
-              <p className="text-xs text-muted-foreground">Successfully completed</p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.urgent}</div>
+            <p className="text-xs text-muted-foreground">High priority items</p>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Urgent</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.urgent}</div>
-              <p className="text-xs text-muted-foreground">High priority items</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Actions and Filters */}
-        <div className="flex flex-col gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search petitions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              <Select value={statusFilter} onValueChange={(value: PetitionStatus | "all") => setStatusFilter(value)}>
-                <SelectTrigger className="w-full sm:w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
-                  <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={typeFilter} onValueChange={(value: PetitionType | "all") => setTypeFilter(value)}>
-                <SelectTrigger className="w-full sm:w-[140px]">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="academic_issue">Academic</SelectItem>
-                  <SelectItem value="administrative_issue">Administrative</SelectItem>
-                  <SelectItem value="facility_issue">Facility</SelectItem>
-                  <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
-                  <SelectItem value="financial_issue">Financial</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {user.role === "student" && (
-                <Button asChild className="w-full sm:w-auto">
-                  <Link href="/petition/new">
-                    <Plus className="mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">New Petition</span>
-                    <span className="sm:hidden">New</span>
-                  </Link>
-                </Button>
-              )}
+      {/* Actions and Filters */}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tickets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Petitions List */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">
-              {user.role === "student" ? "Your Petitions" : "All Petitions"}
-            </h3>
-            <Badge variant="secondary">{filteredPetitions.length} found</Badge>
+          <div className="flex gap-2 flex-wrap">
+            <Select value={statusFilter} onValueChange={(value: TicketStatus | "all") => setStatusFilter(value)}>
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="under_review">Under Review</SelectItem>
+                <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
+                <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={typeFilter} onValueChange={(value: TicketType | "all") => setTypeFilter(value)}>
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="academic_issue">Academic</SelectItem>
+                <SelectItem value="administrative_issue">Administrative</SelectItem>
+                <SelectItem value="facility_issue">Facility</SelectItem>
+                <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
+                <SelectItem value="financial_issue">Financial</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {isSubmitterRole(user.role) && (
+              <Button asChild className="w-full sm:w-auto">
+                <Link href="/ticket/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  <span className="hidden sm:inline">New Ticket</span>
+                  <span className="sm:hidden">New</span>
+                </Link>
+              </Button>
+            )}
           </div>
-
-          {filteredPetitions.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No petitions found</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {searchQuery || statusFilter !== "all" || typeFilter !== "all"
-                      ? "Try adjusting your search or filters"
-                      : user.role === "student"
-                        ? "You haven't submitted any petitions yet"
-                        : "No petitions have been submitted"}
-                  </p>
-                  {user.role === "student" && (
-                    <Button asChild>
-                      <Link href="/petition/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Submit Your First Petition
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {paginatedPetitions.map((petition) => (
-                  <PetitionCard key={petition.id} petition={petition} />
-                ))}
-              </div>
-              {filteredPagination.totalPages > 1 && (
-                <Pagination
-                  page={filteredPagination.page}
-                  totalPages={filteredPagination.totalPages}
-                  onPageChange={setCurrentPage}
-                  hasNext={filteredPagination.hasNext}
-                  hasPrev={filteredPagination.hasPrev}
-                />
-              )}
-            </>
-          )}
         </div>
       </div>
-    </div>
+
+      {/* Tickets List */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-foreground">
+            {isSubmitterRole(user.role) ? "Your Tickets" : "All Tickets"}
+          </h3>
+          <Badge variant="secondary">{filteredTickets.length} found</Badge>
+        </div>
+
+        {filteredTickets.length === 0 ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center">
+                <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No tickets found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery || statusFilter !== "all" || typeFilter !== "all"
+                    ? "Try adjusting your search or filters"
+                    : isSubmitterRole(user.role)
+                      ? "You haven't submitted any tickets yet"
+                      : "No tickets have been submitted"}
+                </p>
+                {isSubmitterRole(user.role) && (
+                  <Button asChild>
+                    <Link href="/ticket/new">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Submit Your First Ticket
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {paginatedTickets.map((ticket) => (
+                <TicketCard key={ticket.id} ticket={ticket} />
+              ))}
+            </div>
+            {filteredPagination.totalPages > 1 && (
+              <Pagination
+                page={filteredPagination.page}
+                totalPages={filteredPagination.totalPages}
+                onPageChange={setCurrentPage}
+                hasNext={filteredPagination.hasNext}
+                hasPrev={filteredPagination.hasPrev}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </DashboardLayout>
   )
 }

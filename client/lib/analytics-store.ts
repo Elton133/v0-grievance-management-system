@@ -1,14 +1,14 @@
 "use client"
 
-import { getPetitions } from "./petition-store"
-import type { PetitionStatus, PetitionType } from "./types"
+import { getTickets } from "./ticket-store"
+import type { TicketStatus, TicketType } from "./types"
 
 export interface AnalyticsData {
-  totalPetitions: number
-  petitionsByStatus: Record<PetitionStatus, number>
-  petitionsByType: Record<PetitionType, number>
-  petitionsByPriority: Record<string, number>
-  petitionsByDepartment: Record<string, number>
+  totalTickets: number
+  ticketsByStatus: Record<TicketStatus, number>
+  ticketsByType: Record<TicketType, number>
+  ticketsByPriority: Record<string, number>
+  ticketsByGroup: Record<string, number>
   averageResolutionTime: number
   monthlyTrends: Array<{ month: string; count: number; resolved: number }>
   responseTimeMetrics: {
@@ -24,7 +24,7 @@ export interface AuditLog {
   userId: string
   userRole: string
   action: string
-  petitionId?: string
+  ticketId?: string
   details: string
   ipAddress?: string
 }
@@ -37,75 +37,75 @@ const auditLogs: AuditLog[] = [
     userId: "advisor@university.edu",
     userRole: "class_advisor",
     action: "STATUS_UPDATE",
-    petitionId: "PET-2024-001",
-    details: "Changed petition status from 'submitted' to 'under_review'",
+    ticketId: "PET-2024-001",
+    details: "Changed ticket status from 'submitted' to 'under_review'",
   },
   {
     id: "AUDIT-002",
     timestamp: new Date("2024-01-15T14:20:00"),
     userId: "ST2024001",
-    userRole: "student",
-    action: "PETITION_SUBMITTED",
-    petitionId: "PET-2024-001",
-    details: "New petition submitted: Grade Discrepancy in Data Structures Course",
+    userRole: "submitter",
+    action: "TICKET_SUBMITTED",
+    ticketId: "PET-2024-001",
+    details: "New ticket submitted: Grade Discrepancy in Data Structures Course",
   },
   {
     id: "AUDIT-003",
     timestamp: new Date("2024-01-12T16:45:00"),
     userId: "advisor@university.edu",
     userRole: "class_advisor",
-    action: "PETITION_FORWARDED",
-    petitionId: "PET-2024-002",
-    details: "Petition forwarded to HOD for escalation",
+    action: "TICKET_FORWARDED",
+    ticketId: "PET-2024-002",
+    details: "Ticket forwarded to HOD for escalation",
   },
 ]
 
 export async function getAnalyticsData(): Promise<AnalyticsData> {
-  const petitions = await getPetitions()
+  const tickets = await getTickets()
 
   // Calculate basic metrics
-  const totalPetitions = petitions.length
+  const totalTickets = tickets.length
 
-  const petitionsByStatus = petitions.reduce(
-    (acc, petition) => {
-      acc[petition.status] = (acc[petition.status] || 0) + 1
+  const ticketsByStatus = tickets.reduce(
+    (acc, ticket) => {
+      acc[ticket.status] = (acc[ticket.status] || 0) + 1
       return acc
     },
-    {} as Record<PetitionStatus, number>,
+    {} as Record<TicketStatus, number>,
   )
 
-  const petitionsByType = petitions.reduce(
-    (acc, petition) => {
-      acc[petition.type] = (acc[petition.type] || 0) + 1
+  const ticketsByType = tickets.reduce(
+    (acc, ticket) => {
+      acc[ticket.type] = (acc[ticket.type] || 0) + 1
       return acc
     },
-    {} as Record<PetitionType, number>,
+    {} as Record<TicketType, number>,
   )
 
-  const petitionsByPriority = petitions.reduce(
-    (acc, petition) => {
-      acc[petition.priority] = (acc[petition.priority] || 0) + 1
+  const ticketsByPriority = tickets.reduce(
+    (acc, ticket) => {
+      acc[ticket.priority] = (acc[ticket.priority] || 0) + 1
       return acc
     },
     {} as Record<string, number>,
   )
 
-  const petitionsByDepartment = petitions.reduce(
-    (acc, petition) => {
-      acc[petition.department] = (acc[petition.department] || 0) + 1
+  const ticketsByGroup = tickets.reduce(
+    (acc, ticket) => {
+      acc[ticket.group] = (acc[ticket.group] || 0) + 1
       return acc
     },
     {} as Record<string, number>,
   )
 
   // Calculate resolution time (mock data for now)
-  const resolvedPetitions = petitions.filter((p) => p.status === "resolved")
+  const resolvedTickets = tickets.filter((p) => p.status === "resolved")
   const averageResolutionTime =
-    resolvedPetitions.length > 0
-      ? resolvedPetitions.reduce((acc, petition) => {
-          const resolutionTime = petition.updatedAt.getTime() - petition.submittedAt.getTime()
+    resolvedTickets.length > 0
+      ? resolvedTickets.reduce((acc, ticket) => {
+          const resolutionTime = ticket.updatedAt.getTime() - ticket.submittedAt.getTime()
           return acc + resolutionTime / (1000 * 60 * 60 * 24) // Convert to days
-        }, 0) / resolvedPetitions.length
+        }, 0) / resolvedTickets.length
       : 0
 
   // Generate monthly trends (mock data)
@@ -120,15 +120,15 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const responseTimeMetrics = {
     averageResponseTime: 2.5, // days
     medianResponseTime: 2.0, // days
-    escalationRate: 0.25, // 25% of petitions get escalated
+    escalationRate: 0.25, // 25% of tickets get escalated
   }
 
   return {
-    totalPetitions,
-    petitionsByStatus,
-    petitionsByType,
-    petitionsByPriority,
-    petitionsByDepartment,
+    totalTickets,
+    ticketsByStatus,
+    ticketsByType,
+    ticketsByPriority,
+    ticketsByGroup,
     averageResolutionTime,
     monthlyTrends,
     responseTimeMetrics,
@@ -149,9 +149,9 @@ export function addAuditLog(log: Omit<AuditLog, "id" | "timestamp">): void {
   auditLogs.push(newLog)
 }
 
-export function getAuditLogsByPetition(petitionId: string): AuditLog[] {
+export function getAuditLogsByTicket(ticketId: string): AuditLog[] {
   return auditLogs
-    .filter((log) => log.petitionId === petitionId)
+    .filter((log) => log.ticketId === ticketId)
     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 }
 

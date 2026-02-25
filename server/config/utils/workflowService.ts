@@ -1,19 +1,21 @@
 import prisma from "../db";
-import { Role, PetitionStatus } from "@prisma/client";
 
 /**
  * Workflow Service - Handles grievance escalation and auto-assignment logic
+ * 
+ * Now reads escalation hierarchy from TenantSettings instead of hardcoded values.
+ * Falls back to default RMU hierarchy if no settings exist.
  */
 
-// Define the escalation hierarchy
-const ESCALATION_HIERARCHY: Record<number, Role> = {
+// Default escalation hierarchy (fallback)
+const DEFAULT_ESCALATION_HIERARCHY: Record<number, string> = {
   1: "class_advisor",    // Level 1: Class Advisor
-  2: "hod",               // Level 2: Head of Department
+  2: "hod",               // Level 2: Head of Group
   3: "registrar",         // Level 3: Registrar
 };
 
-// Status progression map
-const STATUS_PROGRESSION: Record<PetitionStatus, PetitionStatus[]> = {
+// Default status progression map (fallback)
+const DEFAULT_STATUS_PROGRESSION: Record<string, string[]> = {
   submitted: ["under_review", "rejected"],
   under_review: ["forwarded_to_hod", "resolved", "rejected"],
   forwarded_to_hod: ["forwarded_to_registrar", "resolved", "rejected"],
@@ -23,23 +25,79 @@ const STATUS_PROGRESSION: Record<PetitionStatus, PetitionStatus[]> = {
 };
 
 /**
+ * Get the escalation hierarchy from TenantSettings or use defaults
+ */
+const getEscalationHierarchy = async (): Promise<Record<number, string>> => {
+  try {
+    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    if (settings && Array.isArray(settings.rolesConfig)) {
+      const roles = settings.rolesConfig as Array<{ key: string; label: string; level: number; isSubmitter?: boolean }>;
+      // Build hierarchy from roles where level > 0 (non-submitter roles)
+      const hierarchy: Record<number, string> = {};
+      roles
+        .filter(r => !r.isSubmitter && r.level > 0)
+        .sort((a, b) => a.level - b.level)
+        .forEach(r => {
+          hierarchy[r.level] = r.key;
+        });
+      
+      if (Object.keys(hierarchy).length > 0) {
+        return hierarchy;
+      }
+    }
+  } catch (error) {
+    console.warn("[WorkflowService] Could not load escalation hierarchy from settings, using defaults");
+  }
+  return DEFAULT_ESCALATION_HIERARCHY;
+};
+
+/**
+ * Get the status progression map from TenantSettings or use defaults
+ */
+const getStatusProgression = async (): Promise<Record<string, string[]>> => {
+  try {
+    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    if (settings && Array.isArray(settings.escalationConfig) && (settings.escalationConfig as any[]).length > 0) {
+      const config = settings.escalationConfig as Array<{ fromStatus: string; toStatuses: string[] }>;
+      const progression: Record<string, string[]> = {};
+      config.forEach(c => {
+        progression[c.fromStatus] = c.toStatuses;
+      });
+      return progression;
+    }
+  } catch (error) {
+    console.warn("[WorkflowService] Could not load status progression from settings, using defaults");
+  }
+  return DEFAULT_STATUS_PROGRESSION;
+};
+
+/**
  * Get the next reviewer based on escalation level
  */
 export const getNextReviewer = async (
   escalationLevel: number,
-  department?: string
+  group?: string
 ): Promise<{ userId: string; userEmail: string; userName: string } | null> => {
-  const targetRole = ESCALATION_HIERARCHY[escalationLevel];
+  const hierarchy = await getEscalationHierarchy();
+  const targetRole = hierarchy[escalationLevel];
   if (!targetRole) {
     return null;
   }
 
   try {
     // Find a user with the target role
-    // If department is specified, filter users by that department (for class_advisor and hod)
+    // If group is specified, filter users by that group (for group-scoped roles)
     const whereClause: any = { role: targetRole };
-    if (department && (targetRole === "class_advisor" || targetRole === "hod")) {
-      whereClause.department = department;
+    
+    // Get settings to determine which roles are group-scoped
+    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    const roles = (settings?.rolesConfig as Array<{ key: string; groupScoped?: boolean }>) || [];
+    const roleConfig = roles.find(r => r.key === targetRole);
+    
+    // If role is group-scoped (or if it's a known group-scoped role), filter by group
+    const isDeptScoped = roleConfig?.groupScoped !== false; // Default to true for backward compat
+    if (group && isDeptScoped && targetRole !== "registrar") {
+      whereClause.group = group;
     }
 
     const reviewer = await prisma.user.findFirst({
@@ -68,22 +126,22 @@ export const getNextReviewer = async (
 };
 
 /**
- * Auto-assign petition to the appropriate reviewer based on escalation level
+ * Auto-assign ticket to the appropriate reviewer based on escalation level
  */
-export const autoAssignPetition = async (
-  petitionId: string,
+export const autoAssignTicket = async (
+  ticketId: string,
   escalationLevel: number,
-  department?: string
+  group?: string
 ): Promise<boolean> => {
   try {
-    const reviewer = await getNextReviewer(escalationLevel, department);
+    const reviewer = await getNextReviewer(escalationLevel, group);
     
     if (!reviewer) {
       return false;
     }
 
-    await prisma.petition.update({
-      where: { id: petitionId },
+    await prisma.ticket.update({
+      where: { id: ticketId },
       data: {
         assignedTo: reviewer.userId,
         escalationLevel,
@@ -92,7 +150,7 @@ export const autoAssignPetition = async (
 
     return true;
   } catch (error) {
-    console.error("Error auto-assigning petition:", error);
+    console.error("Error auto-assigning ticket:", error);
     return false;
   }
 };
@@ -100,25 +158,28 @@ export const autoAssignPetition = async (
 /**
  * Validate status transition
  */
-export const isValidStatusTransition = (
-  currentStatus: PetitionStatus,
-  newStatus: PetitionStatus
-): boolean => {
-  const allowedTransitions = STATUS_PROGRESSION[currentStatus];
+export const isValidStatusTransition = async (
+  currentStatus: string,
+  newStatus: string
+): Promise<boolean> => {
+  const progression = await getStatusProgression();
+  const allowedTransitions = progression[currentStatus];
+  if (!allowedTransitions) return false;
   return allowedTransitions.includes(newStatus);
 };
 
 /**
  * Get the next escalation level based on status
  */
-export const getNextEscalationLevel = (status: PetitionStatus): number => {
+export const getNextEscalationLevel = (status: string): number => {
+  // Default mapping — will be made configurable via TenantSettings
   switch (status) {
     case "submitted":
-      return 1; // Class Advisor
+      return 1; // Level 1
     case "under_review":
-      return 2; // HOD
+      return 2; // Level 2
     case "forwarded_to_hod":
-      return 3; // Registrar
+      return 3; // Level 3
     case "forwarded_to_registrar":
       return 3; // Already at highest level
     default:
@@ -129,10 +190,9 @@ export const getNextEscalationLevel = (status: PetitionStatus): number => {
 /**
  * Determine if status change requires escalation
  */
-export const requiresEscalation = (newStatus: PetitionStatus): boolean => {
+export const requiresEscalation = (newStatus: string): boolean => {
   return [
     "forwarded_to_hod",
     "forwarded_to_registrar",
   ].includes(newStatus);
 };
-

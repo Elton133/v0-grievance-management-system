@@ -5,15 +5,16 @@ import { createContext, useContext, useState, useEffect } from "react"
 import { authApi, removeToken, getToken } from "./api"
 import { toast } from "sonner"
 
-export type UserRole = "student" | "class_advisor" | "hod" | "registrar"
+// Role is now a dynamic string key from TenantSettings
+export type UserRole = string
 
 export interface User {
   id: string
   email: string
   name: string
   role: UserRole
-  studentId?: string
-  department?: string
+  submitterId?: string
+  group?: string
 }
 
 interface AuthContextType {
@@ -24,8 +25,8 @@ interface AuthContextType {
     email: string
     password: string
     role?: string
-    studentId?: string
-    department?: string
+    submitterId?: string
+    group?: string
   }) => Promise<{ success: boolean; error?: string }>
   logout: () => void
   isLoading: boolean
@@ -124,8 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: response.user.email,
         name: response.user.name,
         role: response.user.role as UserRole,
-        studentId: response.user.studentId,
-        department: response.user.department,
+        submitterId: response.user.submitterId,
+        group: response.user.group,
       }
 
       setUser(userData)
@@ -148,8 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string
     password: string
     role?: string
-    studentId?: string
-    department?: string
+    submitterId?: string
+    group?: string
   }): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true)
     try {

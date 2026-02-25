@@ -13,8 +13,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
-import Link from "next/link"
+import { useSettings } from "@/lib/settings-context"
 import { registrationSchema, type RegistrationFormData } from "@/lib/validation"
+import Link from "next/link"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState<RegistrationFormData>({
@@ -22,14 +23,17 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "student",
-    studentId: "",
-    department: "",
+    role: "submitter",
+    submitterId: "",
+    group: "",
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RegistrationFormData, string>>>({})
   const [error, setError] = useState("")
   const { register, isLoading } = useAuth()
+  const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
+
+  const availableGroups = Object.keys(settings?.groupPrefixes || {})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,8 +64,8 @@ export default function RegisterPage() {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      studentId: formData.role === "student" ? formData.studentId : undefined,
-      department: formData.department || undefined,
+      submitterId: formData.role === "submitter" ? formData.submitterId : undefined,
+      group: formData.group || undefined,
     })
 
     if (result.success) {
@@ -86,7 +90,7 @@ export default function RegisterPage() {
           <div className="flex justify-center mb-4">
             <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Student Grievance Portal</h1>
+          <h1 className="text-2xl font-bold text-foreground">{settings?.organizationName || "Grievance Portal"}</h1>
           <p className="text-muted-foreground mt-2">Create a new account</p>
         </div>
 
@@ -131,99 +135,124 @@ export default function RegisterPage() {
                 {errors.email && (
                   <p className="text-sm text-destructive">{errors.email}</p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Must be from @st.rmu.edu.gh or @rmu.edu.gh
-                </p>
+                {settings?.allowedEmailDomains && settings.allowedEmailDomains.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Must be from {settings.allowedEmailDomains.join(" or ")}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value, studentId: "", department: "" })}
+                  onValueChange={(value) => setFormData({ ...formData, role: value, submitterId: "", group: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="class_advisor">Class Advisor</SelectItem>
-                    <SelectItem value="hod">Head of Department</SelectItem>
-                    <SelectItem value="registrar">Registrar</SelectItem>
+                    {settings?.rolesConfig?.map((r) => (
+                      <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {formData.role === "student" && (
+              {isSubmitterRole(formData.role) && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="studentId">Student ID *</Label>
+                    <Label htmlFor="submitterId">Submitter ID *</Label>
                     <Input
-                      id="studentId"
+                      id="submitterId"
                       type="text"
                       placeholder="BIT0001526"
-                      value={formData.studentId || ""}
+                      value={formData.submitterId || ""}
                       onChange={(e) => {
-                        setFormData({ ...formData, studentId: e.target.value })
-                        if (errors.studentId) setErrors({ ...errors, studentId: undefined })
+                        setFormData({ ...formData, submitterId: e.target.value })
+                        if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
                       }}
                       required
                     />
-                    {errors.studentId && (
-                      <p className="text-sm text-destructive">{errors.studentId}</p>
+                    {errors.submitterId && (
+                      <p className="text-sm text-destructive">{errors.submitterId}</p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="department">Department *</Label>
-                    <Select
-                      value={formData.department}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, department: value, studentId: "" })
-                        if (errors.department) setErrors({ ...errors, department: undefined })
-                        if (errors.studentId) setErrors({ ...errors, studentId: undefined })
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ICT">ICT</SelectItem>
-                        <SelectItem value="Transport">Transport</SelectItem>
-                        <SelectItem value="Marine Electrical & Electronic Engineering">Marine Electrical & Electronic Engineering</SelectItem>
-                        <SelectItem value="Nautical Science">Nautical Science</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.department && (
-                      <p className="text-sm text-destructive">{errors.department}</p>
+                    <Label htmlFor="group">Group *</Label>
+                    {availableGroups.length > 0 ? (
+                      <Select
+                        value={formData.group}
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, group: value, submitterId: "" })
+                          if (errors.group) setErrors({ ...errors, group: undefined })
+                          if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableGroups.map(g => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="group"
+                        type="text"
+                        placeholder="E.g., Engineering"
+                        value={formData.group}
+                        onChange={(e) => {
+                          setFormData({ ...formData, group: e.target.value })
+                          if (errors.group) setErrors({ ...errors, group: undefined })
+                        }}
+                        required
+                      />
+                    )}
+                    {errors.group && (
+                      <p className="text-sm text-destructive">{errors.group}</p>
                     )}
                   </div>
                 </>
               )}
 
-              {formData.role !== "student" && (
+              {!isSubmitterRole(formData.role) && (
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department *</Label>
-                  <Select
-                    value={formData.department}
-                    onValueChange={(value) => {
-                      setFormData({ ...formData, department: value })
-                      if (errors.department) setErrors({ ...errors, department: undefined })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ICT">ICT</SelectItem>
-                      <SelectItem value="Transport">Transport</SelectItem>
-                      <SelectItem value="Marine Electrical & Electronic Engineering">Marine Electrical & Electronic Engineering</SelectItem>
-                      <SelectItem value="Nautical Science">Nautical Science</SelectItem>
-                      <SelectItem value="Business">Business</SelectItem>
-                      <SelectItem value="Engineering">Engineering</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.department && (
-                    <p className="text-sm text-destructive">{errors.department}</p>
+                  <Label htmlFor="group">Group *</Label>
+                  {availableGroups.length > 0 ? (
+                    <Select
+                      value={formData.group}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, group: value })
+                        if (errors.group) setErrors({ ...errors, group: undefined })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableGroups.map(g => (
+                          <SelectItem key={g} value={g}>{g}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="group"
+                      type="text"
+                      placeholder="E.g., Engineering"
+                      value={formData.group}
+                      onChange={(e) => {
+                        setFormData({ ...formData, group: e.target.value })
+                        if (errors.group) setErrors({ ...errors, group: undefined })
+                      }}
+                      required
+                    />
+                  )}
+                  {errors.group && (
+                    <p className="text-sm text-destructive">{errors.group}</p>
                   )}
                 </div>
               )}

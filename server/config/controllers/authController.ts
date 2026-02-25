@@ -3,27 +3,47 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import prisma from "../db";
-import { registrationSchema } from "../validation/registrationSchema";
+import { createRegistrationSchema } from "../validation/registrationSchema";
 import { sanitizeInput } from "../utils/sanitize";
 import { sendEmail, emailTemplates } from "../utils/emailService";
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
-    // Validate request body with Zod
+    // Load tenant settings for dynamic validation
+    let tenantConfig: any = undefined;
+    try {
+      const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+      if (settings) {
+        const roles = (settings.rolesConfig as Array<{ key: string }>) || [];
+        const submitterRole = (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean }>)?.find(r => r.isSubmitter);
+        tenantConfig = {
+          allowedEmailDomains: (settings.allowedEmailDomains as string[]) || [],
+          roles: roles.map(r => r.key),
+          groupPrefixes: (settings.groupPrefixes as Record<string, string[]>) || {},
+          submitterRoleKey: submitterRole?.key || "submitter",
+        };
+      }
+    } catch {
+      // Fall through to defaults
+    }
+
+    // Validate request body with dynamic Zod schema
+    const registrationSchema = createRegistrationSchema(tenantConfig);
     const validationResult = registrationSchema.safeParse(req.body);
-    
+
     if (!validationResult.success) {
       const errors = validationResult.error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));
-      return res.status(400).json({ 
-        msg: "Validation failed", 
-        errors 
+      console.error("VALIDATION ERRORS:", errors);
+      return res.status(400).json({
+        msg: "Validation failed",
+        errors
       });
     }
 
-    const { name, email, password, role, studentId, department } = validationResult.data;
+    const { name, email, password, role, submitterId, group } = validationResult.data;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -31,20 +51,20 @@ export const registerUser = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Generate email verification token (32 bytes = 64 hex characters)
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
     const emailVerificationExpires = new Date();
     emailVerificationExpires.setHours(emailVerificationExpires.getHours() + 24); // 24 hours
 
     const user = await prisma.user.create({
-      data: { 
-        name: sanitizeInput(name), 
-        email: email.toLowerCase().trim(), 
+      data: {
+        name: sanitizeInput(name),
+        email: email.toLowerCase().trim(),
         passwordHash: hashedPassword,
         role,
-        studentId: studentId ? sanitizeInput(studentId) : undefined,
-        department: department ? sanitizeInput(department) : undefined,
+        submitterId: submitterId ? sanitizeInput(submitterId) : undefined,
+        group: group ? sanitizeInput(group) : undefined,
         emailVerified: false, // Email verification disabled until email service is configured
         emailVerificationToken,
         emailVerificationExpires,
@@ -52,7 +72,7 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     // Send verification email
-    const emailTemplate = emailTemplates.emailVerification(user.name, emailVerificationToken);
+    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken);
     sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
@@ -69,8 +89,8 @@ export const registerUser = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({ 
-      msg: "User registered", 
+    res.status(201).json({
+      msg: "User registered",
       user: {
         id: user.id,
         name: user.name,
@@ -90,15 +110,15 @@ export const loginUser = async (req: Request, res: Response) => {
   try {
     // Sanitize email input
     const sanitizedEmail = sanitizeInput(email).toLowerCase().trim();
-    
+
     const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     // Check if email is verified (if email verification is enabled)
     if (process.env.REQUIRE_EMAIL_VERIFICATION === "true" && !user.emailVerified) {
-      return res.status(403).json({ 
-        msg: "Email not verified", 
-        error: "Please verify your email before logging in" 
+      return res.status(403).json({
+        msg: "Email not verified",
+        error: "Please verify your email before logging in"
       });
     }
 
@@ -107,8 +127,8 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: "1h" });
 
-    res.json({ 
-      token, 
+    res.json({
+      token,
       user: {
         id: user.id,
         name: user.name,
@@ -126,7 +146,7 @@ export const loginUser = async (req: Request, res: Response) => {
 // Verify email with token
 export const verifyEmail = async (req: Request, res: Response) => {
   const { token } = req.body;
-  
+
   try {
     if (!token) {
       return res.status(400).json({ msg: "Verification token is required" });
@@ -164,7 +184,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 // Resend verification email
 export const resendVerificationEmail = async (req: Request, res: Response) => {
   const { email } = req.body;
-  
+
   try {
     if (!email) {
       return res.status(400).json({ msg: "Email is required" });
@@ -196,7 +216,7 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
     });
 
     // Send verification email
-    const emailTemplate = emailTemplates.emailVerification(user.name, emailVerificationToken);
+    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken);
     sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
@@ -215,7 +235,7 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
 // Request password reset
 export const requestPasswordReset = async (req: Request, res: Response) => {
   const { email } = req.body;
-  
+
   try {
     if (!email) {
       return res.status(400).json({ msg: "Email is required" });
@@ -243,7 +263,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     });
 
     // Send password reset email
-    const emailTemplate = emailTemplates.passwordReset(user.name, passwordResetToken);
+    const emailTemplate = await emailTemplates.passwordReset(user.name, passwordResetToken);
     sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
@@ -252,7 +272,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       console.error("Error sending password reset email:", err);
     });
 
-    res.json({ 
+    res.json({
       msg: "If the email exists, a password reset link has been sent",
       // In development, you might want to return the token for testing
       // Remove this in production!
@@ -267,7 +287,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 // Reset password with token
 export const resetPassword = async (req: Request, res: Response) => {
   const { token, password } = req.body;
-  
+
   try {
     if (!token || !password) {
       return res.status(400).json({ msg: "Token and password are required" });
