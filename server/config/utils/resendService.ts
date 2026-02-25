@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import prisma from "../db";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
@@ -6,7 +7,18 @@ const resend = process.env.RESEND_API_KEY
   : null;
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-const FROM_NAME = process.env.RESEND_FROM_NAME || "Grievance Management System";
+
+/**
+ * Get the organization name from TenantSettings for email branding
+ */
+const getFromName = async (): Promise<string> => {
+  try {
+    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    return settings?.organizationName || process.env.RESEND_FROM_NAME || "Grievance Management System";
+  } catch {
+    return process.env.RESEND_FROM_NAME || "Grievance Management System";
+  }
+};
 
 /**
  * Send email using Resend
@@ -26,8 +38,9 @@ export const sendEmailViaResend = async (
   }
 
   try {
+    const fromName = await getFromName();
     const { data, error } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      from: `${fromName} <${FROM_EMAIL}>`,
       to: [to],
       subject,
       html,
@@ -52,4 +65,3 @@ export const sendEmailViaResend = async (
 export const isResendConfigured = (): boolean => {
   return !!process.env.RESEND_API_KEY;
 };
-

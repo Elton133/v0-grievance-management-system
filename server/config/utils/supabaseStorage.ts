@@ -16,32 +16,32 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   },
 })
 
-// Storage bucket name for petition attachments
-export const PETITION_ATTACHMENTS_BUCKET = "petition-attachments"
+// Storage bucket name for ticket attachments
+export const TICKET_ATTACHMENTS_BUCKET = "ticket-attachments"
 
 /**
  * Upload a file to Supabase Storage
  * @param file - File buffer or base64 string
  * @param fileName - Name of the file
- * @param petitionId - ID of the petition
+ * @param ticketId - ID of the ticket
  * @param userId - ID of the user uploading
  * @returns File URL or null if upload fails
  */
 export async function uploadFile(
   file: Buffer | string,
   fileName: string,
-  petitionId: string,
+  ticketId: string,
   userId: string
 ): Promise<{ url: string; path: string } | null> {
   try {
-    // Create a unique file path: petitions/{petitionId}/{userId}/{timestamp}-{fileName}
+    // Create a unique file path: tickets/{ticketId}/{userId}/{timestamp}-{fileName}
     const timestamp = Date.now()
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_")
-    const filePath = `petitions/${petitionId}/${userId}/${timestamp}-${sanitizedFileName}`
+    const filePath = `tickets/${ticketId}/${userId}/${timestamp}-${sanitizedFileName}`
 
     // Upload file
     const { data, error } = await supabase.storage
-      .from(PETITION_ATTACHMENTS_BUCKET)
+      .from(TICKET_ATTACHMENTS_BUCKET)
       .upload(filePath, file, {
         contentType: "application/octet-stream",
         upsert: false,
@@ -55,7 +55,7 @@ export async function uploadFile(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from(PETITION_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
+    } = supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
 
     return {
       url: publicUrl,
@@ -74,7 +74,7 @@ export async function uploadFile(
 export async function deleteFile(filePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
-      .from(PETITION_ATTACHMENTS_BUCKET)
+      .from(TICKET_ATTACHMENTS_BUCKET)
       .remove([filePath])
 
     if (error) {

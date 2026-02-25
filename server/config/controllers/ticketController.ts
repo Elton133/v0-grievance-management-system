@@ -1,9 +1,8 @@
 import { Response } from "express";
 import prisma from "../db";
 import { AuthRequest } from "../middleware/auth";
-import { PetitionStatus } from "@prisma/client";
 import {
-  autoAssignPetition,
+  autoAssignTicket,
   isValidStatusTransition,
   getNextEscalationLevel,
   requiresEscalation,
@@ -12,10 +11,10 @@ import {
 import { sendEmail, emailTemplates } from "../utils/emailService";
 import { sanitizeInput, sanitizeText } from "../utils/sanitize";
 
-// Create a new petition
-export const createPetition = async (req: AuthRequest, res: Response) => {
-  const { subject, description, type, department, year, priority, attachments } = req.body;
-  
+// Create a new ticket
+export const createTicket = async (req: AuthRequest, res: Response) => {
+  const { subject, description, type, group, year, priority, attachments } = req.body;
+
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -29,17 +28,17 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
     // Sanitize inputs
     const sanitizedSubject = sanitizeInput(subject);
     const sanitizedDescription = sanitizeText(description);
-    const petitionDepartment = department ? sanitizeInput(department) : (user.department || "Unknown");
-    const petitionYear = year ? sanitizeInput(year) : "Unknown";
+    const ticketGroup = group ? sanitizeInput(group) : (user.group || "Unknown");
+    const ticketYear = year ? sanitizeInput(year) : "Unknown";
 
-    // Create petition
-    const petition = await prisma.petition.create({
+    // Create ticket
+    const ticket = await prisma.ticket.create({
       data: {
-        studentId: req.user.id,
-        studentName: user.name,
-        studentEmail: user.email,
-        department: petitionDepartment,
-        year: petitionYear,
+        submitterId: req.user.id,
+        submitterName: user.name,
+        submitterEmail: user.email,
+        group: ticketGroup,
+        year: ticketYear,
         type,
         subject: sanitizedSubject,
         description: sanitizedDescription,
@@ -51,9 +50,9 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
 
     // Create attachments if provided
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-      await prisma.petitionAttachment.createMany({
+      await prisma.ticketAttachment.createMany({
         data: attachments.map((att: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string }) => ({
-          petitionId: petition.id,
+          ticketId: ticket.id,
           fileName: sanitizeInput(att.fileName),
           fileUrl: att.fileUrl, // URL is already validated from Supabase
           fileSize: att.fileSize || null,
@@ -63,14 +62,14 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
     }
 
     // Auto-assign to first reviewer (Class Advisor) - optimized to get reviewer in one query
-    const reviewer = await getNextReviewer(1, petitionDepartment);
-    const assigned = reviewer ? await autoAssignPetition(petition.id, 1, petitionDepartment) : false;
-    
+    const reviewer = await getNextReviewer(1, ticketGroup);
+    const assigned = reviewer ? await autoAssignTicket(ticket.id, 1, ticketGroup) : false;
+
     // Batch create notifications (non-blocking)
     const notifications = [
       {
         userId: req.user.id,
-        petitionId: petition.id,
+        ticketId: ticket.id,
         title: "Grievance Submitted",
         message: `Your grievance "${subject}" has been submitted and is awaiting review.`,
         type: "info" as const,
@@ -80,7 +79,7 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
     if (assigned && reviewer) {
       notifications.push({
         userId: reviewer.userId,
-        petitionId: petition.id,
+        ticketId: ticket.id,
         title: "New Grievance Assigned",
         message: `A new grievance "${subject}" has been assigned to you for review.`,
         type: "info" as const,
@@ -94,11 +93,11 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
 
     // Send email asynchronously (non-blocking)
     if (assigned && reviewer) {
-      const emailTemplate = emailTemplates.newPetitionAssigned(
+      const emailTemplate = await emailTemplates.newTicketAssigned(
         reviewer.userName,
         user.name,
         subject,
-        petition.id
+        ticket.id
       );
       // Fire and forget - don't wait for email, but log errors
       sendEmail({
@@ -107,16 +106,16 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
         html: emailTemplate.html,
       }).then(success => {
         if (!success) {
-          console.error(`[Petition Controller] Failed to send email to reviewer: ${reviewer.userEmail}`);
+          console.error(`[Ticket Controller] Failed to send email to reviewer: ${reviewer.userEmail}`);
         }
       }).catch(err => {
-        console.error(`[Petition Controller] Error sending email to reviewer:`, err);
+        console.error(`[Ticket Controller] Error sending email to reviewer:`, err);
       });
     }
 
-    // Fetch the complete petition with assigned user
-    const completePetition = await prisma.petition.findUnique({
-      where: { id: petition.id },
+    // Fetch the complete ticket with assigned user
+    const completeTicket = await prisma.ticket.findUnique({
+      where: { id: ticket.id },
       include: {
         assignedUser: {
           select: {
@@ -129,30 +128,30 @@ export const createPetition = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json(completePetition);
+    res.status(201).json(completeTicket);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
   }
 };
 
-// Get all petitions - optimized with select instead of include, with pagination
-export const getPetitions = async (req: AuthRequest, res: Response) => {
+// Get all tickets - optimized with select instead of include, with pagination
+export const getTickets = async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
     // Get total count for pagination metadata
-    const total = await prisma.petition.count();
+    const total = await prisma.ticket.count();
 
-    const petitions = await prisma.petition.findMany({
+    const tickets = await prisma.ticket.findMany({
       select: {
         id: true,
-        studentId: true,
-        studentName: true,
-        studentEmail: true,
-        department: true,
+        submitterId: true,
+        submitterName: true,
+        submitterEmail: true,
+        group: true,
         year: true,
         type: true,
         priority: true,
@@ -180,7 +179,7 @@ export const getPetitions = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({
-      data: petitions,
+      data: tickets,
       pagination: {
         page,
         limit,
@@ -196,21 +195,21 @@ export const getPetitions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get a single petition by ID
-export const getPetitionById = async (req: AuthRequest, res: Response) => {
+// Get a single ticket by ID
+export const getTicketById = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
   try {
-    const petition = await prisma.petition.findUnique({
+    const ticket = await prisma.ticket.findUnique({
       where: { id },
       include: {
-        student: {
+        submitter: {
           select: {
             id: true,
             name: true,
             email: true,
             role: true,
-            department: true
+            group: true
           }
         },
         assignedUser: {
@@ -255,19 +254,19 @@ export const getPetitionById = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
-    res.json(petition);
+    res.json(ticket);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
   }
 };
 
-// Update petition status
-export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
+// Update ticket status
+export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { status, comment } = req.body;
 
@@ -281,38 +280,39 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
     // Validate status transition
-    if (!isValidStatusTransition(petition.status, status as PetitionStatus)) {
+    const validTransition = await isValidStatusTransition(ticket.status, status);
+    if (!validTransition) {
       return res.status(400).json({
         error: "Invalid status transition",
-        message: `Cannot transition from ${petition.status} to ${status}`,
+        message: `Cannot transition from ${ticket.status} to ${status}`,
       });
     }
 
-    const newStatus = status as PetitionStatus;
-    let nextEscalationLevel = petition.escalationLevel;
-    let assignedTo = petition.assignedTo;
+    const newStatus = status as string;
+    let nextEscalationLevel = ticket.escalationLevel;
+    let assignedTo = ticket.assignedTo;
 
     // Handle escalation if needed
     if (requiresEscalation(newStatus)) {
       nextEscalationLevel = getNextEscalationLevel(newStatus);
-      const assigned = await autoAssignPetition(id, nextEscalationLevel, petition.department);
+      const assigned = await autoAssignTicket(id, nextEscalationLevel, ticket.group);
       if (assigned) {
-        const reviewer = await getNextReviewer(nextEscalationLevel, petition.department);
+        const reviewer = await getNextReviewer(nextEscalationLevel, ticket.group);
         if (reviewer) {
           assignedTo = reviewer.userId;
         }
       }
     }
 
-    // Update petition and create status history entry
-    const [updatedPetition] = await prisma.$transaction([
-      prisma.petition.update({
+    // Update ticket and create status history entry
+    const [updatedTicket] = await prisma.$transaction([
+      prisma.ticket.update({
         where: { id },
         data: {
           status: newStatus,
@@ -321,10 +321,10 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
           updatedAt: new Date(),
         },
       }),
-      prisma.petitionStatusHistory.create({
+      prisma.ticketStatusHistory.create({
         data: {
-          petitionId: id,
-          previousStatus: petition.status,
+          ticketId: id,
+          previousStatus: ticket.status,
           newStatus,
           changedBy: req.user.id,
           changedByName: user.name,
@@ -337,10 +337,10 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
     // Batch create notifications and send emails asynchronously (non-blocking)
     const notifications = [
       {
-        userId: petition.studentId,
-        petitionId: id,
+        userId: ticket.submitterId,
+        ticketId: id,
         title: "Grievance Status Updated",
-        message: `Your grievance "${petition.subject}" status has been updated to ${newStatus.replace(/_/g, " ")}.`,
+        message: `Your grievance "${ticket.subject}" status has been updated to ${newStatus.replace(/_/g, " ")}.`,
         type: "info" as const,
       },
     ];
@@ -356,9 +356,9 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
       if (nextReviewer) {
         notifications.push({
           userId: nextReviewer.id,
-          petitionId: id,
+          ticketId: id,
           title: "Grievance Forwarded for Review",
-          message: `A grievance "${petition.subject}" has been forwarded to you for review.`,
+          message: `A grievance "${ticket.subject}" has been forwarded to you for review.`,
           type: "info" as const,
         });
       }
@@ -370,29 +370,29 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
     }).catch(err => console.error("Error creating notifications:", err));
 
     // Send emails asynchronously (fire and forget)
-    const studentEmailTemplate = emailTemplates.petitionStatusUpdate(
-      petition.studentName,
-      petition.subject,
+    const submitterEmailTemplate = await emailTemplates.ticketStatusUpdate(
+      ticket.submitterName,
+      ticket.subject,
       newStatus,
       comment
     );
     sendEmail({
-      to: petition.studentEmail,
-      subject: studentEmailTemplate.subject,
-      html: studentEmailTemplate.html,
+      to: ticket.submitterEmail,
+      subject: submitterEmailTemplate.subject,
+      html: submitterEmailTemplate.html,
     }).then(success => {
       if (!success) {
-        console.error(`[Petition Controller] Failed to send status update email to student: ${petition.studentEmail}`);
+        console.error(`[Ticket Controller] Failed to send status update email to submitter: ${ticket.submitterEmail}`);
       }
     }).catch(err => {
-      console.error(`[Petition Controller] Error sending email to student:`, err);
+      console.error(`[Ticket Controller] Error sending email to submitter:`, err);
     });
 
     if (nextReviewer) {
-      const reviewerEmailTemplate = emailTemplates.nextReviewerAlert(
+      const reviewerEmailTemplate = await emailTemplates.nextReviewerAlert(
         nextReviewer.name,
-        petition.studentName,
-        petition.subject,
+        ticket.submitterName,
+        ticket.subject,
         id,
         nextEscalationLevel.toString()
       );
@@ -402,15 +402,15 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
         html: reviewerEmailTemplate.html,
       }).then(success => {
         if (!success) {
-          console.error(`[Petition Controller] Failed to send escalation email to reviewer: ${nextReviewer.email}`);
+          console.error(`[Ticket Controller] Failed to send escalation email to reviewer: ${nextReviewer.email}`);
         }
       }).catch(err => {
-        console.error(`[Petition Controller] Error sending email to reviewer:`, err);
+        console.error(`[Ticket Controller] Error sending email to reviewer:`, err);
       });
     }
 
-    // Fetch complete petition with relations
-    const completePetition = await prisma.petition.findUnique({
+    // Fetch complete ticket with relations
+    const completeTicket = await prisma.ticket.findUnique({
       where: { id },
       include: {
         assignedUser: {
@@ -424,14 +424,14 @@ export const updatePetitionStatus = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(completePetition);
+    res.json(completeTicket);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
   }
 };
 
-// Add comment to petition
+// Add comment to ticket
 export const addComment = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { content, isInternal } = req.body;
@@ -446,17 +446,17 @@ export const addComment = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
     // Sanitize comment content
     const sanitizedContent = sanitizeText(content);
 
-    const comment = await prisma.petitionComment.create({
+    const comment = await prisma.ticketComment.create({
       data: {
-        petitionId: id,
+        ticketId: id,
         authorId: req.user.id,
         authorName: user.name,
         authorRole: user.role,
@@ -482,8 +482,8 @@ export const addComment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get user's petitions with pagination
-export const getUserPetitions = async (req: AuthRequest, res: Response) => {
+// Get user's tickets with pagination
+export const getUserTickets = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -494,12 +494,12 @@ export const getUserPetitions = async (req: AuthRequest, res: Response) => {
     const skip = (page - 1) * limit;
 
     // Get total count for pagination metadata
-    const total = await prisma.petition.count({
-      where: { studentId: req.user.id },
+    const total = await prisma.ticket.count({
+      where: { submitterId: req.user.id },
     });
 
-    const petitions = await prisma.petition.findMany({
-      where: { studentId: req.user.id },
+    const tickets = await prisma.ticket.findMany({
+      where: { submitterId: req.user.id },
       include: {
         assignedUser: {
           select: {
@@ -518,7 +518,7 @@ export const getUserPetitions = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({
-      data: petitions,
+      data: tickets,
       pagination: {
         page,
         limit,
@@ -534,48 +534,48 @@ export const getUserPetitions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Update petition details (only for students, only if status is "submitted")
-export const updatePetition = async (req: AuthRequest, res: Response) => {
+// Update ticket details (only for submitters, only if status is "submitted")
+export const updateTicket = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const { subject, description, type, priority, year, department } = req.body;
+  const { subject, description, type, priority, year, group } = req.body;
 
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
-    // Only the owner (student) can edit, and only if status is "submitted"
-    if (petition.studentId !== req.user.id) {
-      return res.status(403).json({ error: "You can only edit your own petitions" });
+    // Only the owner (submitter) can edit, and only if status is "submitted"
+    if (ticket.submitterId !== req.user.id) {
+      return res.status(403).json({ error: "You can only edit your own tickets" });
     }
 
-    if (petition.status !== "submitted") {
-      return res.status(400).json({ 
-        error: "Cannot edit petition", 
-        message: "You can only edit petitions that are still in 'submitted' status" 
+    if (ticket.status !== "submitted") {
+      return res.status(400).json({
+        error: "Cannot edit ticket",
+        message: "You can only edit tickets that are still in 'submitted' status"
       });
     }
 
     // Sanitize inputs
-    const sanitizedSubject = subject ? sanitizeInput(subject) : petition.subject;
-    const sanitizedDescription = description ? sanitizeText(description) : petition.description;
-    const sanitizedYear = year ? sanitizeInput(year) : petition.year;
-    const sanitizedDepartment = department ? sanitizeInput(department) : petition.department;
+    const sanitizedSubject = subject ? sanitizeInput(subject) : ticket.subject;
+    const sanitizedDescription = description ? sanitizeText(description) : ticket.description;
+    const sanitizedYear = year ? sanitizeInput(year) : ticket.year;
+    const sanitizedGroup = group ? sanitizeInput(group) : ticket.group;
 
-    const updatedPetition = await prisma.petition.update({
+    const updatedTicket = await prisma.ticket.update({
       where: { id },
       data: {
         subject: sanitizedSubject,
         description: sanitizedDescription,
-        type: type || petition.type,
-        priority: priority || petition.priority,
+        type: type || ticket.type,
+        priority: priority || ticket.priority,
         year: sanitizedYear,
-        department: sanitizedDepartment,
+        group: sanitizedGroup,
         updatedAt: new Date(),
       },
       include: {
@@ -590,15 +590,15 @@ export const updatePetition = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(updatedPetition);
+    res.json(updatedTicket);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
   }
 };
 
-// Delete petition (only for students, only if status is "submitted")
-export const deletePetition = async (req: AuthRequest, res: Response) => {
+// Delete ticket (only for submitters, only if status is "submitted")
+export const deleteTicket = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -606,43 +606,43 @@ export const deletePetition = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
-    // Only the owner (student) can delete, and only if status is "submitted"
-    if (petition.studentId !== req.user.id) {
-      return res.status(403).json({ error: "You can only delete your own petitions" });
+    // Only the owner (submitter) can delete, and only if status is "submitted"
+    if (ticket.submitterId !== req.user.id) {
+      return res.status(403).json({ error: "You can only delete your own tickets" });
     }
 
-    if (petition.status !== "submitted") {
-      return res.status(400).json({ 
-        error: "Cannot delete petition", 
-        message: "You can only delete petitions that are still in 'submitted' status" 
+    if (ticket.status !== "submitted") {
+      return res.status(400).json({
+        error: "Cannot delete ticket",
+        message: "You can only delete tickets that are still in 'submitted' status"
       });
     }
 
     // Delete related data first (cascade delete should handle this, but being explicit)
     await prisma.$transaction([
-      prisma.petitionComment.deleteMany({ where: { petitionId: id } }),
-      prisma.petitionAttachment.deleteMany({ where: { petitionId: id } }),
-      prisma.petitionStatusHistory.deleteMany({ where: { petitionId: id } }),
-      prisma.notification.deleteMany({ where: { petitionId: id } }),
-      prisma.petition.delete({ where: { id } }),
+      prisma.ticketComment.deleteMany({ where: { ticketId: id } }),
+      prisma.ticketAttachment.deleteMany({ where: { ticketId: id } }),
+      prisma.ticketStatusHistory.deleteMany({ where: { ticketId: id } }),
+      prisma.notification.deleteMany({ where: { ticketId: id } }),
+      prisma.ticket.delete({ where: { id } }),
     ]);
 
-    // TODO: Delete files from Supabase Storage when petition is deleted
-    // This should be done before deleting the petition record
+    // TODO: Delete files from Supabase Storage when ticket is deleted
+    // This should be done before deleting the ticket record
 
-    res.json({ message: "Petition deleted successfully" });
+    res.json({ message: "Ticket deleted successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", details: err });
   }
 };
 
-// Add attachment to petition
+// Add attachment to ticket
 export const addAttachment = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { fileName, fileUrl, fileSize, mimeType } = req.body;
@@ -652,26 +652,26 @@ export const addAttachment = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
-    // Only the owner (student) can add attachments, and only if status is "submitted"
-    if (petition.studentId !== req.user.id) {
-      return res.status(403).json({ error: "You can only add attachments to your own petitions" });
+    // Only the owner (submitter) can add attachments, and only if status is "submitted"
+    if (ticket.submitterId !== req.user.id) {
+      return res.status(403).json({ error: "You can only add attachments to your own tickets" });
     }
 
-    if (petition.status !== "submitted") {
-      return res.status(400).json({ 
-        error: "Cannot add attachment", 
-        message: "You can only add attachments to petitions that are still in 'submitted' status" 
+    if (ticket.status !== "submitted") {
+      return res.status(400).json({
+        error: "Cannot add attachment",
+        message: "You can only add attachments to tickets that are still in 'submitted' status"
       });
     }
 
-    const attachment = await prisma.petitionAttachment.create({
+    const attachment = await prisma.ticketAttachment.create({
       data: {
-        petitionId: id,
+        ticketId: id,
         fileName: sanitizeInput(fileName),
         fileUrl, // URL is already validated from Supabase
         fileSize: fileSize || null,
@@ -686,7 +686,7 @@ export const addAttachment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Delete attachment from petition
+// Delete attachment from ticket
 export const deleteAttachment = async (req: AuthRequest, res: Response) => {
   const { id, attachmentId } = req.params;
 
@@ -695,35 +695,35 @@ export const deleteAttachment = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const petition = await prisma.petition.findUnique({ where: { id } });
-    if (!petition) {
-      return res.status(404).json({ error: "Petition not found" });
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
     }
 
-    const attachment = await prisma.petitionAttachment.findUnique({
+    const attachment = await prisma.ticketAttachment.findUnique({
       where: { id: attachmentId },
     });
 
-    if (!attachment || attachment.petitionId !== id) {
+    if (!attachment || attachment.ticketId !== id) {
       return res.status(404).json({ error: "Attachment not found" });
     }
 
-    // Only the owner (student) can delete attachments, and only if status is "submitted"
-    if (petition.studentId !== req.user.id) {
-      return res.status(403).json({ error: "You can only delete attachments from your own petitions" });
+    // Only the owner (submitter) can delete attachments, and only if status is "submitted"
+    if (ticket.submitterId !== req.user.id) {
+      return res.status(403).json({ error: "You can only delete attachments from your own tickets" });
     }
 
-    if (petition.status !== "submitted") {
-      return res.status(400).json({ 
-        error: "Cannot delete attachment", 
-        message: "You can only delete attachments from petitions that are still in 'submitted' status" 
+    if (ticket.status !== "submitted") {
+      return res.status(400).json({
+        error: "Cannot delete attachment",
+        message: "You can only delete attachments from tickets that are still in 'submitted' status"
       });
     }
 
     // TODO: Delete file from Supabase Storage
     // await deleteFile(attachment.fileUrl);
 
-    await prisma.petitionAttachment.delete({
+    await prisma.ticketAttachment.delete({
       where: { id: attachmentId },
     });
 
