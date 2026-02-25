@@ -4,8 +4,8 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { submitPetition } from "@/lib/petition-store"
-import type { PetitionType, PetitionPriority } from "@/lib/types"
+import { submitTicket } from "@/lib/ticket-store"
+import type { TicketType, TicketPriority } from "@/lib/types"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +18,9 @@ import { ArrowLeft, FileText, Send } from "lucide-react"
 import Link from "next/link"
 import { FileUpload } from "@/components/file-upload"
 import { uploadFileToSupabase } from "@/lib/file-upload"
-import { petitionApi } from "@/lib/api"
+import { ticketApi } from "@/lib/api"
 
-const petitionTypes: { value: PetitionType; label: string }[] = [
+const ticketTypes: { value: TicketType; label: string }[] = [
   { value: "academic_issue", label: "Academic Issue" },
   { value: "administrative_issue", label: "Administrative Issue" },
   { value: "facility_issue", label: "Facility Issue" },
@@ -29,7 +29,7 @@ const petitionTypes: { value: PetitionType; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
-const priorityLevels: { value: PetitionPriority; label: string; description: string }[] = [
+const priorityLevels: { value: TicketPriority; label: string; description: string }[] = [
   { value: "low", label: "Low", description: "General inquiry or minor issue" },
   { value: "medium", label: "Medium", description: "Standard issue requiring attention" },
   { value: "high", label: "High", description: "Important issue affecting academics" },
@@ -38,13 +38,13 @@ const priorityLevels: { value: PetitionPriority; label: string; description: str
 
 const yearOptions = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Graduate", "PhD"]
 
-export default function NewPetitionPage() {
+export default function NewTicketPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
   const [formData, setFormData] = useState({
-    type: "" as PetitionType,
-    priority: "medium" as PetitionPriority,
+    type: "" as TicketType,
+    priority: "medium" as TicketPriority,
     subject: "",
     description: "",
     year: "",
@@ -66,14 +66,14 @@ export default function NewPetitionPage() {
     )
   }
 
-  // Redirect if not a student
-  if (!user || user.role !== "student") {
+  // Redirect if not a submitter
+  if (!user || user.role !== "submitter") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <Alert variant="destructive">
-              <AlertDescription>Only students can submit petitions.</AlertDescription>
+              <AlertDescription>Only submitters can submit tickets.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -97,11 +97,11 @@ export default function NewPetitionPage() {
         return
       }
 
-      const petition = await submitPetition({
-        studentId: user.studentId!,
-        studentName: user.name,
-        studentEmail: user.email,
-        department: user.department!,
+      const ticket = await submitTicket({
+        submitterId: user.submitterId!,
+        submitterName: user.name,
+        submitterEmail: user.email,
+        group: user.group!,
         year: formData.year,
         type: formData.type,
         priority: formData.priority,
@@ -110,11 +110,11 @@ export default function NewPetitionPage() {
       })
 
       // Upload files to Supabase Storage and create attachment records
-      if (selectedFiles.length > 0 && petition.id && user.id) {
+      if (selectedFiles.length > 0 && ticket.id && user.id) {
         try {
           // Upload files to Supabase Storage
           const uploadPromises = selectedFiles.map((file) =>
-            uploadFileToSupabase(file, petition.id, user.id)
+            uploadFileToSupabase(file, ticket.id, user.id)
           )
           const uploadedResults = await Promise.all(uploadPromises)
           const successfulUploads = uploadedResults.filter((result) => result !== null)
@@ -122,7 +122,7 @@ export default function NewPetitionPage() {
           // Create attachment records in database
           if (successfulUploads.length > 0) {
             const attachmentPromises = successfulUploads.map((file) =>
-              petitionApi.addAttachment(petition.id, {
+              ticketApi.addAttachment(ticket.id, {
                 fileName: file!.fileName,
                 fileUrl: file!.url,
                 fileSize: file!.fileSize,
@@ -135,22 +135,22 @@ export default function NewPetitionPage() {
 
           if (successfulUploads.length < selectedFiles.length) {
             toast.warning(
-              `Petition created but ${selectedFiles.length - successfulUploads.length} file(s) failed to upload`
+              `Ticket created but ${selectedFiles.length - successfulUploads.length} file(s) failed to upload`
             )
           }
         } catch (err) {
           console.error("Error uploading attachments:", err)
-          toast.warning("Petition created but attachments failed to upload")
+          toast.warning("Ticket created but attachments failed to upload")
         }
       }
 
-      toast.success("Petition submitted successfully!", {
+      toast.success("Ticket submitted successfully!", {
         description: "Your grievance has been submitted and is awaiting review.",
       })
-      router.push(`/petition/${petition.id}`)
+      router.push(`/ticket/${ticket.id}`)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to submit petition. Please try again."
-      toast.error("Failed to submit petition", {
+      const errorMessage = err instanceof Error ? err.message : "Failed to submit ticket. Please try again."
+      toast.error("Failed to submit ticket", {
         description: errorMessage,
       })
       setError(errorMessage)
@@ -175,8 +175,8 @@ export default function NewPetitionPage() {
               <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Submit New Petition</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">File a grievance or petition for review</p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Submit New Ticket</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">File a grievance or ticket for review</p>
             </div>
           </div>
         </div>
@@ -185,7 +185,7 @@ export default function NewPetitionPage() {
           <div className="lg:col-span-2 order-2 lg:order-1">
             <Card>
               <CardHeader>
-                <CardTitle>Petition Details</CardTitle>
+                <CardTitle>Ticket Details</CardTitle>
                 <CardDescription>
                   Please provide detailed information about your grievance. All fields marked with * are required.
                 </CardDescription>
@@ -194,16 +194,16 @@ export default function NewPetitionPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="type">Petition Type *</Label>
+                      <Label htmlFor="type">Ticket Type *</Label>
                       <Select
                         value={formData.type}
-                        onValueChange={(value: PetitionType) => setFormData((prev) => ({ ...prev, type: value }))}
+                        onValueChange={(value: TicketType) => setFormData((prev) => ({ ...prev, type: value }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select petition type" />
+                          <SelectValue placeholder="Select ticket type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {petitionTypes.map((type) => (
+                          {ticketTypes.map((type) => (
                             <SelectItem key={type.value} value={type.value}>
                               {type.label}
                             </SelectItem>
@@ -236,7 +236,7 @@ export default function NewPetitionPage() {
                     <Label htmlFor="priority">Priority Level</Label>
                     <Select
                       value={formData.priority}
-                      onValueChange={(value: PetitionPriority) => setFormData((prev) => ({ ...prev, priority: value }))}
+                      onValueChange={(value: TicketPriority) => setFormData((prev) => ({ ...prev, priority: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -258,7 +258,7 @@ export default function NewPetitionPage() {
                     <Label htmlFor="subject">Subject *</Label>
                     <Input
                       id="subject"
-                      placeholder="Brief summary of your petition"
+                      placeholder="Brief summary of your ticket"
                       value={formData.subject}
                       onChange={(e) => setFormData((prev) => ({ ...prev, subject: e.target.value }))}
                       required
@@ -299,7 +299,7 @@ export default function NewPetitionPage() {
                       ) : (
                         <>
                           <Send className="mr-2 h-4 w-4" />
-                          Submit Petition
+                          Submit Ticket
                         </>
                       )}
                     </Button>
@@ -315,7 +315,7 @@ export default function NewPetitionPage() {
           <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Student Information</CardTitle>
+                <CardTitle className="text-lg">Submitter Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
@@ -323,12 +323,12 @@ export default function NewPetitionPage() {
                   <p className="text-sm text-muted-foreground">{user.name}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Student ID</Label>
-                  <p className="text-sm text-muted-foreground">{user.studentId}</p>
+                  <Label className="text-sm font-medium">Submitter ID</Label>
+                  <p className="text-sm text-muted-foreground">{user.submitterId}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Department</Label>
-                  <p className="text-sm text-muted-foreground">{user.department}</p>
+                  <Label className="text-sm font-medium">Group</Label>
+                  <p className="text-sm text-muted-foreground">{user.group}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Email</Label>
@@ -347,7 +347,7 @@ export default function NewPetitionPage() {
                   <p>• Include relevant dates and documentation</p>
                   <p>• Choose the appropriate priority level</p>
                   <p>• You will receive updates via email</p>
-                  <p>• Response time varies by petition type</p>
+                  <p>• Response time varies by ticket type</p>
                 </div>
               </CardContent>
             </Card>

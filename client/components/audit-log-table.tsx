@@ -12,21 +12,21 @@ interface AuditLogTableProps {
 }
 
 const actionIcons = {
-  PETITION_SUBMITTED: FileText,
+  TICKET_SUBMITTED: FileText,
   STATUS_UPDATE: Settings,
-  PETITION_FORWARDED: ArrowRight,
-  PETITION_RESOLVED: CheckCircle,
-  PETITION_REJECTED: XCircle,
+  TICKET_FORWARDED: ArrowRight,
+  TICKET_RESOLVED: CheckCircle,
+  TICKET_REJECTED: XCircle,
   LOGIN: User,
   LOGOUT: User,
 }
 
 const actionColors = {
-  PETITION_SUBMITTED: "bg-blue-100 text-blue-800",
+  TICKET_SUBMITTED: "bg-blue-100 text-blue-800",
   STATUS_UPDATE: "bg-yellow-100 text-yellow-800",
-  PETITION_FORWARDED: "bg-purple-100 text-purple-800",
-  PETITION_RESOLVED: "bg-green-100 text-green-800",
-  PETITION_REJECTED: "bg-red-100 text-red-800",
+  TICKET_FORWARDED: "bg-purple-100 text-purple-800",
+  TICKET_RESOLVED: "bg-green-100 text-green-800",
+  TICKET_REJECTED: "bg-red-100 text-red-800",
   LOGIN: "bg-gray-100 text-gray-800",
   LOGOUT: "bg-gray-100 text-gray-800",
 }
@@ -51,7 +51,7 @@ export function AuditLogTable({
                 <TableHead>User</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Details</TableHead>
-                <TableHead>Petition</TableHead>
+                <TableHead>Ticket</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -87,9 +87,9 @@ export function AuditLogTable({
                       <p className="text-sm text-muted-foreground line-clamp-2">{log.details}</p>
                     </TableCell>
                     <TableCell>
-                      {log.petitionId && (
+                      {log.ticketId && (
                         <Badge variant="secondary" className="font-mono text-xs">
-                          {log.petitionId}
+                          {log.ticketId}
                         </Badge>
                       )}
                     </TableCell>

@@ -3,7 +3,7 @@
 export interface Notification {
   id: string
   userId: string
-  petitionId: string
+  ticketId: string
   title: string
   message: string
   type: "status_update" | "comment" | "escalation" | "resolution"
@@ -16,9 +16,9 @@ const notifications: Notification[] = [
   {
     id: "NOTIF-001",
     userId: "ST2024001",
-    petitionId: "PET-2024-001",
-    title: "Petition Under Review",
-    message: "Your petition 'Grade Discrepancy in Data Structures Course' is now under review by the class advisor.",
+    ticketId: "PET-2024-001",
+    title: "Ticket Under Review",
+    message: "Your ticket 'Grade Discrepancy in Data Structures Course' is now under review by the class advisor.",
     type: "status_update",
     isRead: false,
     createdAt: new Date("2024-01-16T10:30:00"),
@@ -26,9 +26,9 @@ const notifications: Notification[] = [
   {
     id: "NOTIF-002",
     userId: "advisor@university.edu",
-    petitionId: "PET-2024-002",
-    title: "New Petition Assigned",
-    message: "A new petition 'Library Computer Lab Issues' has been assigned to you for review.",
+    ticketId: "PET-2024-002",
+    title: "New Ticket Assigned",
+    message: "A new ticket 'Library Computer Lab Issues' has been assigned to you for review.",
     type: "escalation",
     isRead: false,
     createdAt: new Date("2024-01-12T14:15:00"),
@@ -72,14 +72,14 @@ export function addNotification(notification: Omit<Notification, "id" | "created
 
 // Helper function to create status update notifications
 export function createStatusUpdateNotification(
-  petitionId: string,
-  studentId: string,
+  ticketId: string,
+  submitterId: string,
   newStatus: string,
-  petitionSubject: string,
+  ticketSubject: string,
 ): void {
   const statusMessages = {
     under_review: "is now under review by the class advisor",
-    forwarded_to_hod: "has been forwarded to the Head of Department",
+    forwarded_to_hod: "has been forwarded to the Head of Group",
     forwarded_to_registrar: "has been forwarded to the Registrar",
     resolved: "has been resolved",
     rejected: "has been rejected",
@@ -88,10 +88,10 @@ export function createStatusUpdateNotification(
   const message = statusMessages[newStatus as keyof typeof statusMessages] || "status has been updated"
 
   addNotification({
-    userId: studentId,
-    petitionId,
-    title: "Petition Status Update",
-    message: `Your petition '${petitionSubject}' ${message}.`,
+    userId: submitterId,
+    ticketId,
+    title: "Ticket Status Update",
+    message: `Your ticket '${ticketSubject}' ${message}.`,
     type: "status_update",
     isRead: false,
   })

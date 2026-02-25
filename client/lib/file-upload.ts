@@ -1,4 +1,4 @@
-import { supabase, PETITION_ATTACHMENTS_BUCKET } from "./supabase"
+import { supabase, TICKET_ATTACHMENTS_BUCKET } from "./supabase"
 
 export interface UploadedFile {
   url: string
@@ -10,13 +10,13 @@ export interface UploadedFile {
 /**
  * Upload a file to Supabase Storage
  * @param file - File object from input
- * @param petitionId - ID of the petition
+ * @param ticketId - ID of the ticket
  * @param userId - ID of the user uploading
  * @returns Uploaded file info or null if upload fails
  */
 export async function uploadFileToSupabase(
   file: File,
-  petitionId: string,
+  ticketId: string,
   userId: string
 ): Promise<UploadedFile | null> {
   try {
@@ -44,11 +44,11 @@ export async function uploadFileToSupabase(
     // Create a unique file path
     const timestamp = Date.now()
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-    const filePath = `petitions/${petitionId}/${userId}/${timestamp}-${sanitizedFileName}`
+    const filePath = `tickets/${ticketId}/${userId}/${timestamp}-${sanitizedFileName}`
 
     // Upload file
     const { data, error } = await supabase.storage
-      .from(PETITION_ATTACHMENTS_BUCKET)
+      .from(TICKET_ATTACHMENTS_BUCKET)
       .upload(filePath, file, {
         contentType: file.type,
         upsert: false,
@@ -62,7 +62,7 @@ export async function uploadFileToSupabase(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from(PETITION_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
+    } = supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
 
     return {
       url: publicUrl,
@@ -83,7 +83,7 @@ export async function uploadFileToSupabase(
 export async function deleteFileFromSupabase(filePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
-      .from(PETITION_ATTACHMENTS_BUCKET)
+      .from(TICKET_ATTACHMENTS_BUCKET)
       .remove([filePath])
 
     if (error) {

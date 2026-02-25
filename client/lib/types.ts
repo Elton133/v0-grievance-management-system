@@ -1,4 +1,4 @@
-export type PetitionType =
+export type TicketType =
   | "academic_issue"
   | "administrative_issue"
   | "facility_issue"
@@ -6,7 +6,7 @@ export type PetitionType =
   | "financial_issue"
   | "other"
 
-export type PetitionStatus =
+export type TicketStatus =
   | "submitted"
   | "under_review"
   | "forwarded_to_hod"
@@ -14,31 +14,31 @@ export type PetitionStatus =
   | "resolved"
   | "rejected"
 
-export type PetitionPriority = "low" | "medium" | "high" | "urgent"
+export type TicketPriority = "low" | "medium" | "high" | "urgent"
 
-export interface Petition {
+export interface Ticket {
   id: string
-  studentId: string
-  studentName: string
-  studentEmail: string
-  department: string
+  submitterId: string
+  submitterName: string
+  submitterEmail: string
+  group: string
   year: string
-  type: PetitionType
-  priority: PetitionPriority
+  type: TicketType
+  priority: TicketPriority
   subject: string
   description: string
   attachments?: string[]
-  status: PetitionStatus
+  status: TicketStatus
   submittedAt: Date
   updatedAt: Date
   assignedTo?: string
-  comments?: PetitionComment[]
+  comments?: TicketComment[]
   escalationLevel: number
 }
 
-export interface PetitionComment {
+export interface TicketComment {
   id: string
-  petitionId: string
+  ticketId: string
   authorId: string
   authorName: string
   authorRole: string

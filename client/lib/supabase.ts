@@ -11,6 +11,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Storage bucket name for petition attachments
-export const PETITION_ATTACHMENTS_BUCKET = "petition-attachments"
+// Storage bucket name for ticket attachments
+export const TICKET_ATTACHMENTS_BUCKET = "ticket-attachments"
 

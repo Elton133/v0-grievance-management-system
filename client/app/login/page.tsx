@@ -49,12 +49,12 @@ export default function LoginPage() {
         description: "Welcome back!",
       })
       // Redirect based on user role
-      // Students go to /dashboard, admins go to /admin
+      // Submitters go to /dashboard, admins go to /admin
       const storedUser = localStorage.getItem("grievance_user")
       if (storedUser) {
         try {
           const user = JSON.parse(storedUser)
-          if (user.role === "student") {
+          if (user.role === "submitter") {
             router.push("/dashboard")
           } else {
             router.push("/admin")
@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Student Grievance Portal</h1>
+          <h1 className="text-2xl font-bold text-foreground">Submitter Grievance Portal</h1>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>
 

@@ -41,23 +41,23 @@ const STATUS_COLORS = {
 
 export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
   // Prepare data for charts
-  const statusData = Object.entries(data.petitionsByStatus).map(([status, count]) => ({
+  const statusData = Object.entries(data.ticketsByStatus).map(([status, count]) => ({
     name: status.replace(/_/g, " ").toUpperCase(),
     value: count,
     color: STATUS_COLORS[status as keyof typeof STATUS_COLORS] || COLORS.muted,
   }))
 
-  const typeData = Object.entries(data.petitionsByType).map(([type, count]) => ({
+  const typeData = Object.entries(data.ticketsByType).map(([type, count]) => ({
     name: type.replace(/_/g, " ").toUpperCase(),
     count,
   }))
 
-  const priorityData = Object.entries(data.petitionsByPriority).map(([priority, count]) => ({
+  const priorityData = Object.entries(data.ticketsByPriority).map(([priority, count]) => ({
     name: priority.toUpperCase(),
     count,
   }))
 
-  const departmentData = Object.entries(data.petitionsByDepartment).map(([dept, count]) => ({
+  const groupData = Object.entries(data.ticketsByGroup).map(([dept, count]) => ({
     name: dept,
     count,
   }))
@@ -67,8 +67,8 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
       {/* Status Distribution */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Petition Status Distribution</CardTitle>
-          <CardDescription>Current status of all petitions</CardDescription>
+          <CardTitle>Ticket Status Distribution</CardTitle>
+          <CardDescription>Current status of all tickets</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -101,8 +101,8 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Total Petitions</span>
-            <Badge variant="secondary">{data.totalPetitions}</Badge>
+            <span className="text-sm font-medium">Total Tickets</span>
+            <Badge variant="secondary">{data.totalTickets}</Badge>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Avg Resolution Time</span>
@@ -123,7 +123,7 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle>Monthly Trends</CardTitle>
-          <CardDescription>Petition submissions and resolutions over time</CardDescription>
+          <CardDescription>Ticket submissions and resolutions over time</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -139,10 +139,10 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
         </CardContent>
       </Card>
 
-      {/* Petition Types */}
+      {/* Ticket Types */}
       <Card>
         <CardHeader>
-          <CardTitle>Petition Types</CardTitle>
+          <CardTitle>Ticket Types</CardTitle>
           <CardDescription>Distribution by category</CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,7 +162,7 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
       <Card>
         <CardHeader>
           <CardTitle>Priority Levels</CardTitle>
-          <CardDescription>Petition priority distribution</CardDescription>
+          <CardDescription>Ticket priority distribution</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -177,15 +177,15 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
         </CardContent>
       </Card>
 
-      {/* Department Distribution */}
+      {/* Group Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle>By Department</CardTitle>
-          <CardDescription>Petitions per department</CardDescription>
+          <CardTitle>By Group</CardTitle>
+          <CardDescription>Tickets per group</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={departmentData}>
+            <BarChart data={groupData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />

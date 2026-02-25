@@ -99,7 +99,7 @@ export function NotificationBell() {
                   onSelect={() => handleMarkAsRead(notification.id)}
                 >
                   <Link
-                    href={`/petition/${notification.petitionId}`}
+                    href={`/ticket/${notification.ticketId}`}
                     className="flex items-start gap-3 p-3 w-full hover:bg-muted/50 transition-colors"
                   >
                     <div className={`rounded-full p-1 ${notification.isRead ? "bg-muted" : "bg-primary/10"}`}>

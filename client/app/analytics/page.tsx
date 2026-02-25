@@ -19,7 +19,7 @@ export default function AnalyticsPage() {
   const router = useRouter()
 
   // Only allow admin users to access analytics
-  if (!user || user.role === "student") {
+  if (!user || user.role === "submitter") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
             <p className="text-sm sm:text-base text-muted-foreground">
-              Comprehensive insights into petition management and system performance
+              Comprehensive insights into ticket management and system performance
             </p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
@@ -114,11 +114,11 @@ export default function AnalyticsPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{analyticsData.totalPetitions}</div>
+                  <div className="text-2xl font-bold">{analyticsData.totalTickets}</div>
                   <p className="text-xs text-muted-foreground">All time submissions</p>
                 </CardContent>
               </Card>
@@ -130,9 +130,9 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {analyticsData.totalPetitions > 0
+                    {analyticsData.totalTickets > 0
                       ? Math.round(
-                          ((analyticsData.petitionsByStatus.resolved || 0) / analyticsData.totalPetitions) * 100,
+                          ((analyticsData.ticketsByStatus.resolved || 0) / analyticsData.totalTickets) * 100,
                         )
                       : 0}
                     %
@@ -169,15 +169,15 @@ export default function AnalyticsPage() {
             {/* Charts */}
             <AnalyticsCharts data={analyticsData} />
 
-            {/* Department Performance */}
+            {/* Group Performance */}
             <Card>
               <CardHeader>
-                <CardTitle>Department Performance</CardTitle>
-                <CardDescription>Petition volume and resolution metrics by department</CardDescription>
+                <CardTitle>Group Performance</CardTitle>
+                <CardDescription>Ticket volume and resolution metrics by group</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {Object.entries(analyticsData.petitionsByDepartment).map(([dept, count]) => {
+                  {Object.entries(analyticsData.ticketsByGroup).map(([dept, count]) => {
                     const resolvedCount = Math.floor(count * 0.7) // Mock resolved count
                     const resolutionRate = Math.round((resolvedCount / count) * 100)
 
@@ -186,7 +186,7 @@ export default function AnalyticsPage() {
                         <div>
                           <h4 className="font-medium">{dept}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {count} petitions • {resolvedCount} resolved
+                            {count} tickets • {resolvedCount} resolved
                           </p>
                         </div>
                         <div className="text-right">

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-// Department to index number prefix mapping
+// Group to index number prefix mapping
 const DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
   ICT: ["BIT", "BCS", "BCE", "DIT"],
   Transport: ["BPS", "BLG", "DPS"],
@@ -8,26 +8,8 @@ const DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
   "Nautical Science": ["BNS"],
 }
 
-// Valid RMU email domains
-const RMU_EMAIL_DOMAINS = ["@st.rmu.edu.gh", "@rmu.edu.gh"]
-
-// Email validation schema
-const emailSchema = z
-  .string()
-  .email("Invalid email format")
-  .refine(
-    (email) => RMU_EMAIL_DOMAINS.some((domain) => email.endsWith(domain)),
-    {
-      message: "Email must be from @st.rmu.edu.gh or @rmu.edu.gh domain",
-    }
-  )
-
-// Index number validation based on department
-const validateIndexNumber = (indexNumber: string, department: string): boolean => {
-  const prefixes = DEPARTMENT_INDEX_PREFIXES[department]
-  if (!prefixes) return false
-  return prefixes.some((prefix) => indexNumber.toUpperCase().startsWith(prefix))
-}
+// Remove static email checks, let the backend enforce `allowedEmailDomains`
+const emailSchema = z.string().email("Invalid email format")
 
 // Registration schema
 export const registrationSchema = z
@@ -36,65 +18,56 @@ export const registrationSchema = z
     email: emailSchema,
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
-    role: z.enum(["student", "class_advisor", "hod", "registrar"]),
-    studentId: z.string().optional(),
-    department: z.string().optional(),
+    role: z.string(), // Removed enum to support dynamic CMS roles
+    submitterId: z.string().optional(),
+    group: z.string().optional(),
   })
   .refine(
     (data) => {
-      if (data.role === "student") {
-        return !!data.studentId && data.studentId.trim().length > 0
+      if (data.role === "submitter") {
+        return !!data.submitterId && data.submitterId.trim().length > 0
       }
       return true
     },
     {
-      message: "Student ID is required for students",
-      path: ["studentId"],
+      message: "Submitter ID is required for submitters",
+      path: ["submitterId"],
     }
   )
   .refine(
     (data) => {
-      if (data.role === "student") {
-        return !!data.department && data.department.trim().length > 0
+      if (data.role === "submitter") {
+        return !!data.group && data.group.trim().length > 0
       }
       return true
     },
     {
-      message: "Department is required for students",
-      path: ["department"],
+      message: "Group is required for submitters",
+      path: ["group"],
     }
   )
   .refine(
     (data) => {
-      if (data.role !== "student") {
-        return !!data.department && data.department.trim().length > 0
+      if (data.role !== "submitter") {
+        return !!data.group && data.group.trim().length > 0
       }
       return true
     },
     {
-      message: "Department is required for staff members",
-      path: ["department"],
+      message: "Group is required for staff members",
+      path: ["group"],
     }
   )
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
   })
+  // Moved prefix validation to backend, but we keep this refine empty for now to match types
   .superRefine((data, ctx) => {
-    if (data.role === "student" && data.studentId && data.department) {
-      if (!validateIndexNumber(data.studentId, data.department)) {
-        const prefixes = DEPARTMENT_INDEX_PREFIXES[data.department] || []
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Student ID must start with one of: ${prefixes.join(", ")} for ${data.department} department`,
-          path: ["studentId"],
-        })
-      }
-    }
+    // Backend strictly enforces prefixes now
   })
 
 export type RegistrationFormData = z.infer<typeof registrationSchema>
 
-// Export department index prefixes for use in UI
-export { DEPARTMENT_INDEX_PREFIXES, RMU_EMAIL_DOMAINS }
+export { DEPARTMENT_INDEX_PREFIXES }
 
