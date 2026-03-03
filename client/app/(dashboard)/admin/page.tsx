@@ -7,7 +7,6 @@ import { useSettings } from "@/lib/settings-context"
 import { toast } from "sonner"
 import { getTicketsByRole, updateTicketStatus, type Ticket } from "@/lib/ticket-store"
 import type { TicketStatus, TicketType } from "@/lib/types"
-import { DashboardLayout } from "@/components/dashboard-layout"
 import { AdminTicketCard } from "@/components/admin-ticket-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +32,13 @@ export default function AdminPage() {
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login")
+    }
+  }, [authLoading, user, router])
 
   // Fetch tickets based on user role
   useEffect(() => {
@@ -183,18 +189,12 @@ export default function AdminPage() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground">Please log in to access this page.</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   if (user.role === "submitter" || isSubmitterRole(user.role)) {
     return (
-      <DashboardLayout>
+      <>
         <Card className="w-full max-w-md mx-auto">
           <CardContent className="pt-6">
             <Alert variant="destructive">
@@ -206,12 +206,12 @@ export default function AdminPage() {
             </Button>
           </CardContent>
         </Card>
-      </DashboardLayout>
+      </>
     )
   }
 
   return (
-    <DashboardLayout>
+    <>
       {/* Welcome Section */}
       <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">{getRoleTitle()}</h2>
@@ -387,7 +387,7 @@ export default function AdminPage() {
             )}
           </TabsContent>
         </Tabs>
-    </DashboardLayout>
+    </>
   )
 
 }

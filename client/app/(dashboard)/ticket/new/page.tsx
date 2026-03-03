@@ -19,15 +19,7 @@ import Link from "next/link"
 import { FileUpload } from "@/components/file-upload"
 import { uploadFileToSupabase } from "@/lib/file-upload"
 import { ticketApi } from "@/lib/api"
-
-const ticketTypes: { value: TicketType; label: string }[] = [
-  { value: "academic_issue", label: "Academic Issue" },
-  { value: "administrative_issue", label: "Administrative Issue" },
-  { value: "facility_issue", label: "Facility Issue" },
-  { value: "disciplinary_issue", label: "Disciplinary Issue" },
-  { value: "financial_issue", label: "Financial Issue" },
-  { value: "other", label: "Other" },
-]
+import { useSettings } from "@/lib/settings-context"
 
 const priorityLevels: { value: TicketPriority; label: string; description: string }[] = [
   { value: "low", label: "Low", description: "General inquiry or minor issue" },
@@ -36,10 +28,9 @@ const priorityLevels: { value: TicketPriority; label: string; description: strin
   { value: "urgent", label: "Urgent", description: "Critical issue requiring immediate attention" },
 ]
 
-const yearOptions = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Graduate", "PhD"]
-
 export default function NewTicketPage() {
   const { user, isLoading } = useAuth()
+  const { settings } = useSettings()
   const router = useRouter()
 
   const [formData, setFormData] = useState({
@@ -160,7 +151,7 @@ export default function NewTicketPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
       <div className="container mx-auto px-4 py-4 sm:py-8 max-w-4xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
@@ -203,8 +194,8 @@ export default function NewTicketPage() {
                           <SelectValue placeholder="Select ticket type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {ticketTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
+                          {settings?.ticketTypesConfig?.map((type) => (
+                            <SelectItem key={type.key} value={type.key}>
                               {type.label}
                             </SelectItem>
                           ))}
@@ -213,22 +204,14 @@ export default function NewTicketPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="year">Academic Year *</Label>
-                      <Select
+                      <Label htmlFor="year">Year / Level *</Label>
+                      <Input
+                        id="year"
+                        placeholder="e.g. 1st Year, Level 2, or N/A"
                         value={formData.year}
-                        onValueChange={(value) => setFormData((prev) => ({ ...prev, year: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your year" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {yearOptions.map((year) => (
-                            <SelectItem key={year} value={year}>
-                              {year}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onChange={(e) => setFormData((prev) => ({ ...prev, year: e.target.value }))}
+                        required
+                      />
                     </div>
                   </div>
 
@@ -354,6 +337,6 @@ export default function NewTicketPage() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

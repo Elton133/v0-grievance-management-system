@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
 import { getTicketsBySubmitter, getTickets, type Ticket } from "@/lib/ticket-store"
 import type { TicketStatus, TicketType } from "@/lib/types"
-import { DashboardLayout } from "@/components/dashboard-layout"
 import { TicketCard } from "@/components/ticket-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,9 +15,11 @@ import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings } f
 import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
+  const router = useRouter()
   const { settings, isSubmitterRole, getRoleLabel } = useSettings()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
@@ -33,6 +34,13 @@ export default function DashboardPage() {
     hasPrev: false,
   })
   const itemsPerPage = 12
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login")
+    }
+  }, [authLoading, user, router])
 
   // Fetch tickets based on user role
   useEffect(() => {
@@ -111,7 +119,7 @@ export default function DashboardPage() {
     return { total, pending, resolved, urgent }
   }, [allTickets])
 
-  if (!user || isLoading) {
+  if (authLoading || isLoading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <AppLoader message="Loading tickets..." />
@@ -121,7 +129,7 @@ export default function DashboardPage() {
 
   if (user.role !== "submitter" && !isSubmitterRole(user.role)) {
     return (
-      <DashboardLayout>
+      <>
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -138,12 +146,12 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-      </DashboardLayout>
+      </>
     )
   }
 
   return (
-    <DashboardLayout>
+    <>
       {/* Welcome Section */}
       <div className="mb-6 sm:mb-8">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
@@ -225,12 +233,11 @@ export default function DashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
-                <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                {settings.statusLabelsConfig.map((status) => (
+                  <SelectItem key={status.key} value={status.key}>
+                    {status.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -240,12 +247,11 @@ export default function DashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="academic_issue">Academic</SelectItem>
-                <SelectItem value="administrative_issue">Administrative</SelectItem>
-                <SelectItem value="facility_issue">Facility</SelectItem>
-                <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
-                <SelectItem value="financial_issue">Financial</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {settings.ticketTypesConfig.map((type) => (
+                  <SelectItem key={type.key} value={type.key}>
+                    {type.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -314,6 +320,6 @@ export default function DashboardPage() {
           </>
         )}
       </div>
-    </DashboardLayout>
+    </>
   )
 }

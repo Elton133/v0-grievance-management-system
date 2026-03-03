@@ -1,6 +1,6 @@
 # Technical Documentation
 
-This document provides comprehensive technical documentation for the Student Grievance Management System, covering methodology, implementation details, system architecture, and evaluation results.
+This document provides comprehensive technical documentation for the Submitter Grievance Management System, covering methodology, implementation details, system architecture, and evaluation results.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This document provides comprehensive technical documentation for the Student Gri
 
 ### Overview
 
-The Student Grievance Management System follows a three-tier architecture:
+The Submitter Grievance Management System follows a three-tier architecture:
 
 1. **Presentation Layer**: Next.js frontend application
 2. **Application Layer**: Express.js REST API
@@ -40,7 +40,7 @@ The Student Grievance Management System follows a three-tier architecture:
 │   (React Components)      │
 │   - Authentication UI    │
 │   - Dashboard             │
-│   - Petition Management   │
+│   - Ticket Management   │
 │   - Analytics             │
 └────────┬──────────────────┘
          │ REST API
@@ -58,7 +58,7 @@ The Student Grievance Management System follows a three-tier architecture:
 ┌────────▼──────────────────┐
 │   Supabase PostgreSQL      │
 │   - User Data              │
-│   - Petitions              │
+│   - Tickets              │
 │   - Audit Logs             │
 └────────────────────────────┘
 ```
@@ -108,7 +108,7 @@ The system was developed using an **iterative and incremental** approach:
 
 1. **Phase 1: Core Functionality**
    - User authentication and authorization
-   - Basic petition CRUD operations
+   - Basic ticket CRUD operations
    - Database schema design
 
 2. **Phase 2: Workflow Implementation**
@@ -136,7 +136,7 @@ The system was developed using an **iterative and incremental** approach:
 
 ### Assumptions
 
-1. **User Roles**: System assumes four distinct user roles (student, class_advisor, hod, registrar)
+1. **User Roles**: System assumes four distinct user roles (submitter, class_advisor, hod, registrar)
 2. **Workflow**: Assumes a hierarchical escalation model (Class Advisor → HOD → Registrar)
 3. **Email Service**: Assumes SMTP service availability (with graceful fallback)
 4. **Network**: Assumes stable internet connection for database access
@@ -144,7 +144,7 @@ The system was developed using an **iterative and incremental** approach:
 
 ### Simplifications
 
-1. **File Attachments**: Currently supports text-based petitions only (attachment support can be added)
+1. **File Attachments**: Currently supports text-based tickets only (attachment support can be added)
 2. **Real-time Updates**: Uses polling instead of WebSockets (can be upgraded)
 3. **Email Templates**: Basic HTML templates (can be enhanced with rich formatting)
 4. **Analytics**: Basic metrics (can be extended with advanced analytics)
@@ -201,19 +201,19 @@ export const authMiddleware = (req, res, next) => {
 ```
 Level 1: Class Advisor (initial assignment)
     ↓
-Level 2: Head of Department (when forwarded)
+Level 2: Head of Group (when forwarded)
     ↓
 Level 3: Registrar (final escalation)
 ```
 
 **Key Functions**:
 
-1. **`assignPetitionToNextReviewer()`**
+1. **`assignTicketToNextReviewer()`**
    - Determines next reviewer based on escalation level
-   - Finds appropriate user by role and department
-   - Updates petition assignment
+   - Finds appropriate user by role and group
+   - Updates ticket assignment
 
-2. **`handlePetitionStatusChange()`**
+2. **`handleTicketStatusChange()`**
    - Validates status transitions
    - Triggers escalation if needed
    - Sends email notifications
@@ -237,10 +237,10 @@ const ESCALATION_HIERARCHY = {
 };
 
 // Auto-assignment based on escalation level
-const reviewer = await getNextReviewer(escalationLevel, department);
+const reviewer = await getNextReviewer(escalationLevel, group);
 if (reviewer) {
-  await assignPetition(petitionId, reviewer.userId);
-  await sendEmailNotification(reviewer, petition);
+  await assignTicket(ticketId, reviewer.userId);
+  await sendEmailNotification(reviewer, ticket);
 }
 ```
 
@@ -255,10 +255,10 @@ if (reviewer) {
 - HTML email formatting
 
 **Email Types**:
-1. **New Petition Assigned**: Sent to reviewer when petition is assigned
-2. **Status Update**: Sent to student when status changes
+1. **New Ticket Assigned**: Sent to reviewer when ticket is assigned
+2. **Status Update**: Sent to submitter when status changes
 3. **Escalation Alert**: Sent to next reviewer when escalated
-4. **Resolution Notification**: Sent when petition is resolved
+4. **Resolution Notification**: Sent when ticket is resolved
 
 **Implementation**:
 ```typescript
@@ -288,15 +288,15 @@ export async function sendEmail({ to, subject, html }) {
 
 **Permission Matrix**:
 
-| Action | Student | Class Advisor | HOD | Registrar |
+| Action | Submitter | Class Advisor | HOD | Registrar |
 |--------|---------|---------------|-----|-----------|
-| Create Petition | ✅ | ❌ | ❌ | ❌ |
-| View Own Petitions | ✅ | ❌ | ❌ | ❌ |
-| View Department Petitions | ❌ | ✅ | ✅ | ❌ |
-| View All Petitions | ❌ | ❌ | ❌ | ✅ |
+| Create Ticket | ✅ | ❌ | ❌ | ❌ |
+| View Own Tickets | ✅ | ❌ | ❌ | ❌ |
+| View Group Tickets | ❌ | ✅ | ✅ | ❌ |
+| View All Tickets | ❌ | ❌ | ❌ | ✅ |
 | Update Status | ❌ | ✅ | ✅ | ✅ |
-| Edit Petition (submitted only) | ✅ | ❌ | ❌ | ❌ |
-| Delete Petition (submitted only) | ✅ | ❌ | ❌ | ❌ |
+| Edit Ticket (submitted only) | ✅ | ❌ | ❌ | ❌ |
+| Delete Ticket (submitted only) | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -305,11 +305,11 @@ export async function sendEmail({ to, subject, html }) {
 ### Entity Relationship Model
 
 ```
-User (1) ────< (N) Petition
+User (1) ────< (N) Ticket
   │                │
-  │                ├───< (N) PetitionComment
-  │                ├───< (N) PetitionStatusHistory
-  │                └───< (N) PetitionAttachment
+  │                ├───< (N) TicketComment
+  │                ├───< (N) TicketStatusHistory
+  │                └───< (N) TicketAttachment
   │
   ├───< (N) Notification
   └───< (N) AuditLog
@@ -318,28 +318,28 @@ User (1) ────< (N) Petition
 ### Key Tables
 
 #### User Table
-- **Purpose**: Stores all user accounts (students and staff)
+- **Purpose**: Stores all user accounts (submitters and staff)
 - **Key Fields**:
   - `id`: UUID primary key
   - `email`: Unique identifier
-  - `role`: Enum (student, class_advisor, hod, registrar)
-  - `studentId`: Optional, unique for students
-  - `department`: Optional, for staff members
+  - `role`: Enum (submitter, class_advisor, hod, registrar)
+  - `submitterId`: Optional, unique for submitters
+  - `group`: Optional, for staff members
 
-#### Petition Table
-- **Purpose**: Main grievance/petition records
+#### Ticket Table
+- **Purpose**: Main grievance/ticket records
 - **Key Fields**:
   - `id`: UUID primary key
-  - `studentId`: Foreign key to User
+  - `submitterId`: Foreign key to User
   - `status`: Enum (submitted, under_review, etc.)
   - `escalationLevel`: Integer (1-3)
   - `assignedTo`: Foreign key to User (reviewer)
   - `priority`: Enum (low, medium, high, urgent)
 
-#### PetitionStatusHistory Table
+#### TicketStatusHistory Table
 - **Purpose**: Complete audit trail of status changes
 - **Key Fields**:
-  - `petitionId`: Foreign key
+  - `ticketId`: Foreign key
   - `previousStatus`: Previous status value
   - `newStatus`: New status value
   - `changedBy`: User who made the change
@@ -347,16 +347,16 @@ User (1) ────< (N) Petition
 
 ### Database Relationships
 
-1. **One-to-Many**: User → Petitions (one user can have many petitions)
-2. **One-to-Many**: Petition → Comments (one petition can have many comments)
-3. **One-to-Many**: Petition → StatusHistory (one petition has many status changes)
-4. **Many-to-One**: Petition → AssignedUser (many petitions can be assigned to one user)
+1. **One-to-Many**: User → Tickets (one user can have many tickets)
+2. **One-to-Many**: Ticket → Comments (one ticket can have many comments)
+3. **One-to-Many**: Ticket → StatusHistory (one ticket has many status changes)
+4. **Many-to-One**: Ticket → AssignedUser (many tickets can be assigned to one user)
 
 ### Indexes and Performance
 
 - **Primary Keys**: All tables use UUID primary keys
 - **Foreign Keys**: Properly indexed for join performance
-- **Unique Constraints**: Email, studentId
+- **Unique Constraints**: Email, submitterId
 - **Query Optimization**: Prisma automatically optimizes queries
 
 ---
@@ -367,7 +367,7 @@ User (1) ────< (N) Petition
 
 The API follows RESTful conventions:
 
-- **Resources**: Petitions, Users, Comments
+- **Resources**: Tickets, Users, Comments
 - **HTTP Methods**: GET, POST, PUT, PATCH, DELETE
 - **Status Codes**: 200, 201, 400, 401, 403, 404, 500
 - **JSON Format**: All requests and responses use JSON
@@ -378,21 +378,21 @@ The API follows RESTful conventions:
 - `POST /api/auth/register` - Create new user account
 - `POST /api/auth/login` - Authenticate user and get token
 
-#### Petitions
-- `POST /api/petitions` - Create new petition
-- `GET /api/petitions` - List all petitions (role-based filtering)
-- `GET /api/petitions/my` - Get current user's petitions
-- `GET /api/petitions/:id` - Get petition details
-- `PUT /api/petitions/:id` - Update petition (students only, submitted only)
-- `DELETE /api/petitions/:id` - Delete petition (students only, submitted only)
-- `PATCH /api/petitions/:id/status` - Update petition status
-- `POST /api/petitions/:id/comments` - Add comment to petition
+#### Tickets
+- `POST /api/tickets` - Create new ticket
+- `GET /api/tickets` - List all tickets (role-based filtering)
+- `GET /api/tickets/my` - Get current user's tickets
+- `GET /api/tickets/:id` - Get ticket details
+- `PUT /api/tickets/:id` - Update ticket (submitters only, submitted only)
+- `DELETE /api/tickets/:id` - Delete ticket (submitters only, submitted only)
+- `PATCH /api/tickets/:id/status` - Update ticket status
+- `POST /api/tickets/:id/comments` - Add comment to ticket
 
 ### Request/Response Format
 
-**Example: Create Petition**
+**Example: Create Ticket**
 ```http
-POST /api/petitions
+POST /api/tickets
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -402,7 +402,7 @@ Content-Type: application/json
   "type": "academic_issue",
   "priority": "high",
   "year": "3rd Year",
-  "department": "ICT"
+  "group": "ICT"
 }
 
 Response: 201 Created
@@ -448,9 +448,9 @@ Response: 201 Created
 ### Authorization Security
 
 1. **Role-Based Access**: Middleware validates user role
-2. **Resource Ownership**: Students can only edit/delete their own petitions
+2. **Resource Ownership**: Submitters can only edit/delete their own tickets
 3. **Status Validation**: Only valid status transitions allowed
-4. **Department Filtering**: Staff can only view their department's petitions
+4. **Group Filtering**: Staff can only view their group's tickets
 
 ### Data Security
 
@@ -465,7 +465,7 @@ Response: 201 Created
 
 - **General API**: 100 requests per 15 minutes
 - **Authentication**: 5 requests per 15 minutes
-- **Petition Creation**: 20 requests per 15 minutes
+- **Ticket Creation**: 20 requests per 15 minutes
 
 **Purpose**: Prevent abuse and DoS attacks
 
@@ -485,7 +485,7 @@ Response: 201 Created
 
 **Test Scenarios**:
 1. User registration and login flow
-2. Petition creation and assignment
+2. Ticket creation and assignment
 3. Status update and escalation
 4. Email notification delivery
 5. Permission enforcement
@@ -493,12 +493,12 @@ Response: 201 Created
 ### Manual Testing
 
 **Test Cases**:
-1. ✅ Student can create petition
-2. ✅ Petition automatically assigned to class advisor
+1. ✅ Submitter can create ticket
+2. ✅ Ticket automatically assigned to class advisor
 3. ✅ Class advisor receives email notification
 4. ✅ Status can be updated through workflow
 5. ✅ Escalation works correctly
-6. ✅ Students can edit/delete only "submitted" petitions
+6. ✅ Submitters can edit/delete only "submitted" tickets
 7. ✅ Role-based access control enforced
 8. ✅ Email notifications sent correctly
 
@@ -530,7 +530,7 @@ Response: 201 Created
 ### Functional Results
 
 #### Workflow Automation
-- ✅ **100%** of petitions automatically assigned to correct reviewer
+- ✅ **100%** of tickets automatically assigned to correct reviewer
 - ✅ **100%** of escalations follow correct hierarchy
 - ✅ **0%** invalid status transitions (prevented by validation)
 
@@ -579,7 +579,7 @@ Response: 201 Created
 ### Future Enhancements
 
 1. **File Upload Support**
-   - Allow students to attach documents
+   - Allow submitters to attach documents
    - Support for PDF, images, etc.
    - File storage in Supabase Storage
 
@@ -590,7 +590,7 @@ Response: 201 Created
 
 3. **Advanced Analytics**
    - Machine learning for trend prediction
-   - Sentiment analysis of petitions
+   - Sentiment analysis of tickets
    - Advanced reporting and dashboards
 
 4. **Mobile Application**
@@ -614,7 +614,7 @@ Response: 201 Created
 
 ### Summary of Achievements
 
-The Student Grievance Management System successfully implements a comprehensive solution for managing student grievances in educational institutions. Key achievements include:
+The Submitter Grievance Management System successfully implements a comprehensive solution for managing submitter grievances in educational institutions. Key achievements include:
 
 1. **Automated Workflow**: Successfully implemented automated escalation and assignment system
 2. **Role-Based Access**: Effective implementation of role-based permissions
@@ -663,7 +663,7 @@ The system has been validated through:
 
 ### Final Remarks
 
-The Student Grievance Management System successfully addresses the requirements for managing student grievances in educational institutions. The system demonstrates:
+The Submitter Grievance Management System successfully addresses the requirements for managing submitter grievances in educational institutions. The system demonstrates:
 
 - **Functionality**: All core features working as designed
 - **Reliability**: Robust error handling and validation

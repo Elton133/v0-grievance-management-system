@@ -4,15 +4,17 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes";
 import ticketRoutes from "./routes/ticketRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
+import v1TicketRoutes from "./routes/v1/ticketRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
+import { requireApiToken } from "./middleware/apiAuthMiddleware";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Trust proxy for Render and other hosting platforms
-app.set('trust proxy', true);
+// Trust loopback proxy only (avoids permissive trust proxy issues with rate limiting)
+app.set("trust proxy", "loopback");
 
 // Middleware
 app.use(cors());
@@ -20,8 +22,11 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/tickets", ticketRoutes);
+app.use("/api/tickets", ticketRoutes); // Internal React App Routes
 app.use("/api/settings", settingsRoutes);
+
+// External Developer APIs (v1)
+app.use("/api/v1/tickets", requireApiToken, v1TicketRoutes);
 
 // Health check endpoint
 app.get("/health", (req: express.Request, res: express.Response) => {

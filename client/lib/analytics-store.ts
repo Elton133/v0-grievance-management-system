@@ -61,7 +61,8 @@ const auditLogs: AuditLog[] = [
 ]
 
 export async function getAnalyticsData(): Promise<AnalyticsData> {
-  const tickets = await getTickets()
+  const result = await getTickets(1, 1000)
+  const tickets = result.data
 
   // Calculate basic metrics
   const totalTickets = tickets.length
@@ -98,14 +99,15 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     {} as Record<string, number>,
   )
 
-  // Calculate resolution time (mock data for now)
-  const resolvedTickets = tickets.filter((p) => p.status === "resolved")
+  // Calculate resolution time using resolvedAt when available (falls back to updatedAt)
+  const resolvedTickets = tickets.filter((p) => p.resolvedAt)
   const averageResolutionTime =
     resolvedTickets.length > 0
       ? resolvedTickets.reduce((acc, ticket) => {
-          const resolutionTime = ticket.updatedAt.getTime() - ticket.submittedAt.getTime()
-          return acc + resolutionTime / (1000 * 60 * 60 * 24) // Convert to days
-        }, 0) / resolvedTickets.length
+        const end = ticket.resolvedAt ?? ticket.updatedAt
+        const resolutionTime = end.getTime() - ticket.submittedAt.getTime()
+        return acc + resolutionTime / (1000 * 60 * 60 * 24) // Convert to days
+      }, 0) / resolvedTickets.length
       : 0
 
   // Generate monthly trends (mock data)

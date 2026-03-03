@@ -259,3 +259,23 @@ export const settingsApi = {
   },
 };
 
+// Developer API
+export const developerApi = {
+  getKeys: async () => apiRequest<any[]>("/settings/keys"),
+  createKey: async (name: string) =>
+    apiRequest<any>("/settings/keys", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  revokeKey: async (id: string) =>
+    apiRequest<any>(`/settings/keys/${id}`, { method: "DELETE" }),
+  getWebhooks: async () => apiRequest<any[]>("/settings/webhooks"),
+  createWebhook: async (data: { url: string; events: string[] }) =>
+    apiRequest<any>("/settings/webhooks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteWebhook: async (id: string) =>
+    apiRequest<any>(`/settings/webhooks/${id}`, { method: "DELETE" }),
+};
+

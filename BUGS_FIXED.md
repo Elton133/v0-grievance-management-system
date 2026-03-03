@@ -23,19 +23,19 @@ This document contains a comprehensive list of all bugs found and fixed during d
 
 ---
 
-### 2. Students Cannot View/Edit/Delete Their Own Petitions
-**Issue:** Students received "You don't have permission to view this petition" error when trying to view their own submitted petitions.
+### 2. Submitters Cannot View/Edit/Delete Their Own Tickets
+**Issue:** Submitters received "You don't have permission to view this ticket" error when trying to view their own submitted tickets.
 
-**Root Cause:** Permission check was comparing `user?.studentId` with `petition.studentId`, but `petition.studentId` stores the User UUID, not the student ID string.
+**Root Cause:** Permission check was comparing `user?.submitterId` with `ticket.submitterId`, but `ticket.submitterId` stores the User UUID, not the submitter ID string.
 
 **Fix:**
-- Updated permission check to compare `user?.id` with `petition.studentId`
-- Added edit and delete functionality for students on their own "submitted" petitions
+- Updated permission check to compare `user?.id` with `ticket.submitterId`
+- Added edit and delete functionality for submitters on their own "submitted" tickets
 - Added proper UI for edit/delete buttons with loading states
 
 **Files Changed:**
-- `client/app/petition/[id]/page.tsx`
-- `client/lib/petition-store.ts` (added update/delete functions)
+- `client/app/ticket/[id]/page.tsx`
+- `client/lib/ticket-store.ts` (added update/delete functions)
 
 **Status:** ✅ Fixed
 
@@ -47,18 +47,18 @@ This document contains a comprehensive list of all bugs found and fixed during d
 **Root Cause:** Components were using hardcoded mock data instead of API calls.
 
 **Fix:**
-- Replaced all mock data with actual API calls using `petitionApi`
-- Updated `petition-store.ts` to use real API endpoints
+- Replaced all mock data with actual API calls using `ticketApi`
+- Updated `ticket-store.ts` to use real API endpoints
 - Added proper error handling and loading states
 - Created centralized API client (`client/lib/api.ts`) for better structure
 
 **Files Changed:**
-- `client/lib/petition-store.ts`
+- `client/lib/ticket-store.ts`
 - `client/lib/api.ts`
 - `client/lib/auth-context.tsx`
 - `client/app/dashboard/page.tsx`
 - `client/app/admin/page.tsx`
-- `client/app/petition/[id]/page.tsx`
+- `client/app/ticket/[id]/page.tsx`
 
 **Status:** ✅ Fixed
 
@@ -67,7 +67,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ### 4. Analytics Page Breaking
 **Issue:** Analytics page was not loading data and showing errors.
 
-**Root Cause:** `getAnalyticsData` function was synchronous but needed to be async to fetch petitions.
+**Root Cause:** `getAnalyticsData` function was synchronous but needed to be async to fetch tickets.
 
 **Fix:**
 - Made `getAnalyticsData` async
@@ -102,7 +102,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 - Fixed filter buttons to stack vertically on mobile
 - Made selects full-width on mobile
 - Updated statistics cards to be single column on mobile
-- Fixed petition cards to stack properly
+- Fixed ticket cards to stack properly
 - Added responsive padding and spacing
 - Made dialogs responsive with proper margins
 - Fixed admin page tabs to scroll horizontally on mobile
@@ -111,9 +111,9 @@ This document contains a comprehensive list of all bugs found and fixed during d
 - `client/components/dashboard-header.tsx`
 - `client/app/dashboard/page.tsx`
 - `client/app/admin/page.tsx`
-- `client/app/petition/[id]/page.tsx`
-- `client/app/petition/new/page.tsx`
-- `client/components/petition-card.tsx`
+- `client/app/ticket/[id]/page.tsx`
+- `client/app/ticket/new/page.tsx`
+- `client/components/ticket-card.tsx`
 - `client/app/analytics/page.tsx`
 
 **Status:** ✅ Fixed
@@ -121,7 +121,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ---
 
 ### 7. Missing Toast Notifications
-**Issue:** No user feedback when actions were performed (login, create petition, update status, etc.).
+**Issue:** No user feedback when actions were performed (login, create ticket, update status, etc.).
 
 **Fix:**
 - Added `sonner` toast library (already installed)
@@ -129,18 +129,18 @@ This document contains a comprehensive list of all bugs found and fixed during d
 - Added toast notifications for:
   - Login success/failure
   - Registration success/failure
-  - Petition submission
-  - Petition status updates
-  - Petition edit/delete
+  - Ticket submission
+  - Ticket status updates
+  - Ticket edit/delete
   - Logout
 
 **Files Changed:**
 - `client/app/layout.tsx`
 - `client/app/login/page.tsx`
 - `client/app/register/page.tsx`
-- `client/app/petition/new/page.tsx`
+- `client/app/ticket/new/page.tsx`
 - `client/app/admin/page.tsx`
-- `client/app/petition/[id]/page.tsx`
+- `client/app/ticket/[id]/page.tsx`
 - `client/lib/auth-context.tsx`
 
 **Status:** ✅ Fixed
@@ -260,7 +260,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 
 **Files Changed:**
 - `server/config/utils/emailService.ts`
-- `server/config/controllers/petitionController.ts`
+- `server/config/controllers/ticketController.ts`
 - `SETUP.md`
 
 **Status:** ✅ Fixed
@@ -269,8 +269,8 @@ This document contains a comprehensive list of all bugs found and fixed during d
 
 ## ⚡ Performance Optimizations
 
-### 1. Slow Petition Creation
-**Issue:** Creating petitions was slow on live server.
+### 1. Slow Ticket Creation
+**Issue:** Creating tickets was slow on live server.
 
 **Root Causes:**
 - Email sending was blocking the response
@@ -281,11 +281,11 @@ This document contains a comprehensive list of all bugs found and fixed during d
 - Made email sending asynchronous (non-blocking)
 - Batched notification creation using `createMany`
 - Optimized reviewer lookup to avoid duplicate queries
-- Optimized `getPetitions` query using `select` instead of `include`
+- Optimized `getTickets` query using `select` instead of `include`
 - Added query limit (1000) to prevent large result sets
 
 **Files Changed:**
-- `server/config/controllers/petitionController.ts`
+- `server/config/controllers/ticketController.ts`
 - `server/config/utils/workflowService.ts`
 
 **Status:** ✅ Optimized
@@ -296,9 +296,9 @@ This document contains a comprehensive list of all bugs found and fixed during d
 **Issue:** Queries were slow due to missing indexes.
 
 **Fix:** Added database indexes for frequently queried fields:
-- User table: `[role, department]`, `[email]`
-- Petition table: `[studentId]`, `[assignedTo]`, `[status]`, `[department, escalationLevel]`, `[submittedAt]`, `[status, department]`
-- Notification table: `[userId, isRead]`, `[petitionId]`, `[createdAt]`
+- User table: `[role, group]`, `[email]`
+- Ticket table: `[submitterId]`, `[assignedTo]`, `[status]`, `[group, escalationLevel]`, `[submittedAt]`, `[status, group]`
+- Notification table: `[userId, isRead]`, `[ticketId]`, `[createdAt]`
 
 **Files Changed:**
 - `server/config/prisma/schema.prisma`
@@ -326,9 +326,9 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ### 2. Promise Handling Issue
 **Error:** `This condition will always return true since this 'Promise<boolean>' is always defined.`
 
-**Root Cause:** `updatePetitionStatus` is async but was being used synchronously.
+**Root Cause:** `updateTicketStatus` is async but was being used synchronously.
 
-**Fix:** Made `handleStatusUpdate` async and added `await` for `updatePetitionStatus`.
+**Fix:** Made `handleStatusUpdate` async and added `await` for `updateTicketStatus`.
 
 **Files Changed:**
 - `client/app/admin/page.tsx`
@@ -338,14 +338,14 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ---
 
 ### 3. Type Export Issue
-**Error:** `Module '"@/lib/petition-store"' declares 'Petition' locally, but it is not exported.`
+**Error:** `Module '"@/lib/ticket-store"' declares 'Ticket' locally, but it is not exported.`
 
-**Root Cause:** `Petition` type was imported but not re-exported.
+**Root Cause:** `Ticket` type was imported but not re-exported.
 
-**Fix:** Added `export type { Petition, PetitionStatus, PetitionComment }` to `petition-store.ts`.
+**Fix:** Added `export type { Ticket, TicketStatus, TicketComment }` to `ticket-store.ts`.
 
 **Files Changed:**
-- `client/lib/petition-store.ts`
+- `client/lib/ticket-store.ts`
 
 **Status:** ✅ Fixed
 
@@ -377,7 +377,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 **Fix:** Created a complete registration page with:
 - Form validation
 - Role selection
-- Conditional fields (studentId for students, department for staff)
+- Conditional fields (submitterId for submitters, group for staff)
 - Backend integration
 - Success/error handling
 
@@ -392,7 +392,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ### 2. Admin Dashboard Redirect
 **Issue:** Admins were not automatically redirected to their dashboard on login.
 
-**Fix:** Updated login logic to redirect students to `/dashboard` and admins to `/admin`.
+**Fix:** Updated login logic to redirect submitters to `/dashboard` and admins to `/admin`.
 
 **Files Changed:**
 - `client/app/login/page.tsx`
@@ -402,13 +402,13 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ---
 
 ### 3. Loading States for Status Updates
-**Issue:** No visual feedback when updating petition status.
+**Issue:** No visual feedback when updating ticket status.
 
 **Fix:** Added loading states with spinner on status update buttons.
 
 **Files Changed:**
 - `client/app/admin/page.tsx`
-- `client/components/admin-petition-card.tsx`
+- `client/components/admin-ticket-card.tsx`
 
 **Status:** ✅ Fixed
 
@@ -496,7 +496,7 @@ This document contains a comprehensive list of all bugs found and fixed during d
    - Ensure `app.set('trust proxy', true)` is in `server/config/server.ts`
 
 4. **Test Email Functionality:**
-   - Create a test petition
+   - Create a test ticket
    - Check server logs for email status
    - Verify emails are being sent
 
@@ -511,6 +511,6 @@ This document contains a comprehensive list of all bugs found and fixed during d
 ---
 
 **Last Updated:** December 2024
-**Project:** Student Grievance Management System
+**Project:** Submitter Grievance Management System
 **Status:** All critical bugs fixed, ready for production deployment
 

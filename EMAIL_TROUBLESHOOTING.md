@@ -187,7 +187,7 @@ SMTP_FROM="Grievance Management System <your-email@gmail.com>"
 1. Deploy your application
 2. Check server startup logs for email configuration status
 3. Visit `/api/email/status` endpoint
-4. Create a test petition
+4. Create a test ticket
 5. Check server logs for email sending attempts
 6. Verify email is received (check spam folder)
 
@@ -200,7 +200,7 @@ SMTP_FROM="Grievance Management System <your-email@gmail.com>"
 When emails are sent, you'll see logs like:
 ```
 [Email Service] 📧 Attempting to send email...
-[Email Service]   To: student@example.com
+[Email Service]   To: submitter@example.com
 [Email Service]   Subject: Grievance Status Update: ...
 [Email Service]   SMTP: smtp.gmail.com:587
 [Email Service] 🔍 Verifying SMTP connection...
@@ -216,7 +216,7 @@ When emails are sent, you'll see logs like:
 You'll see detailed error logs:
 ```
 [Email Service] ❌ Error sending email:
-[Email Service]   To: student@example.com
+[Email Service]   To: submitter@example.com
 [Email Service]   Error Code: EAUTH
 [Email Service]   Error Message: Invalid login
 [Email Service] ❌ Authentication failed. For Gmail:

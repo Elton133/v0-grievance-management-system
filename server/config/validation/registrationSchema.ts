@@ -9,9 +9,10 @@ const DEFAULT_DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
   "Nautical Science": ["BNS"],
 }
 
-// Default valid email domains (RMU defaults)
-// These can be overridden via TenantSettings.allowedEmailDomains
-const DEFAULT_EMAIL_DOMAINS = ["@st.rmu.edu.gh", "@rmu.edu.gh"]
+// Default valid email domains
+// Empty array means: no domain restriction by default.
+// Tenants can still enforce domains via TenantSettings.allowedEmailDomains.
+const DEFAULT_EMAIL_DOMAINS: string[] = []
 
 // Default valid roles
 const DEFAULT_ROLES = ["submitter", "class_advisor", "hod", "registrar"]

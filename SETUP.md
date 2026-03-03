@@ -1,6 +1,6 @@
 # Setup Guide
 
-Complete step-by-step guide to set up the Student Grievance Management System from scratch.
+Complete step-by-step guide to set up the Submitter Grievance Management System from scratch.
 
 ## 📋 Prerequisites
 
@@ -129,7 +129,7 @@ npm install
 
 3. Verify in Supabase:
    - Go to Supabase dashboard → **Table Editor**
-   - You should see tables: `User`, `Petition`, `PetitionComment`, etc.
+   - You should see tables: `User`, `Ticket`, `TicketComment`, etc.
 
 ## 🌱 Step 7: Seed Database (Optional)
 
@@ -141,7 +141,7 @@ npm run seed
 ```
 
 This creates:
-- 15 students (across 3 departments)
+- 15 submitters (across 3 groups)
 - 6 class advisors
 - 3 HODs
 - 2 registrars
@@ -254,8 +254,8 @@ PORT=3001 npm run dev
 ## 🎯 Next Steps
 
 1. **Test the workflow:**
-   - Register/login as a student
-   - Create a petition
+   - Register/login as a submitter
+   - Create a ticket
    - Login as different roles and test the escalation flow
 
 2. **Customize:**
