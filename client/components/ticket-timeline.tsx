@@ -2,26 +2,35 @@ import type { Ticket } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Clock, ArrowRight, XCircle, User } from "lucide-react"
+import { useSettings } from "@/lib/settings-context"
 
 interface TicketTimelineProps {
   ticket: Ticket
 }
 
-const timelineSteps = [
-  { status: "submitted", label: "Ticket Submitted", icon: CheckCircle, color: "text-green-600" },
-  { status: "under_review", label: "Under Review", icon: Clock, color: "text-yellow-600" },
-  { status: "forwarded_to_hod", label: "Forwarded to HOD", icon: ArrowRight, color: "text-purple-600" },
-  { status: "forwarded_to_registrar", label: "Forwarded to Registrar", icon: ArrowRight, color: "text-orange-600" },
-  { status: "resolved", label: "Resolved", icon: CheckCircle, color: "text-green-600" },
-  { status: "rejected", label: "Rejected", icon: XCircle, color: "text-red-600" },
-]
-
 export function TicketTimeline({ ticket }: TicketTimelineProps) {
-  const getCurrentStepIndex = () => {
-    return timelineSteps.findIndex((step) => step.status === ticket.status)
-  }
+  const { settings } = useSettings()
 
-  const currentStepIndex = getCurrentStepIndex()
+  // Build dynamic steps from settings, maintaining array order
+  const timelineSteps = (settings?.statusLabelsConfig || []).map(config => {
+    let icon = ArrowRight
+    const key = config.key.toLowerCase()
+    
+    if (key.includes("submit")) icon = CheckCircle
+    else if (key.includes("review") || key.includes("progress")) icon = Clock
+    else if (key.includes("resolv") || key.includes("approv") || key.includes("done")) icon = CheckCircle
+    else if (key.includes("reject") || key.includes("den") || key.includes("fail")) icon = XCircle
+    
+    return {
+      status: config.key,
+      label: config.label,
+      icon: icon,
+      color: config.color
+    }
+  })
+
+  // Determine current step index
+  const currentStepIndex = timelineSteps.findIndex((step) => step.status === ticket.status)
 
   const getStepStatus = (stepIndex: number) => {
     if (stepIndex < currentStepIndex) return "completed"
@@ -29,10 +38,11 @@ export function TicketTimeline({ ticket }: TicketTimelineProps) {
     return "upcoming"
   }
 
-  // Filter out rejected/resolved steps if not applicable
+  // Filter out terminal states if not applicable
+  const terminalStates = ["resolved", "rejected", "closed", "denied"]
   const relevantSteps = timelineSteps.filter((step) => {
-    if (step.status === "rejected" && ticket.status !== "rejected") return false
-    if (step.status === "resolved" && ticket.status !== "resolved") return false
+    const isTerminal = terminalStates.some(t => step.status.toLowerCase().includes(t))
+    if (isTerminal && ticket.status !== step.status) return false
     return true
   })
 
@@ -47,30 +57,35 @@ export function TicketTimeline({ ticket }: TicketTimelineProps) {
             const stepStatus = getStepStatus(index)
             const StepIcon = step.icon
 
+            const bgColor = stepStatus === "completed" 
+              ? "#dcfce7" // green bg
+              : stepStatus === "current"
+                ? `${step.color}20` // 20% opacity of dynamic color
+                : "#f3f4f6" // gray bg
+
+            const iconColor = stepStatus === "completed"
+              ? "#16a34a" // green text
+              : stepStatus === "current"
+                ? step.color
+                : "#9ca3af" // gray text
+
             return (
               <div key={step.status} className="flex items-start gap-4">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`rounded-full p-2 ${
-                      stepStatus === "completed"
-                        ? "bg-green-100"
-                        : stepStatus === "current"
-                          ? "bg-primary/10"
-                          : "bg-gray-100"
-                    }`}
+                    className="rounded-full p-2"
+                    style={{ backgroundColor: bgColor }}
                   >
                     <StepIcon
-                      className={`h-4 w-4 ${
-                        stepStatus === "completed"
-                          ? "text-green-600"
-                          : stepStatus === "current"
-                            ? step.color
-                            : "text-gray-400"
-                      }`}
+                      className="h-4 w-4"
+                      style={{ color: iconColor }}
                     />
                   </div>
                   {index < relevantSteps.length - 1 && (
-                    <div className={`w-px h-8 mt-2 ${stepStatus === "completed" ? "bg-green-200" : "bg-gray-200"}`} />
+                    <div 
+                      className="w-px h-8 mt-2" 
+                      style={{ backgroundColor: stepStatus === "completed" ? "#bbf7d0" : "#e5e7eb" }} 
+                    />
                   )}
                 </div>
 
@@ -92,7 +107,7 @@ export function TicketTimeline({ ticket }: TicketTimelineProps) {
                     )}
                   </div>
 
-                  {stepStatus === "completed" && step.status === "submitted" && (
+                  {stepStatus === "completed" && index === 0 && (
                     <p className="text-sm text-muted-foreground">
                       {ticket.submittedAt.toLocaleDateString()} at{" "}
                       {ticket.submittedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -138,3 +153,4 @@ export function TicketTimeline({ ticket }: TicketTimelineProps) {
     </Card>
   )
 }
+

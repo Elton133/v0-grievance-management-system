@@ -7,14 +7,14 @@ This document outlines what has been implemented in Phase 1 and what needs to be
 ### 1. File Upload Functionality (Supabase Storage)
 - ✅ Supabase client setup (client & server)
 - ✅ File upload utilities (`client/lib/file-upload.ts`, `server/config/utils/supabaseStorage.ts`)
-- ✅ Attachment endpoints in API (`POST /api/petitions/:id/attachments`, `DELETE /api/petitions/:id/attachments/:attachmentId`)
-- ✅ Petition creation now accepts attachments
+- ✅ Attachment endpoints in API (`POST /api/tickets/:id/attachments`, `DELETE /api/tickets/:id/attachments/:attachmentId`)
+- ✅ Ticket creation now accepts attachments
 - ✅ File validation (size limits, type restrictions)
-- ✅ Database schema already supports attachments (`PetitionAttachment` model)
+- ✅ Database schema already supports attachments (`TicketAttachment` model)
 
 ### 2. Pagination
-- ✅ Pagination added to `GET /api/petitions` (all petitions)
-- ✅ Pagination added to `GET /api/petitions/my` (user's petitions)
+- ✅ Pagination added to `GET /api/tickets` (all tickets)
+- ✅ Pagination added to `GET /api/tickets/my` (user's tickets)
 - ✅ Pagination metadata included in responses (page, limit, total, totalPages, hasNext, hasPrev)
 - ✅ Query parameters: `?page=1&limit=20`
 
@@ -22,10 +22,10 @@ This document outlines what has been implemented in Phase 1 and what needs to be
 - ✅ DOMPurify installed and configured
 - ✅ Sanitization utilities (`client/lib/sanitize.ts`, `server/config/utils/sanitize.ts`)
 - ✅ All user inputs sanitized in:
-  - Petition creation (subject, description, department, year)
-  - Petition updates
+  - Ticket creation (subject, description, group, year)
+  - Ticket updates
   - Comments
-  - Registration (name, email, studentId, department)
+  - Registration (name, email, submitterId, group)
   - Login (email)
 
 ### 4. Password Reset Structure
@@ -53,7 +53,7 @@ This document outlines what has been implemented in Phase 1 and what needs to be
 1. Go to your Supabase project dashboard
 2. Navigate to **Storage** in the sidebar
 3. Click **"New bucket"**
-4. Name: `petition-attachments`
+4. Name: `ticket-attachments`
 5. Make it **Public** (or set up RLS policies if you want private)
 6. Click **"Create bucket"**
 
@@ -65,19 +65,19 @@ If you want private storage, set up Row Level Security policies:
 CREATE POLICY "Users can upload files"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'petition-attachments');
+WITH CHECK (bucket_id = 'ticket-attachments');
 
 -- Allow users to read their own files
 CREATE POLICY "Users can read files"
 ON storage.objects FOR SELECT
 TO authenticated
-USING (bucket_id = 'petition-attachments');
+USING (bucket_id = 'ticket-attachments');
 
 -- Allow users to delete their own files
 CREATE POLICY "Users can delete files"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (bucket_id = 'petition-attachments');
+USING (bucket_id = 'ticket-attachments');
 ```
 
 #### Step 3: Add Environment Variables
@@ -135,10 +135,10 @@ REQUIRE_EMAIL_VERIFICATION=true  # Enable email verification requirement
 ## 📝 Next Steps (Frontend Implementation)
 
 ### 1. File Upload UI
-- [ ] Add file input to petition creation form (`client/app/petition/new/page.tsx`)
+- [ ] Add file input to ticket creation form (`client/app/ticket/new/page.tsx`)
 - [ ] Add file preview/display component
 - [ ] Add file deletion UI
-- [ ] Show attachments in petition detail view
+- [ ] Show attachments in ticket detail view
 
 ### 2. Pagination UI
 - [ ] Add pagination component to dashboard
@@ -159,7 +159,7 @@ REQUIRE_EMAIL_VERIFICATION=true  # Enable email verification requirement
 ## 🧪 Testing
 
 ### Test File Uploads
-1. Create a petition with attachments
+1. Create a ticket with attachments
 2. Verify files appear in Supabase Storage
 3. Verify attachments are linked in database
 4. Test file deletion
@@ -168,7 +168,7 @@ REQUIRE_EMAIL_VERIFICATION=true  # Enable email verification requirement
 ```bash
 # Test with curl
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  "http://localhost:5000/api/petitions?page=1&limit=10"
+  "http://localhost:5000/api/tickets?page=1&limit=10"
 ```
 
 ### Test Password Reset (Development)
@@ -189,13 +189,13 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 - `POST /api/auth/forgot-password` - Request password reset
 - `POST /api/auth/reset-password` - Reset password with token
 
-### Petitions
-- `POST /api/petitions/:id/attachments` - Add attachment to petition
-- `DELETE /api/petitions/:id/attachments/:attachmentId` - Delete attachment
+### Tickets
+- `POST /api/tickets/:id/attachments` - Add attachment to ticket
+- `DELETE /api/tickets/:id/attachments/:attachmentId` - Delete attachment
 
 ### Updated Endpoints (with pagination)
-- `GET /api/petitions?page=1&limit=20` - Get all petitions (paginated)
-- `GET /api/petitions/my?page=1&limit=20` - Get user's petitions (paginated)
+- `GET /api/tickets?page=1&limit=20` - Get all tickets (paginated)
+- `GET /api/tickets/my?page=1&limit=20` - Get user's tickets (paginated)
 
 ## 🔒 Security Notes
 
@@ -203,7 +203,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
    - File size limit: 10MB
    - Allowed types: images, PDF, Word docs, text files
    - File names sanitized
-   - Files stored in organized structure: `petitions/{petitionId}/{userId}/{timestamp}-{filename}`
+   - Files stored in organized structure: `tickets/{ticketId}/{userId}/{timestamp}-{filename}`
 
 2. **Input Sanitization:**
    - All user inputs sanitized on both client and server

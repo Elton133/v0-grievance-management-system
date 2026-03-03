@@ -74,7 +74,7 @@ The system now includes these email templates:
 
 1. **Email Verification** - Sent on registration
 2. **Password Reset** - Sent when user requests password reset
-3. **Petition Notifications** - Already implemented
+3. **Ticket Notifications** - Already implemented
 
 ## Troubleshooting
 

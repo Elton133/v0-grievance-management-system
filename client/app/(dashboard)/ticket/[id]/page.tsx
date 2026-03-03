@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 import { getTicketById, updateTicketDetails, deleteTicketById, type Ticket } from "@/lib/ticket-store"
+import type { TicketType, TicketPriority } from "@/lib/types"
 import { TicketTimeline } from "@/components/ticket-timeline"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,32 +18,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ArrowLeft, Calendar, User, Mail, GraduationCap, AlertCircle, Edit, Trash2, Loader2 } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
-import type { TicketType, TicketPriority } from "@/lib/types"
+import { useSettings } from "@/lib/settings-context"
 
-const statusColors = {
-  submitted: "bg-blue-100 text-blue-800",
-  under_review: "bg-yellow-100 text-yellow-800",
-  forwarded_to_hod: "bg-purple-100 text-purple-800",
-  forwarded_to_registrar: "bg-orange-100 text-orange-800",
-  resolved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-}
-
-const priorityColors = {
+const priorityColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-800",
   medium: "bg-blue-100 text-blue-800",
   high: "bg-orange-100 text-orange-800",
   urgent: "bg-red-100 text-red-800",
 }
-
-const ticketTypes: { value: TicketType; label: string }[] = [
-  { value: "academic_issue", label: "Academic Issue" },
-  { value: "administrative_issue", label: "Administrative Issue" },
-  { value: "facility_issue", label: "Facility Issue" },
-  { value: "disciplinary_issue", label: "Disciplinary Issue" },
-  { value: "financial_issue", label: "Financial Issue" },
-  { value: "other", label: "Other" },
-]
 
 const priorityLevels: { value: TicketPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -54,6 +37,7 @@ const priorityLevels: { value: TicketPriority; label: string }[] = [
 export default function TicketDetailPage() {
   const params = useParams()
   const { user, isLoading: authLoading } = useAuth()
+  const { settings, getStatusLabel, getStatusColor, getTicketTypeLabel } = useSettings()
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -242,8 +226,8 @@ export default function TicketDetailPage() {
                 </div>
               )}
               <div className="flex gap-2 flex-wrap">
-                <Badge className={`${statusColors[ticket.status]} text-xs`}>
-                  {ticket.status.replace(/_/g, " ").toUpperCase()}
+                <Badge className="text-xs" style={{ backgroundColor: getStatusColor(ticket.status), color: '#fff' }}>
+                  {getStatusLabel(ticket.status).toUpperCase()}
                 </Badge>
                 <Badge className={`${priorityColors[ticket.priority]} text-xs`}>{ticket.priority.toUpperCase()}</Badge>
               </div>
@@ -266,7 +250,7 @@ export default function TicketDetailPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h4 className="font-medium mb-1">Type</h4>
-                    <p className="text-sm text-muted-foreground capitalize">{ticket.type.replace(/_/g, " ")}</p>
+                    <p className="text-sm text-muted-foreground capitalize">{getTicketTypeLabel(ticket.type)}</p>
                   </div>
                   <div>
                     <h4 className="font-medium mb-1">Priority</h4>
@@ -399,8 +383,8 @@ export default function TicketDetailPage() {
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ticketTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
+                    {settings?.ticketTypesConfig?.map((type) => (
+                      <SelectItem key={type.key} value={type.key}>
                         {type.label}
                       </SelectItem>
                     ))}

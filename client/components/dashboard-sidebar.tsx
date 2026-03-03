@@ -22,6 +22,7 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
+  Code2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -32,11 +33,15 @@ interface NavItem {
   roles?: string[] // If empty, shown to all
 }
 
-export function DashboardSidebar() {
+interface DashboardSidebarProps {
+  isCollapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
+}
+
+export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSidebarProps) {
   const { user } = useAuth()
   const { settings, isSubmitterRole, getRoleLabel } = useSettings()
   const pathname = usePathname()
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
 
   if (!user) return null
@@ -75,6 +80,11 @@ export function DashboardSidebar() {
             href: "/settings",
             icon: <Settings className="h-5 w-5" />,
           },
+          {
+            label: "Developer",
+            href: "/settings/developer",
+            icon: <Code2 className="h-5 w-5" />,
+          },
         ]
       : []),
   ]
@@ -90,7 +100,7 @@ export function DashboardSidebar() {
     <div className="flex flex-col h-full">
       {/* Logo / Brand */}
       <div className={cn(
-        "flex items-center gap-3 px-4 py-5 border-b",
+        "flex items-center gap-3 px-4 py-5",
         isCollapsed && !isMobile && "justify-center px-2"
       )}>
         <div className="flex-shrink-0">
@@ -127,10 +137,10 @@ export function DashboardSidebar() {
               href={item.href}
               onClick={() => isMobile && setIsMobileOpen(false)}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                 isActive(item.href)
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/80 hover:shadow-sm",
                 isCollapsed && !isMobile && "justify-center px-2"
               )}
             >
@@ -147,7 +157,7 @@ export function DashboardSidebar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => onCollapsedChange(!isCollapsed)}
             className="w-full justify-center"
           >
             {isCollapsed ? (
@@ -183,7 +193,7 @@ export function DashboardSidebar() {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:z-40 bg-card border-r transition-all duration-300",
+          "hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:z-40 bg-background/80 backdrop-blur-xl border-r border-border/50 shadow-[1px_0_10px_rgba(0,0,0,0.02)] transition-all duration-300",
           isCollapsed ? "lg:w-[70px]" : "lg:w-64"
         )}
       >

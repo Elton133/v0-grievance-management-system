@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { getAnalyticsData, getAuditLogs } from "@/lib/analytics-store"
-import { DashboardHeader } from "@/components/dashboard-header"
 import { AnalyticsCharts } from "@/components/analytics-charts"
 import { AuditLogTable } from "@/components/audit-log-table"
 import { AppLoader } from "@/components/ui/app-loader"
@@ -71,7 +70,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader />
 
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
@@ -177,7 +175,8 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {Object.entries(analyticsData.ticketsByGroup).map(([dept, count]) => {
+                  {Object.entries(analyticsData.ticketsByGroup).map(([dept, countVal]) => {
+                    const count = countVal as number
                     const resolvedCount = Math.floor(count * 0.7) // Mock resolved count
                     const resolutionRate = Math.round((resolvedCount / count) * 100)
 

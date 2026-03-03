@@ -1,6 +1,6 @@
-# Student Grievance Management System
+# Submitter Grievance Management System
 
-A comprehensive full-stack web application for managing student grievances and petitions in educational institutions. Built with modern web technologies including Next.js, Express.js, TypeScript, and Supabase PostgreSQL.
+A comprehensive full-stack web application for managing submitter grievances and tickets in educational institutions. Built with modern web technologies including Next.js, Express.js, TypeScript, and Supabase PostgreSQL.
 
 ## 📋 Table of Contents
 
@@ -20,21 +20,21 @@ A comprehensive full-stack web application for managing student grievances and p
 
 ## 🎯 Overview
 
-The Student Grievance Management System is designed to streamline the process of handling student complaints, petitions, and grievances within an educational institution. The system provides:
+The Submitter Grievance Management System is designed to streamline the process of handling submitter complaints, tickets, and grievances within an educational institution. The system provides:
 
-- **Automated Workflow**: Petitions automatically escalate through a hierarchical review process
-- **Role-Based Access**: Different interfaces for students, class advisors, HODs, and registrars
-- **Real-Time Notifications**: Email alerts for all stakeholders when petitions are submitted or updated
-- **Comprehensive Tracking**: Full audit trail of all petition activities and status changes
-- **Analytics Dashboard**: Insights into petition trends, resolution rates, and department performance
+- **Automated Workflow**: Tickets automatically escalate through a hierarchical review process
+- **Role-Based Access**: Different interfaces for submitters, class advisors, HODs, and registrars
+- **Real-Time Notifications**: Email alerts for all stakeholders when tickets are submitted or updated
+- **Comprehensive Tracking**: Full audit trail of all ticket activities and status changes
+- **Analytics Dashboard**: Insights into ticket trends, resolution rates, and group performance
 
 ## ✨ Features
 
 ### Core Functionality
 - 🔐 **JWT-based Authentication** - Secure user authentication and authorization
-- 📝 **Petition Management** - Create, view, edit, and delete petitions (students can edit/delete only "submitted" petitions)
+- 📝 **Ticket Management** - Create, view, edit, and delete tickets (submitters can edit/delete only "submitted" tickets)
 - 👥 **Multi-Role System** - Four distinct user roles with appropriate permissions
-- 💬 **Comments System** - Public and internal comments on petitions
+- 💬 **Comments System** - Public and internal comments on tickets
 - 📊 **Status Tracking** - Real-time status updates with complete history
 - 🔔 **Email Notifications** - Automated email alerts for all stakeholders
 - 🔄 **Auto-Escalation** - Automatic assignment and escalation through review hierarchy
@@ -76,21 +76,21 @@ v0-grievance-management-system/
 │   ├── app/                  # Next.js app router pages
 │   │   ├── login/           # Login page
 │   │   ├── register/         # Registration page
-│   │   ├── dashboard/        # Student dashboard
+│   │   ├── dashboard/        # Submitter dashboard
 │   │   ├── admin/            # Admin dashboard
-│   │   ├── petition/         # Petition pages
-│   │   │   ├── new/         # Create petition
-│   │   │   └── [id]/        # View/edit petition
+│   │   ├── ticket/         # Ticket pages
+│   │   │   ├── new/         # Create ticket
+│   │   │   └── [id]/        # View/edit ticket
 │   │   └── analytics/        # Analytics dashboard
 │   ├── components/           # React components
 │   │   ├── ui/              # Reusable UI components
 │   │   ├── dashboard-header.tsx
-│   │   ├── petition-card.tsx
+│   │   ├── ticket-card.tsx
 │   │   └── ...
 │   ├── lib/                 # Utility functions
 │   │   ├── api.ts           # API client
 │   │   ├── auth-context.tsx  # Authentication context
-│   │   ├── petition-store.ts # Petition data management
+│   │   ├── ticket-store.ts # Ticket data management
 │   │   └── types.ts          # TypeScript types
 │   └── public/              # Static assets
 │
@@ -98,10 +98,10 @@ v0-grievance-management-system/
     └── config/
         ├── controllers/     # API controllers
         │   ├── authController.ts
-        │   └── petitionController.ts
+        │   └── ticketController.ts
         ├── routes/          # API routes
         │   ├── authRoutes.ts
-        │   └── petitionRoutes.ts
+        │   └── ticketRoutes.ts
         ├── middleware/      # Express middleware
         │   ├── auth.ts      # JWT authentication
         │   └── rateLimiter.ts
@@ -178,9 +178,9 @@ Content-Type: application/json
   "name": "John Doe",
   "email": "john@example.com",
   "password": "password123",
-  "role": "student",
-  "studentId": "BIT0001526",
-  "department": "ICT"
+  "role": "submitter",
+  "submitterId": "BIT0001526",
+  "group": "ICT"
 }
 ```
 
@@ -201,44 +201,44 @@ Response:
 }
 ```
 
-### Petition Endpoints (Protected)
+### Ticket Endpoints (Protected)
 
-All petition endpoints require authentication via Bearer token:
+All ticket endpoints require authentication via Bearer token:
 ```http
 Authorization: Bearer <jwt-token>
 ```
 
-#### Create Petition
+#### Create Ticket
 ```http
-POST /api/petitions
+POST /api/tickets
 {
   "subject": "Grade Discrepancy",
   "description": "Detailed description...",
   "type": "academic_issue",
   "priority": "high",
   "year": "3rd Year",
-  "department": "ICT"
+  "group": "ICT"
 }
 ```
 
-#### Get All Petitions
+#### Get All Tickets
 ```http
-GET /api/petitions
+GET /api/tickets
 ```
 
-#### Get User's Petitions
+#### Get User's Tickets
 ```http
-GET /api/petitions/my
+GET /api/tickets/my
 ```
 
-#### Get Petition by ID
+#### Get Ticket by ID
 ```http
-GET /api/petitions/:id
+GET /api/tickets/:id
 ```
 
-#### Update Petition Status
+#### Update Ticket Status
 ```http
-PATCH /api/petitions/:id/status
+PATCH /api/tickets/:id/status
 {
   "status": "under_review",
   "comment": "Reviewing the issue"
@@ -247,16 +247,16 @@ PATCH /api/petitions/:id/status
 
 #### Add Comment
 ```http
-POST /api/petitions/:id/comments
+POST /api/tickets/:id/comments
 {
   "content": "Comment text",
   "isInternal": false
 }
 ```
 
-#### Update Petition (Students only, submitted status only)
+#### Update Ticket (Submitters only, submitted status only)
 ```http
-PUT /api/petitions/:id
+PUT /api/tickets/:id
 {
   "subject": "Updated subject",
   "description": "Updated description",
@@ -265,9 +265,9 @@ PUT /api/petitions/:id
 }
 ```
 
-#### Delete Petition (Students only, submitted status only)
+#### Delete Ticket (Submitters only, submitted status only)
 ```http
-DELETE /api/petitions/:id
+DELETE /api/tickets/:id
 ```
 
 ## 🗄 Database Schema
@@ -279,15 +279,15 @@ The system uses PostgreSQL via Supabase with the following main models:
 - `email` (Unique)
 - `passwordHash`
 - `name`
-- `role` (student, class_advisor, hod, registrar)
-- `studentId` (Optional, unique)
-- `department` (Optional)
+- `role` (submitter, class_advisor, hod, registrar)
+- `submitterId` (Optional, unique)
+- `group` (Optional)
 
-### Petition
+### Ticket
 - `id` (UUID, Primary Key)
-- `studentId` (Foreign Key → User)
-- `studentName`, `studentEmail`
-- `department`, `year`
+- `submitterId` (Foreign Key → User)
+- `submitterName`, `submitterEmail`
+- `group`, `year`
 - `type` (academic_issue, administrative_issue, etc.)
 - `priority` (low, medium, high, urgent)
 - `subject`, `description`
@@ -296,16 +296,16 @@ The system uses PostgreSQL via Supabase with the following main models:
 - `assignedTo` (Foreign Key → User)
 - `submittedAt`, `updatedAt`
 
-### PetitionComment
-- Comments on petitions (public or internal)
-- Linked to author and petition
+### TicketComment
+- Comments on tickets (public or internal)
+- Linked to author and ticket
 
-### PetitionStatusHistory
+### TicketStatusHistory
 - Complete audit trail of status changes
 - Tracks who changed what and when
 
 ### Notification
-- User notifications for petition updates
+- User notifications for ticket updates
 
 ### AuditLog
 - System-wide audit logging
@@ -314,58 +314,58 @@ See `server/config/prisma/schema.prisma` for the complete schema.
 
 ## 👥 User Roles & Permissions
 
-### Student
-- ✅ Create petitions
-- ✅ View own petitions
-- ✅ Edit own petitions (only if status is "submitted")
-- ✅ Delete own petitions (only if status is "submitted")
-- ✅ View petition details and comments
-- ❌ Cannot update petition status
-- ❌ Cannot view other students' petitions
+### Submitter
+- ✅ Create tickets
+- ✅ View own tickets
+- ✅ Edit own tickets (only if status is "submitted")
+- ✅ Delete own tickets (only if status is "submitted")
+- ✅ View ticket details and comments
+- ❌ Cannot update ticket status
+- ❌ Cannot view other submitters' tickets
 
 ### Class Advisor
-- ✅ View all petitions from their department
-- ✅ Update petition status
+- ✅ View all tickets from their group
+- ✅ Update ticket status
 - ✅ Add comments (public and internal)
-- ✅ Forward petitions to HOD
-- ✅ Resolve petitions
-- ❌ Cannot view petitions from other departments
+- ✅ Forward tickets to HOD
+- ✅ Resolve tickets
+- ❌ Cannot view tickets from other groups
 
-### Head of Department (HOD)
-- ✅ View all escalated petitions from their department
-- ✅ Update petition status
+### Head of Group (HOD)
+- ✅ View all escalated tickets from their group
+- ✅ Update ticket status
 - ✅ Add comments
-- ✅ Forward petitions to Registrar
-- ✅ Resolve petitions
-- ❌ Cannot view petitions from other departments
+- ✅ Forward tickets to Registrar
+- ✅ Resolve tickets
+- ❌ Cannot view tickets from other groups
 
 ### Registrar
-- ✅ View all escalated petitions (university-wide)
-- ✅ Update petition status
+- ✅ View all escalated tickets (university-wide)
+- ✅ Update ticket status
 - ✅ Add comments
-- ✅ Resolve or reject petitions
-- ✅ Full access to all petitions
+- ✅ Resolve or reject tickets
+- ✅ Full access to all tickets
 
 ## 🔄 Workflow & Escalation
 
 The system implements an automated 3-level escalation hierarchy:
 
 ### Level 1: Class Advisor
-- All new petitions are automatically assigned to the student's class advisor
+- All new tickets are automatically assigned to the submitter's class advisor
 - Class advisor reviews and can:
   - Mark as "under_review"
   - Forward to HOD
   - Resolve directly
 
-### Level 2: Head of Department (HOD)
-- When forwarded by class advisor, automatically assigned to department HOD
+### Level 2: Head of Group (HOD)
+- When forwarded by class advisor, automatically assigned to group HOD
 - HOD can:
   - Review and resolve
   - Forward to Registrar for university-level issues
 
 ### Level 3: Registrar
 - Final escalation level
-- Can resolve or reject petitions
+- Can resolve or reject tickets
 - Handles university-wide administrative issues
 
 ### Status Flow
@@ -374,9 +374,9 @@ submitted → under_review → forwarded_to_hod → forwarded_to_registrar → r
 ```
 
 ### Email Notifications
-- **Student**: Notified when petition is submitted, status changes, or resolved
-- **Reviewer**: Notified when a petition is assigned to them
-- **Next Reviewer**: Notified when a petition is escalated to them
+- **Submitter**: Notified when ticket is submitted, status changes, or resolved
+- **Reviewer**: Notified when a ticket is assigned to them
+- **Next Reviewer**: Notified when a ticket is escalated to them
 
 ## 💻 Development
 
@@ -458,7 +458,7 @@ npm run seed
 ```
 
 This creates:
-- 15 students across 3 departments
+- 15 submitters across 3 groups
 - 6 class advisors
 - 3 HODs
 - 2 registrars

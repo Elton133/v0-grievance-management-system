@@ -8,9 +8,9 @@ All Phase 1 features have been successfully implemented! Here's what's been done
 - ✅ Supabase Storage integration (client & server)
 - ✅ File upload component (`FileUpload`)
 - ✅ File validation (size, type)
-- ✅ File upload UI in petition creation form
+- ✅ File upload UI in ticket creation form
 - ✅ Attachment API endpoints
-- ✅ Files uploaded after petition creation
+- ✅ Files uploaded after ticket creation
 - ✅ Attachment records saved to database
 
 **Files:**
@@ -18,7 +18,7 @@ All Phase 1 features have been successfully implemented! Here's what's been done
 - `client/lib/file-upload.ts` - Supabase upload utilities
 - `client/lib/supabase.ts` - Supabase client config
 - `server/config/utils/supabaseStorage.ts` - Server-side Supabase utilities
-- `server/config/controllers/petitionController.ts` - Attachment endpoints
+- `server/config/controllers/ticketController.ts` - Attachment endpoints
 
 ### 2. Pagination
 - ✅ Pagination API endpoints (with metadata)
@@ -32,13 +32,13 @@ All Phase 1 features have been successfully implemented! Here's what's been done
 - `client/components/ui/pagination.tsx` - Pagination component
 - `client/app/dashboard/page.tsx` - Updated with pagination
 - `client/app/admin/page.tsx` - Updated with pagination
-- `server/config/controllers/petitionController.ts` - Paginated endpoints
+- `server/config/controllers/ticketController.ts` - Paginated endpoints
 
 ### 3. Input Sanitization & XSS Protection
 - ✅ DOMPurify installed (client & server)
 - ✅ Sanitization utilities created
 - ✅ All user inputs sanitized:
-  - Petition creation/updates
+  - Ticket creation/updates
   - Comments
   - Registration
   - Login
@@ -95,7 +95,7 @@ npx prisma db push --schema=config/prisma/schema.prisma
 
 ### 2. Supabase Storage Setup
 1. Go to Supabase Dashboard → Storage
-2. Create bucket: `petition-attachments`
+2. Create bucket: `ticket-attachments`
 3. Make it public (or set up RLS policies)
 4. Add environment variables:
    ```env
@@ -123,7 +123,7 @@ See `RESEND_SETUP.md` for detailed instructions.
 
 ## 🎯 What's Working
 
-1. **File Uploads**: Users can select files when creating petitions. Files are uploaded to Supabase Storage after petition creation.
+1. **File Uploads**: Users can select files when creating tickets. Files are uploaded to Supabase Storage after ticket creation.
 
 2. **Pagination**: Dashboard and admin pages show 12 items per page with pagination controls.
 
@@ -143,7 +143,7 @@ See `RESEND_SETUP.md` for detailed instructions.
 
 1. **Server-Side Filtering**: Currently filtering is client-side. Could be improved with server-side filtering + pagination.
 
-2. **File Preview**: Add file preview/download in petition detail view.
+2. **File Preview**: Add file preview/download in ticket detail view.
 
 3. **Email Verification UI**: Add verification status indicator in user profile.
 

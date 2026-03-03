@@ -88,6 +88,15 @@ model Ticket {
   submittedAt     DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Lifecycle and SLA fields
+  firstResponseAt     DateTime?
+  resolvedAt          DateTime?
+  lastStatusChangedAt DateTime @default(now())
+
+  // Customisation and classification
+  tags     String[] @default([])
+  metadata Json?
+
   comments      TicketComment[]
   attachments   TicketAttachment[]
   statusHistory TicketStatusHistory[]
@@ -174,4 +183,29 @@ model AuditLog {
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())
+}
+
+// Developer API Tokens
+model ApiToken {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("default") // currently single-tenant
+  name      String   @default("Production Key")
+  tokenHash String   @unique // Store hashed, show raw token only once on creation
+  createdAt DateTime @default(now())
+  lastUsed  DateTime?
+  
+  @@index([tenantId])
+}
+
+// Webhook Endpoints
+model WebhookEndpoint {
+  id        String   @id @default(uuid())
+  tenantId  String   @default("default")
+  url       String
+  secret    String   // For signing webhook payloads (HMAC)
+  events    String[] // e.g., ["ticket.created", "ticket.status_changed"]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  
+  @@index([tenantId, isActive])
 }

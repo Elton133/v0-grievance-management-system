@@ -30,8 +30,6 @@ export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-        {/* Left side — spacer for mobile menu button */}
-        <div className="lg:hidden w-12" />
 
         {/* Center — page context (hidden on mobile to save space) */}
         <div className="hidden sm:block">

@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import { converter, formatCss } from "culori"
 
 // Types for tenant settings
 export interface RoleConfig {
@@ -107,10 +108,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json()
         setSettings(data)
 
-        // Apply CSS custom properties for dynamic theming
+        // Apply CSS custom properties for dynamic theming (Tailwind v4 theme overrides)
         if (typeof document !== "undefined") {
-          document.documentElement.style.setProperty("--primary-brand", data.primaryColor)
-          document.documentElement.style.setProperty("--accent-brand", data.accentColor)
+          try {
+            // Update core semantic colors; Tailwind theme variables derive from these
+            document.documentElement.style.setProperty("--primary", data.primaryColor)
+            document.documentElement.style.setProperty("--accent", data.accentColor)
+            document.documentElement.style.setProperty("--ring", data.primaryColor)
+            document.documentElement.style.setProperty("--sidebar-primary", data.primaryColor)
+
+            // Also update direct Tailwind color tokens for any components that reference them directly
+            document.documentElement.style.setProperty("--color-primary", data.primaryColor)
+            document.documentElement.style.setProperty("--color-accent", data.accentColor)
+            document.documentElement.style.setProperty("--color-ring", data.primaryColor)
+            document.documentElement.style.setProperty("--color-sidebar-primary", data.primaryColor)
+          } catch (e) {
+            console.error("Failed to set theme colors", e)
+          }
         }
       }
     } catch (error) {

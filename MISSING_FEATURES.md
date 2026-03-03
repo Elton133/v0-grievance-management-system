@@ -5,13 +5,13 @@ This document outlines features and functionality that are typically expected in
 ## 🔴 Critical Missing Features
 
 ### 1. **File Upload/Attachment Functionality**
-- **Status**: Schema exists (`PetitionAttachment` model) but no implementation
+- **Status**: Schema exists (`TicketAttachment` model) but no implementation
 - **Missing**:
   - File upload endpoint (multipart/form-data handling)
   - File storage integration (Supabase Storage, AWS S3, or local storage)
   - File validation (size limits, type restrictions)
   - File download/viewing functionality
-  - File deletion when petition is deleted
+  - File deletion when ticket is deleted
 - **Impact**: Users cannot attach supporting documents (receipts, screenshots, evidence)
 
 ### 2. **Password Reset/Forgot Password**
@@ -36,12 +36,12 @@ This document outlines features and functionality that are typically expected in
 ### 4. **Advanced Search & Filtering**
 - **Status**: Basic filtering exists, but limited
 - **Missing**:
-  - Full-text search across petition content
-  - Advanced filters (date range, multiple statuses, multiple departments)
-  - Search by student ID, email, or name
+  - Full-text search across ticket content
+  - Advanced filters (date range, multiple statuses, multiple groups)
+  - Search by submitter ID, email, or name
   - Saved search filters
   - Export filtered results
-- **Impact**: Difficult to find specific petitions in large datasets
+- **Impact**: Difficult to find specific tickets in large datasets
 
 ### 5. **Pagination**
 - **Status**: Not implemented
@@ -94,7 +94,7 @@ This document outlines features and functionality that are typically expected in
 ### 10. **Export Functionality**
 - **Status**: Not implemented
 - **Missing**:
-  - Export petitions to PDF
+  - Export tickets to PDF
   - Export to Excel/CSV
   - Export filtered results
   - Bulk export
@@ -141,17 +141,17 @@ This document outlines features and functionality that are typically expected in
   - Resolution time tracking
   - SLA violation alerts
   - SLA reports
-  - Department-wise SLA metrics
+  - Group-wise SLA metrics
 - **Impact**: Cannot measure service quality
 
-### 15. **Petition Templates**
+### 15. **Ticket Templates**
 - **Status**: Not implemented
 - **Missing**:
-  - Pre-defined petition templates
+  - Pre-defined ticket templates
   - Template selection on creation
   - Custom templates by admins
   - Template categories
-- **Impact**: Inconsistent petition formats
+- **Impact**: Inconsistent ticket formats
 
 ### 16. **Bulk Operations**
 - **Status**: Not implemented
@@ -166,7 +166,7 @@ This document outlines features and functionality that are typically expected in
 - **Status**: Basic analytics exist
 - **Missing**:
   - Custom date range reports
-  - Department comparison reports
+  - Group comparison reports
   - Resolution time analytics
   - User activity reports
   - Trend analysis
@@ -234,7 +234,7 @@ This document outlines features and functionality that are typically expected in
 ### 26. **System Configuration**
 - Settings management UI
 - Configurable workflow rules
-- Department management
+- Group management
 - Role permission customization
 
 ### 27. **Activity Feed**
@@ -242,15 +242,15 @@ This document outlines features and functionality that are typically expected in
 - Recent actions
 - Activity filtering
 
-### 28. **Petition Duplication Detection**
-- Similar petition detection
+### 28. **Ticket Duplication Detection**
+- Similar ticket detection
 - Duplicate warning
-- Merge petitions option
+- Merge tickets option
 
 ### 29. **Reminders & Follow-ups**
 - Automated reminder emails
 - Follow-up scheduling
-- Overdue petition alerts
+- Overdue ticket alerts
 
 ### 30. **Integration Capabilities**
 - Third-party integrations (Slack, Teams)

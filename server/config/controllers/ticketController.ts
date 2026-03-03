@@ -10,6 +10,7 @@ import {
 } from "../utils/workflowService";
 import { sendEmail, emailTemplates } from "../utils/emailService";
 import { sanitizeInput, sanitizeText } from "../utils/sanitize";
+import { dispatchWebhookEvent } from "../utils/webhookService";
 
 // Create a new ticket
 export const createTicket = async (req: AuthRequest, res: Response) => {
@@ -128,6 +129,9 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Fire webhook asynchronously
+    dispatchWebhookEvent("ticket.created", completeTicket);
+
     res.status(201).json(completeTicket);
   } catch (err) {
     console.error(err);
@@ -161,6 +165,9 @@ export const getTickets = async (req: AuthRequest, res: Response) => {
         escalationLevel: true,
         submittedAt: true,
         updatedAt: true,
+        firstResponseAt: true,
+        resolvedAt: true,
+        lastStatusChangedAt: true,
         assignedTo: true,
         assignedUser: {
           select: {
@@ -311,6 +318,29 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     }
 
     // Update ticket and create status history entry
+    const now = new Date();
+
+    // Compute lifecycle fields
+    const lifecycleUpdates: any = {
+      lastStatusChangedAt: now,
+      updatedAt: now,
+    };
+
+    // First response time: first transition away from "submitted"
+    if (!ticket.firstResponseAt && ticket.status === "submitted" && newStatus !== "submitted") {
+      lifecycleUpdates.firstResponseAt = now;
+    }
+
+    // Resolution time: when moving into a terminal/finished state
+    const normalizedNewStatus = newStatus.toLowerCase();
+    const isResolvedLike =
+      normalizedNewStatus.includes("resolved") ||
+      normalizedNewStatus.includes("closed") ||
+      normalizedNewStatus.includes("rejected");
+    if (isResolvedLike) {
+      lifecycleUpdates.resolvedAt = now;
+    }
+
     const [updatedTicket] = await prisma.$transaction([
       prisma.ticket.update({
         where: { id },
@@ -318,7 +348,7 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
           status: newStatus,
           escalationLevel: nextEscalationLevel,
           assignedTo,
-          updatedAt: new Date(),
+          ...lifecycleUpdates,
         },
       }),
       prisma.ticketStatusHistory.create({
@@ -423,6 +453,9 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
         },
       },
     });
+
+    // Fire webhook asynchronously
+    dispatchWebhookEvent("ticket.status_changed", completeTicket);
 
     res.json(completeTicket);
   } catch (err) {

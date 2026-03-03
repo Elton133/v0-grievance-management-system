@@ -88,7 +88,13 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
+            <Image 
+              src={settings?.logoUrl || "/logo.png"} 
+              alt={settings?.organizationName || "School Logo"} 
+              width={120} 
+              height={120} 
+              className="object-contain" 
+            />
           </div>
           <h1 className="text-2xl font-bold text-foreground">{settings?.organizationName || "Grievance Portal"}</h1>
           <p className="text-muted-foreground mt-2">Create a new account</p>

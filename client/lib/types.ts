@@ -1,18 +1,6 @@
-export type TicketType =
-  | "academic_issue"
-  | "administrative_issue"
-  | "facility_issue"
-  | "disciplinary_issue"
-  | "financial_issue"
-  | "other"
+export type TicketType = string
 
-export type TicketStatus =
-  | "submitted"
-  | "under_review"
-  | "forwarded_to_hod"
-  | "forwarded_to_registrar"
-  | "resolved"
-  | "rejected"
+export type TicketStatus = string
 
 export type TicketPriority = "low" | "medium" | "high" | "urgent"
 
@@ -31,6 +19,9 @@ export interface Ticket {
   status: TicketStatus
   submittedAt: Date
   updatedAt: Date
+  firstResponseAt?: Date
+  resolvedAt?: Date
+  lastStatusChangedAt?: Date
   assignedTo?: string
   comments?: TicketComment[]
   escalationLevel: number

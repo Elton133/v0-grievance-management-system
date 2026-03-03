@@ -13,15 +13,24 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user } = useAuth()
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   if (!user) return <>{children}</>
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar />
+    <div className="min-h-screen bg-muted/20">
+      <DashboardSidebar 
+        isCollapsed={isSidebarCollapsed} 
+        onCollapsedChange={setIsSidebarCollapsed} 
+      />
       
       {/* Main content area — offset by sidebar width on desktop */}
-      <div className="lg:pl-64 transition-all duration-300">
+      <div 
+        className={cn(
+          "transition-all duration-300",
+          isSidebarCollapsed ? "lg:pl-[70px]" : "lg:pl-64"
+        )}
+      >
         <DashboardHeader />
         <main className="p-4 sm:p-6 lg:p-8">
           {children}

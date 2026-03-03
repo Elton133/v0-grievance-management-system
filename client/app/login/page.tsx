@@ -11,17 +11,31 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Loader2, Eye, EyeOff } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useSettings } from "@/lib/settings-context"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const { login, isLoading } = useAuth()
+  const { user, login, isLoading } = useAuth()
+  const { settings } = useSettings()
   const router = useRouter()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      if (user.role === "submitter") {
+        router.push("/dashboard")
+      } else {
+        router.push("/admin")
+      }
+    }
+  }, [user, router])
 
   // Check for registration success message
   useEffect(() => {
@@ -79,9 +93,17 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
+            <Image 
+              src={settings?.logoUrl || "/logo.png"} 
+              alt={settings?.organizationName || "School Logo"} 
+              width={120} 
+              height={120} 
+              className="object-contain" 
+            />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Submitter Grievance Portal</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {settings?.organizationName ? `${settings.organizationName} Portal` : "Submitter Grievance Portal"}
+          </h1>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>
 
@@ -106,14 +128,34 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    <span className="sr-only">
+                      {showPassword ? "Hide password" : "Show password"}
+                    </span>
+                  </Button>
+                </div>
               </div>
 
               {success && (

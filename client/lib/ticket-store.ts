@@ -13,7 +13,7 @@ function transformTicket(backendTicket: any): Ticket {
   const submitterId = backendTicket.submitterId || backendTicket.submitter?.id
   const submitterName = backendTicket.submitterName || backendTicket.submitter?.name
   const submitterEmail = backendTicket.submitterEmail || backendTicket.submitter?.email
-  
+
   return {
     id: backendTicket.id,
     submitterId: submitterId, // This is the User ID (UUID), not the submitter ID string
@@ -28,6 +28,13 @@ function transformTicket(backendTicket: any): Ticket {
     status: backendTicket.status,
     submittedAt: new Date(backendTicket.submittedAt),
     updatedAt: new Date(backendTicket.updatedAt),
+    firstResponseAt: backendTicket.firstResponseAt
+      ? new Date(backendTicket.firstResponseAt)
+      : undefined,
+    resolvedAt: backendTicket.resolvedAt ? new Date(backendTicket.resolvedAt) : undefined,
+    lastStatusChangedAt: backendTicket.lastStatusChangedAt
+      ? new Date(backendTicket.lastStatusChangedAt)
+      : undefined,
     escalationLevel: backendTicket.escalationLevel || 1,
     assignedTo: backendTicket.assignedUser?.email || backendTicket.assignedTo,
     comments: backendTicket.comments?.map((c: any) => ({
@@ -110,8 +117,9 @@ export async function getTicketsByRole(
   group?: string
 ): Promise<Ticket[]> {
   try {
-    const allTickets = await getTickets()
-    
+    const response = await getTickets(1, 1000)
+    const allTickets = response.data
+
     switch (userRole) {
       case "class_advisor":
         return allTickets.filter(
@@ -155,6 +163,7 @@ export async function addTicketComment(
     const response = await ticketApi.addComment(ticketId, content, isInternal)
     return {
       id: response.id,
+      ticketId: ticketId,
       authorId: response.authorId,
       authorName: response.authorName,
       authorRole: response.authorRole,

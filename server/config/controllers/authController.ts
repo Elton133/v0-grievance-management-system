@@ -135,6 +135,8 @@ export const loginUser = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         emailVerified: user.emailVerified,
+        submitterId: user.submitterId,
+        group: user.group,
       }
     });
   } catch (err) {
