@@ -2,16 +2,16 @@ import { createRegistrationSchema } from "./server/config/validation/registratio
 
 const schema = createRegistrationSchema({
   allowedEmailDomains: [],
-  roles: ["submitter", "class_advisor", "hod", "registrar"],
+  roles: ["student", "advisor", "hod", "registrar"],
   groupPrefixes: {},
-  submitterRoleKey: "submitter"
+  submitterRoleKey: "student"
 });
 
 const payload = {
   name: "Test User",
   email: "test@st.rmu.edu.gh",
-  password: "password123",
-  role: "submitter",
+  password: "Password1!",
+  role: "student",
   submitterId: "BIT0001526",
   group: "ICT"
 };

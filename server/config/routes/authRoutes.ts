@@ -1,15 +1,19 @@
 import { Router } from "express";
-import { 
-  loginUser, 
-  registerUser, 
-  verifyEmail, 
+import {
+  loginUser,
+  registerUser,
+  verifyEmail,
   resendVerificationEmail,
   requestPasswordReset,
   resetPassword,
+  getCurrentUser,
 } from "../controllers/authController";
 import { authLimiter } from "../middleware/rateLimiter";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
+
+router.get("/me", authMiddleware, getCurrentUser);
 
 // POST /api/auth/register
 router.post("/register", authLimiter, registerUser);

@@ -1,11 +1,16 @@
 import { Request, Response } from "express";
+import type { AuthRequest } from "../middleware/auth";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import prisma from "../db";
 import { createRegistrationSchema } from "../validation/registrationSchema";
+import { registrationPasswordSchema } from "../validation/passwordPolicy";
 import { sanitizeInput } from "../utils/sanitize";
 import { sendEmail, emailTemplates } from "../utils/emailService";
+import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
+import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -17,10 +22,11 @@ export const registerUser = async (req: Request, res: Response) => {
         const roles = (settings.rolesConfig as Array<{ key: string }>) || [];
         const submitterRole = (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean }>)?.find(r => r.isSubmitter);
         tenantConfig = {
-          allowedEmailDomains: (settings.allowedEmailDomains as string[]) || [],
+          allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
           roles: roles.map(r => r.key),
           groupPrefixes: (settings.groupPrefixes as Record<string, string[]>) || {},
-          submitterRoleKey: submitterRole?.key || "submitter",
+          submitterRoleKey: submitterRole?.key || "student",
+          rolesConfig: (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean; groupScoped?: boolean }>) || [],
         };
       }
     } catch {
@@ -50,6 +56,19 @@ export const registerUser = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "User already exists" });
     }
 
+    const submitterIdNormalized = submitterId ? sanitizeInput(submitterId).trim() : null;
+    if (submitterIdNormalized) {
+      const existingIndex = await prisma.user.findFirst({
+        where: { submitterId: submitterIdNormalized },
+      });
+      if (existingIndex) {
+        return res.status(400).json({
+          msg: "This student ID is already registered",
+          errors: [{ field: "submitterId", message: "This student ID is already in use. Sign in or use a different ID." }],
+        });
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Generate email verification token (32 bytes = 64 hex characters)
@@ -63,7 +82,7 @@ export const registerUser = async (req: Request, res: Response) => {
         email: email.toLowerCase().trim(),
         passwordHash: hashedPassword,
         role,
-        submitterId: submitterId ? sanitizeInput(submitterId) : undefined,
+        submitterId: submitterIdNormalized ?? undefined,
         group: group ? sanitizeInput(group) : undefined,
         emailVerified: false, // Email verification disabled until email service is configured
         emailVerificationToken,
@@ -72,7 +91,7 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     // Send verification email
-    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken);
+    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken, user.email);
     sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
@@ -100,8 +119,23 @@ export const registerUser = async (req: Request, res: Response) => {
       }
     });
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const target = (err.meta as { target?: string[] } | undefined)?.target;
+      if (target?.includes("submitterId")) {
+        return res.status(400).json({
+          msg: "This student ID is already registered",
+          errors: [{ field: "submitterId", message: "This student ID is already in use." }],
+        });
+      }
+      if (target?.includes("email")) {
+        return res.status(400).json({ msg: "User already exists" });
+      }
+    }
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Registration error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
   }
 };
 
@@ -114,18 +148,24 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
-    // Check if email is verified (if email verification is enabled)
-    if (process.env.REQUIRE_EMAIL_VERIFICATION === "true" && !user.emailVerified) {
+    // Require verification when mail is configured (set REQUIRE_EMAIL_VERIFICATION=false to bypass, e.g. local dev)
+    const emailServiceConfigured = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+    const mustVerifyEmail =
+      emailServiceConfigured && process.env.REQUIRE_EMAIL_VERIFICATION !== "false";
+    if (mustVerifyEmail && !user.emailVerified) {
       return res.status(403).json({
         msg: "Email not verified",
-        error: "Please verify your email before logging in"
+        error: "Please verify your email before logging in. Check your inbox for the verification link.",
       });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: "1h" });
+    const signOpts: SignOptions = {
+      expiresIn: (process.env.JWT_EXPIRES_IN || "8h") as SignOptions["expiresIn"],
+    };
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, signOpts);
 
     res.json({
       token,
@@ -140,8 +180,11 @@ export const loginUser = async (req: Request, res: Response) => {
       }
     });
   } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Login error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
   }
 };
 
@@ -178,8 +221,11 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     res.json({ msg: "Email verified successfully" });
   } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Email verification error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
   }
 };
 
@@ -217,20 +263,26 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
       },
     });
 
-    // Send verification email
-    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken);
-    sendEmail({
+    // Send verification email — await so client can show a real error if mail is not configured
+    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken, user.email);
+    const sent = await sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
-    }).catch((err) => {
-      console.error("Error sending verification email:", err);
     });
+    if (!sent) {
+      return res.status(503).json({
+        msg: "Could not send email. Check Resend/SMTP configuration on the server, then try again.",
+      });
+    }
 
-    res.json({ msg: "If the email exists, a verification link has been sent" });
+    res.json({ msg: "Verification email sent. Check your inbox." });
   } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Resend verification error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
   }
 };
 
@@ -281,8 +333,11 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       ...(process.env.NODE_ENV === "development" && !process.env.RESEND_API_KEY && !process.env.SMTP_USER && { token: passwordResetToken }),
     });
   } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Password reset request error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
   }
 };
 
@@ -295,8 +350,14 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "Token and password are required" });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ msg: "Password must be at least 6 characters" });
+    const pwdResult = registrationPasswordSchema.safeParse(password);
+    if (!pwdResult.success) {
+      const issues = pwdResult.error.issues;
+      const first = issues[0]?.message || "Password does not meet requirements";
+      return res.status(400).json({
+        msg: first,
+        errors: issues.map((i) => ({ field: "password", message: i.message })),
+      });
     }
 
     const user = await prisma.user.findFirst({
@@ -325,7 +386,43 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     res.json({ msg: "Password reset successfully" });
   } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("Password reset error:", err);
-    res.status(500).json({ msg: "Server error", err });
+    res.status(500).json(
+      process.env.NODE_ENV === "development" ? { msg: "Server error", err } : { msg: "Server error" }
+    );
+  }
+};
+
+/** Current session (validates JWT + returns fresh profile for client restore after reload). */
+export const getCurrentUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        submitterId: true,
+        group: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    res.json({ user });
+  } catch (err) {
+    if (respondIfDatabaseUnavailable(res, err)) return;
+    console.error("getCurrentUser error:", err);
+    res.status(500).json({ msg: "Server error" });
   }
 };

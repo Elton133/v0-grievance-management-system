@@ -9,9 +9,9 @@ import prisma from "../db";
 
 // Default escalation hierarchy (fallback)
 const DEFAULT_ESCALATION_HIERARCHY: Record<number, string> = {
-  1: "class_advisor",    // Level 1: Class Advisor
-  2: "hod",               // Level 2: Head of Group
-  3: "registrar",         // Level 3: Registrar
+  1: "advisor",
+  2: "hod",
+  3: "registrar",
 };
 
 // Default status progression map (fallback)
@@ -24,32 +24,86 @@ const DEFAULT_STATUS_PROGRESSION: Record<string, string[]> = {
   rejected: [],
 };
 
-/**
- * Get the escalation hierarchy from TenantSettings or use defaults
- */
-const getEscalationHierarchy = async (): Promise<Record<number, string>> => {
-  try {
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
-    if (settings && Array.isArray(settings.rolesConfig)) {
-      const roles = settings.rolesConfig as Array<{ key: string; label: string; level: number; isSubmitter?: boolean }>;
-      // Build hierarchy from roles where level > 0 (non-submitter roles)
-      const hierarchy: Record<number, string> = {};
-      roles
-        .filter(r => !r.isSubmitter && r.level > 0)
-        .sort((a, b) => a.level - b.level)
-        .forEach(r => {
-          hierarchy[r.level] = r.key;
-        });
-      
-      if (Object.keys(hierarchy).length > 0) {
-        return hierarchy;
-      }
-    }
-  } catch (error) {
-    console.warn("[WorkflowService] Could not load escalation hierarchy from settings, using defaults");
-  }
-  return DEFAULT_ESCALATION_HIERARCHY;
+type RoleConfigRow = {
+  key: string;
+  level: number;
+  isSubmitter?: boolean;
+  groupScoped?: boolean;
 };
+
+function parseRolesConfig(raw: unknown): RoleConfigRow[] {
+  if (Array.isArray(raw)) return raw as RoleConfigRow[];
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw);
+      return Array.isArray(p) ? (p as RoleConfigRow[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Levels from the UI/JSON may be strings; sort must be numeric. */
+function getReviewersSorted(roles: RoleConfigRow[]): RoleConfigRow[] {
+  return roles
+    .filter((r) => r.isSubmitter !== true && Number(r.level) > 0)
+    .sort((a, b) => Number(a.level) - Number(b.level));
+}
+
+/**
+ * Ordered role keys to try for this escalation slot (1 = first reviewer in chain).
+ * Includes primary slot role, default RMU key for that slot, then every other reviewer role.
+ */
+function getReviewerRoleCandidatesForSlot(
+  reviewersSorted: RoleConfigRow[],
+  slot: number
+): string[] {
+  const candidates: string[] = [];
+  const primary = reviewersSorted[slot - 1]?.key;
+  if (primary) candidates.push(primary);
+  const def = DEFAULT_ESCALATION_HIERARCHY[slot];
+  if (def && def !== primary) candidates.push(def);
+  for (const r of reviewersSorted) {
+    if (r.key && !candidates.includes(r.key)) candidates.push(r.key);
+  }
+  return candidates;
+}
+
+async function findUserForRoleKey(
+  targetRole: string,
+  group: string | undefined,
+  rolesConfig: RoleConfigRow[]
+): Promise<{ id: string; email: string; name: string } | null> {
+  const roleConfig = rolesConfig.find((r) => r.key === targetRole);
+  const isDeptScoped = roleConfig?.groupScoped !== false;
+  const normalizedGroup = group?.trim();
+
+  const whereBase: { role: string; group?: string | { equals: string; mode: "insensitive" } } = {
+    role: targetRole,
+  };
+
+  if (normalizedGroup && isDeptScoped) {
+    whereBase.group = { equals: normalizedGroup, mode: "insensitive" };
+  }
+
+  let reviewer = await prisma.user.findFirst({
+    where: whereBase,
+    select: { id: true, email: true, name: true },
+  });
+
+  if (!reviewer && normalizedGroup && isDeptScoped) {
+    console.warn(
+      `[WorkflowService] No ${targetRole} in department "${normalizedGroup}"; trying school-wide ${targetRole}`
+    );
+    reviewer = await prisma.user.findFirst({
+      where: { role: targetRole },
+      select: { id: true, email: true, name: true },
+    });
+  }
+
+  return reviewer;
+}
 
 /**
  * Get the status progression map from TenantSettings or use defaults
@@ -78,47 +132,40 @@ export const getNextReviewer = async (
   escalationLevel: number,
   group?: string
 ): Promise<{ userId: string; userEmail: string; userName: string } | null> => {
-  const hierarchy = await getEscalationHierarchy();
-  const targetRole = hierarchy[escalationLevel];
-  if (!targetRole) {
-    return null;
-  }
-
   try {
-    // Find a user with the target role
-    // If group is specified, filter users by that group (for group-scoped roles)
-    const whereClause: any = { role: targetRole };
-    
-    // Get settings to determine which roles are group-scoped
     const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
-    const roles = (settings?.rolesConfig as Array<{ key: string; groupScoped?: boolean }>) || [];
-    const roleConfig = roles.find(r => r.key === targetRole);
-    
-    // If role is group-scoped (or if it's a known group-scoped role), filter by group
-    const isDeptScoped = roleConfig?.groupScoped !== false; // Default to true for backward compat
-    if (group && isDeptScoped && targetRole !== "registrar") {
-      whereClause.group = group;
-    }
+    const roles = parseRolesConfig(settings?.rolesConfig);
+    const reviewersSorted = getReviewersSorted(roles);
 
-    const reviewer = await prisma.user.findFirst({
-      where: whereClause,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-      },
-    });
-
-    if (!reviewer) {
-      console.warn(`No ${targetRole} found for escalation level ${escalationLevel}`);
+    const candidates = getReviewerRoleCandidatesForSlot(reviewersSorted, escalationLevel);
+    if (candidates.length === 0) {
+      console.warn(
+        `[WorkflowService] No reviewer roles in TenantSettings (escalation slot ${escalationLevel}). Add staff roles with level ≥ 1.`
+      );
       return null;
     }
 
-    return {
-      userId: reviewer.id,
-      userEmail: reviewer.email,
-      userName: reviewer.name,
-    };
+    for (let i = 0; i < candidates.length; i++) {
+      const targetRole = candidates[i];
+      const reviewer = await findUserForRoleKey(targetRole, group, roles);
+      if (reviewer) {
+        if (i > 0) {
+          console.warn(
+            `[WorkflowService] Escalation slot ${escalationLevel}: assigned ${targetRole} (no user with primary role "${candidates[0]}")`
+          );
+        }
+        return {
+          userId: reviewer.id,
+          userEmail: reviewer.email,
+          userName: reviewer.name,
+        };
+      }
+    }
+
+    console.warn(
+      `[WorkflowService] No user found for escalation slot ${escalationLevel}. Tried roles: ${candidates.join(", ")} (group=${group ?? "n/a"}). Create a staff account whose User.role matches one of these keys.`
+    );
+    return null;
   } catch (error) {
     console.error("Error finding next reviewer:", error);
     return null;

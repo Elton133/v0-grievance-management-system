@@ -21,8 +21,8 @@ async function main() {
       primaryColor: "#2563eb",
       accentColor: "#1e40af",
       rolesConfig: [
-        { key: "submitter", label: "Submitter", level: 0, isSubmitter: true, groupScoped: true },
-        { key: "class_advisor", label: "Class Advisor", level: 1, isSubmitter: false, groupScoped: true },
+        { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
+        { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
         { key: "hod", label: "Head of Group", level: 2, isSubmitter: false, groupScoped: true },
         { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
       ],
@@ -50,7 +50,7 @@ async function main() {
         { key: "resolved", label: "Resolved", color: "#22c55e" },
         { key: "rejected", label: "Rejected", color: "#ef4444" },
       ],
-      allowedEmailDomains: [],
+      allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
       groupPrefixes: {},
     },
   });
@@ -63,7 +63,7 @@ async function main() {
       name: "Elton Morden",
       email: "elton.morden@st.rmu.edu.gh",
       password: "Morden@123",
-      role: "submitter",
+      role: "student",
       submitterId: "BIT0001526",
       group: "ICT",
     }
@@ -94,7 +94,7 @@ async function main() {
       name: "Dr. Jane Smith",
       email: "eltonmorden029@gmail.com",
       password: "Advisor@123",
-      role: "class_advisor",
+      role: "advisor",
       group: "ICT",
     }
   ];
