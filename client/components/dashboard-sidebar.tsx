@@ -25,6 +25,7 @@ import {
   Code2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isSchoolBuild } from "@/lib/school-build"
 
 interface NavItem {
   label: string
@@ -47,7 +48,16 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
   if (!user) return null
 
   const isSubmitter = isSubmitterRole(user.role)
-  const isSuperAdmin = settings?.rolesConfig?.some(r => r.key === user.role && r.level >= 2)
+  // Match settings page: only the highest role level in tenant config (e.g. registrar), not every level ≥ 2
+  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => Number(r.level)) ?? []))
+  const canAccessOrgSettings =
+    !isSubmitter &&
+    Boolean(
+      user &&
+        settings?.rolesConfig?.some(
+          (r) => r.key === user.role && Number(r.level) === maxRoleLevel
+        )
+    )
 
   const navItems: NavItem[] = [
     {
@@ -73,7 +83,7 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
           },
         ]
       : []),
-    ...(isSuperAdmin
+    ...(canAccessOrgSettings && !isSchoolBuild()
       ? [
           {
             label: "Settings",
@@ -104,17 +114,13 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
         isCollapsed && !isMobile && "justify-center px-2"
       )}>
         <div className="flex-shrink-0">
-          {settings.logoUrl ? (
-            <Image
-              src={settings.logoUrl}
-              alt="Logo"
-              width={40}
-              height={40}
-              className="w-8 h-8 rounded-md object-cover"
-            />
-          ) : (
-            <Image src="/logo.png" alt="Logo" width={40} height={40} className="w-8 h-8" />
-          )}
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            width={40}
+            height={40}
+            className="w-8 h-8 rounded-md object-contain"
+          />
         </div>
         {(!isCollapsed || isMobile) && (
           <div className="min-w-0 flex-1">

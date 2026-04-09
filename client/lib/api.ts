@@ -54,7 +54,17 @@ async function apiRequest<T>(
 
     if (!response.ok) {
       if (isJson) {
-        const error = await response.json();
+        const error = await response.json() as {
+          error?: string;
+          msg?: string;
+          errors?: Array<{ message?: string }>;
+        };
+        if (Array.isArray(error.errors) && error.errors.length > 0) {
+          const messages = error.errors.map((e) => e.message).filter(Boolean) as string[];
+          if (messages.length > 0) {
+            throw new Error(messages.join("; "));
+          }
+        }
         throw new Error(error.error || error.msg || `HTTP error! status: ${response.status}`);
       } else {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -102,6 +112,54 @@ export const authApi = {
     }
 
     return response;
+  },
+
+  /** Session restore; throws `{ status: 401 }` when token is missing or invalid. */
+  me: async () => {
+    const token = getToken();
+    if (!token) {
+      throw Object.assign(new Error("No token"), { status: 401 });
+    }
+    const url = `${API_BASE_URL}/auth/me`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (res.status === 401) {
+      throw Object.assign(new Error("Unauthorized"), { status: 401 });
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP error ${res.status}`);
+    }
+    return res.json() as Promise<{
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: string;
+        submitterId?: string | null;
+        group?: string | null;
+        emailVerified?: boolean;
+      };
+    }>;
+  },
+
+  verifyEmail: async (token: string) => {
+    return apiRequest<{ msg: string }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  resendVerification: async (email: string) => {
+    return apiRequest<{ msg: string }>("/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
   },
 
   logout: () => {

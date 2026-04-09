@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
+import { isSchoolBuild } from "@/lib/school-build"
 import { settingsApi } from "@/lib/api"
 import { Shield, Save, RefreshCw, Palette, Users, Settings2, GitMerge } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,11 +14,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import Image from "next/image"
 import type { TenantSettings, RoleConfig, StatusConfig, TicketTypeConfig, EscalationConfig } from "@/lib/settings-context"
 
+/** Derive a readable internal key from a display name; ensures uniqueness among existing keys. */
+function suggestUniqueRoleKey(existing: { key: string }[], baseLabel: string): string {
+  const base =
+    baseLabel
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "") || "advisor"
+  let key = base
+  let n = 1
+  while (existing.some((r) => r.key === key)) {
+    key = `${base}_${n++}`
+  }
+  return key
+}
+
 export default function SettingsPage() {
+  const router = useRouter()
   const { user } = useAuth()
-  const { settings, refreshSettings, isLoading: settingsLoading } = useSettings()
+  const { settings, refreshSettings, isLoading: settingsLoading, isSubmitterRole } = useSettings()
+
+  useEffect(() => {
+    if (!isSchoolBuild() || !user) return
+    router.replace(isSubmitterRole(user.role) ? "/dashboard" : "/admin")
+  }, [user, router, isSubmitterRole])
 
   const [formData, setFormData] = useState<TenantSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -29,9 +54,18 @@ export default function SettingsPage() {
     }
   }, [settings, settingsLoading])
 
-  // Only the highest level roles should access this page (level 3/registrar in default RMU setup)
-  // Check if they are part of the higher-tier reviewers
-  const isSuperAdmin = user && settings?.rolesConfig?.some(r => r.key === user.role && r.level >= 2)
+  // Match server: only the highest role level can update settings (e.g. registrar in default RMU setup)
+  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => r.level) ?? []))
+  const isSuperAdmin =
+    user && settings?.rolesConfig?.some((r) => r.key === user.role && r.level === maxRoleLevel)
+
+  if (isSchoolBuild()) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   if (!user || settingsLoading || !formData) {
     return (
@@ -63,13 +97,14 @@ export default function SettingsPage() {
       // API expects a partial object, we just send all formData keys
       await settingsApi.update({
         organizationName: formData.organizationName,
-        logoUrl: formData.logoUrl,
         primaryColor: formData.primaryColor,
         accentColor: formData.accentColor,
         rolesConfig: formData.rolesConfig,
         ticketTypesConfig: formData.ticketTypesConfig,
         statusLabelsConfig: formData.statusLabelsConfig,
-        escalationConfig: formData.escalationConfig
+        escalationConfig: formData.escalationConfig,
+        allowedEmailDomains: formData.allowedEmailDomains,
+        groupPrefixes: formData.groupPrefixes,
       })
       toast.success("Settings saved successfully")
       await refreshSettings()
@@ -96,13 +131,14 @@ export default function SettingsPage() {
   }
 
   const handleAddRole = () => {
+    const defaultLabel = "Advisor"
     const newRoles = [...formData.rolesConfig]
     newRoles.push({
-      key: `role_${Date.now()}`,
-      label: "New Role",
+      key: suggestUniqueRoleKey(newRoles, defaultLabel),
+      label: defaultLabel,
       level: 1,
       isSubmitter: false,
-      groupScoped: false
+      groupScoped: true,
     })
     setFormData({ ...formData, rolesConfig: newRoles })
   }
@@ -239,11 +275,16 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Logo URL (Optional)</Label>
-                      <Input 
-                        value={formData.logoUrl || ""} 
-                        onChange={e => setFormData({ ...formData, logoUrl: e.target.value })} 
-                        placeholder="https://example.com/logo.png"
+                      <Label>Logo</Label>
+                      <p className="text-sm text-muted-foreground">
+                        The app uses the static file <code className="text-xs bg-muted px-1 rounded">public/logo.png</code>. Replace that file in the project to change the logo everywhere.
+                      </p>
+                      <Image
+                        src="/logo.png"
+                        alt=""
+                        width={56}
+                        height={56}
+                        className="mt-2 rounded-md object-contain border bg-background p-1"
                       />
                     </div>
                   </div>
@@ -289,7 +330,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground pr-4">
-                      Define the actors (roles) in your system. Level 0 is typically the submitter. Higher levels indicate higher escalation authority. There must always be at least one role with isSubmitter=true.
+                      Define the actors (roles) in your system. Level 0 is typically the submitter. Higher levels indicate higher escalation authority. There must always be at least one submitter role. For staff roles, turn off &quot;Requires department&quot; only for school-wide roles (e.g. registrar) who are not tied to a single department.
                     </p>
                     <Button onClick={handleAddRole} size="sm" variant="outline" className="flex-shrink-0">
                       + Add Role
@@ -298,14 +339,29 @@ export default function SettingsPage() {
 
                   <div className="rounded-md border">
                     <div className="grid grid-cols-12 gap-4 border-b bg-muted/50 p-3 text-sm font-medium items-center text-center sm:text-left">
-                      <div className="col-span-12 sm:col-span-3">Role Key</div>
-                      <div className="col-span-12 sm:col-span-4">Display Label</div>
+                      <div className="col-span-12 sm:col-span-4">Display name</div>
+                      <div className="col-span-12 sm:col-span-3">
+                        Internal key
+                        <span className="block text-xs font-normal text-muted-foreground font-sans">API / database id</span>
+                      </div>
                       <div className="col-span-12 sm:col-span-2">Level</div>
                       <div className="col-span-12 sm:col-span-3">Actions</div>
                     </div>
                     
                     {formData.rolesConfig.map((role, idx) => (
                       <div key={idx} className="grid grid-cols-12 items-center gap-4 p-3 border-b last:border-0 hover:bg-muted/20 transition-colors">
+                        <div className="col-span-12 sm:col-span-4">
+                          <Input 
+                            value={role.label} 
+                            onChange={e => {
+                              const newRoles = [...formData.rolesConfig]
+                              newRoles[idx].label = e.target.value
+                              setFormData({ ...formData, rolesConfig: newRoles })
+                            }}
+                            className="w-full font-medium"
+                            placeholder="e.g. Class Advisor"
+                          />
+                        </div>
                         <div className="col-span-12 sm:col-span-3">
                           <Input 
                             value={role.key} 
@@ -316,17 +372,7 @@ export default function SettingsPage() {
                             }}
                             disabled={role.key === "student" || role.key === "submitter"}
                             className="font-mono text-xs w-full"
-                          />
-                        </div>
-                        <div className="col-span-12 sm:col-span-4">
-                          <Input 
-                            value={role.label} 
-                            onChange={e => {
-                              const newRoles = [...formData.rolesConfig]
-                              newRoles[idx].label = e.target.value
-                              setFormData({ ...formData, rolesConfig: newRoles })
-                            }}
-                            className="w-full"
+                            placeholder="e.g. class_advisor"
                           />
                         </div>
                         <div className="col-span-6 sm:col-span-2 flex justify-center sm:justify-start">
@@ -342,10 +388,25 @@ export default function SettingsPage() {
                             className="w-full sm:w-20 text-center"
                           />
                         </div>
-                        <div className="col-span-6 sm:col-span-3 flex items-center justify-end sm:justify-between flex-wrap gap-2 text-xs">
-                          <div className="text-muted-foreground hidden lg:block">
-                            <div>{role.isSubmitter ? "✅ Submitter" : "❌ Reviewer"}</div>
+                        <div className="col-span-6 sm:col-span-3 flex flex-col items-end justify-center gap-2 text-xs">
+                          <div className="text-muted-foreground hidden lg:block w-full text-right">
+                            <div>{role.isSubmitter ? "✅ Submitter" : "❌ Staff"}</div>
                           </div>
+                          {!role.isSubmitter && (
+                            <label className="flex items-center gap-2 text-muted-foreground cursor-pointer max-w-full justify-end">
+                              <input
+                                type="checkbox"
+                                className="rounded border-border shrink-0"
+                                checked={role.groupScoped !== false}
+                                onChange={(e) => {
+                                  const newRoles = [...formData.rolesConfig]
+                                  newRoles[idx].groupScoped = e.target.checked
+                                  setFormData({ ...formData, rolesConfig: newRoles })
+                                }}
+                              />
+                              <span className="text-left">Requires department</span>
+                            </label>
+                          )}
                           {!(role.key === "student" || role.key === "submitter") && (
                             <Button
                               variant="destructive"
@@ -431,21 +492,23 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Group Prefixes */}
+                  {/* Department list (stored as groupPrefixes) */}
                   <div>
                     <div className="mb-4 flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-medium">Group Definitions</h3>
-                        <p className="text-sm text-muted-foreground">Define logical groups for submitters (e.g., Departments -&gt; [Computer Science, Marine Engineering]).</p>
+                        <h3 className="text-lg font-medium">Departments</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Define departments for your school (e.g. ICT → programmes under that department). Students and staff select their department when registering.
+                        </p>
                       </div>
                       <Button onClick={handleAddGroupCategory} size="sm" variant="outline">
-                        + Add Group Category
+                        + Add department
                       </Button>
                     </div>
                     <div className="grid gap-6">
                       {Object.entries(formData.groupPrefixes).length === 0 && (
                         <div className="p-4 border rounded-md bg-muted/20 text-center text-sm text-muted-foreground">
-                          No group definitions configured. The submitter "Group" field will revert to a free-text input on registration.
+                          No departments configured. The department field on registration becomes a free-text input instead of a list.
                         </div>
                       )}
                       
@@ -467,7 +530,7 @@ export default function SettingsPage() {
                                 setFormData({...formData, groupPrefixes: newPrefs});
                               }}
                             >
-                              Remove Category
+                              Remove department
                             </Button>
                           </CardHeader>
                           <CardContent className="p-4">

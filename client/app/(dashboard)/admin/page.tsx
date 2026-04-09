@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
 import { toast } from "sonner"
-import { getTicketsByRole, updateTicketStatus, type Ticket } from "@/lib/ticket-store"
+import {
+  getTicketsByRole,
+  isTicketAssignedToUser,
+  updateTicketStatus,
+  type Ticket,
+} from "@/lib/ticket-store"
 import type { TicketStatus, TicketType } from "@/lib/types"
 import { AdminTicketCard } from "@/components/admin-ticket-card"
 import { Button } from "@/components/ui/button"
@@ -21,7 +26,7 @@ import { Pagination } from "@/components/ui/pagination"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
-  const { isSubmitterRole, getRoleLabel } = useSettings()
+  const { settings, isSubmitterRole, getRoleLabel } = useSettings()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
@@ -50,7 +55,13 @@ export default function AdminPage() {
 
       setIsLoading(true)
       try {
-        const tickets = await getTicketsByRole(user.role, user.email, user.group)
+        const tickets = await getTicketsByRole(
+          user.role,
+          user.email,
+          user.group,
+          settings.rolesConfig,
+          user.id
+        )
         setAllTickets(tickets)
       } catch (error) {
         console.error("Error fetching tickets:", error)
@@ -61,7 +72,7 @@ export default function AdminPage() {
     }
 
     fetchTickets()
-  }, [user])
+  }, [user, settings.rolesConfig])
 
   const filteredTickets = useMemo(() => {
     if (!user) return []
@@ -77,7 +88,7 @@ export default function AdminPage() {
           case "urgent":
             return ticket.priority === "urgent"
           case "assigned":
-            return ticket.assignedTo === user.email
+            return isTicketAssignedToUser(ticket, user)
           default:
             return true
         }
@@ -128,7 +139,7 @@ export default function AdminPage() {
     const pending = allTickets.filter((p) => !["resolved", "rejected"].includes(p.status)).length
     const resolved = allTickets.filter((p) => p.status === "resolved").length
     const urgent = allTickets.filter((p) => p.priority === "urgent").length
-    const assigned = allTickets.filter((p) => p.assignedTo === user.email).length
+    const assigned = allTickets.filter((p) => isTicketAssignedToUser(p, user)).length
 
     return { total, pending, resolved, urgent, assigned }
   }, [allTickets, user])
@@ -144,7 +155,13 @@ export default function AdminPage() {
           description: `Ticket status changed to ${newStatus.replace(/_/g, " ")}`,
         })
         // Refresh tickets after status update
-        const tickets = await getTicketsByRole(user.role, user.email, user.group)
+        const tickets = await getTicketsByRole(
+          user.role,
+          user.email,
+          user.group,
+          settings.rolesConfig,
+          user.id
+        )
         setAllTickets(tickets)
       } else {
         toast.error("Failed to update status", {
@@ -168,8 +185,9 @@ export default function AdminPage() {
 
   const getRoleDescription = () => {
     switch (user?.role) {
+      case "advisor":
       case "class_advisor":
-        return "Review and manage tickets from your group submitters"
+        return "Review and manage tickets from students in your group"
       case "hod":
         return "Handle escalated tickets and groupal issues"
       case "registrar":
@@ -192,7 +210,7 @@ export default function AdminPage() {
     return null
   }
 
-  if (user.role === "submitter" || isSubmitterRole(user.role)) {
+  if (isSubmitterRole(user.role)) {
     return (
       <>
         <Card className="w-full max-w-md mx-auto">
@@ -218,7 +236,7 @@ export default function AdminPage() {
           <p className="text-sm sm:text-base text-muted-foreground">{getRoleDescription()}</p>
           {user.group && (
             <Badge variant="outline" className="mt-2">
-              {user.group} Group
+              Department: {user.group}
             </Badge>
           )}
         </div>

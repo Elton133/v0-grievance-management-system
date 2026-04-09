@@ -3,63 +3,70 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import Image from "next/image"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+import { authApi } from "@/lib/api"
 
 export default function VerifyEmailPage() {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
+  const [resendEmail, setResendEmail] = useState("")
+  const [isResending, setIsResending] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const emailParam = searchParams.get("email")
+    if (emailParam) setResendEmail(decodeURIComponent(emailParam))
+  }, [searchParams])
+
+  useEffect(() => {
+    const verify = async () => {
       if (!token) {
         setStatus("error")
         return
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        })
-
-        const data = await response.json()
-
-        if (response.ok) {
-          setStatus("success")
-          toast.success("Email verified successfully!")
-          setTimeout(() => {
-            router.push("/login")
-          }, 3000)
-        } else {
-          setStatus("error")
-          toast.error(data.msg || "Failed to verify email")
-        }
+        await authApi.verifyEmail(token)
+        setStatus("success")
+        toast.success("Email verified successfully!")
+        setTimeout(() => {
+          router.push("/login")
+        }, 3000)
       } catch (error) {
-        console.error("Error verifying email:", error)
         setStatus("error")
-        toast.error("An error occurred. Please try again.")
+        const msg = error instanceof Error ? error.message : "Failed to verify email"
+        toast.error(msg)
       }
     }
 
-    verifyEmail()
+    verify()
   }, [token, router])
 
   const handleResend = async () => {
-    // This would need the user's email - for now, redirect to login
-    toast.info("Please log in to resend verification email")
-    router.push("/login")
+    const email = resendEmail.trim().toLowerCase()
+    if (!email) {
+      toast.error("Enter the email address you used to register.")
+      return
+    }
+
+    setIsResending(true)
+    try {
+      const data = await authApi.resendVerification(email)
+      toast.success(data.msg || "Verification email sent. Check your inbox.")
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Could not send verification email."
+      toast.error(msg)
+    } finally {
+      setIsResending(false)
+    }
   }
 
   return (
@@ -101,8 +108,8 @@ export default function VerifyEmailPage() {
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Your email address has been verified. You can now log in to your account.
-                    Redirecting to login page...
+                    Your email address has been verified. You can now log in to your account. Redirecting to login
+                    page...
                   </AlertDescription>
                 </Alert>
                 <Button asChild className="w-full">
@@ -117,19 +124,46 @@ export default function VerifyEmailPage() {
                   <XCircle className="h-4 w-4" />
                   <AlertDescription>
                     {!token
-                      ? "No verification token provided."
-                      : "The verification link is invalid or has expired. Please request a new verification email."}
+                      ? "Open the verification link from your email, or enter your address below to receive a new link."
+                      : "The verification link is invalid or has expired. Enter your email below to receive a new link."}
                   </AlertDescription>
                 </Alert>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={handleResend} className="flex-1">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Resend Email
-                  </Button>
-                  <Button asChild className="flex-1">
-                    <Link href="/login">Go to Login</Link>
-                  </Button>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resend-email">Registered email</Label>
+                  <Input
+                    id="resend-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@school.edu"
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    disabled={isResending}
+                  />
                 </div>
+
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleResend}
+                  disabled={isResending || !resendEmail.trim()}
+                >
+                  {isResending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Send new verification link
+                    </>
+                  )}
+                </Button>
+
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/login">Back to login</Link>
+                </Button>
               </>
             )}
           </CardContent>
@@ -138,4 +172,3 @@ export default function VerifyEmailPage() {
     </div>
   )
 }
-

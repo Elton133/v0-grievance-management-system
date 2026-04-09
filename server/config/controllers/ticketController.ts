@@ -92,6 +92,26 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
       data: notifications,
     }).catch(err => console.error("Error creating notifications:", err));
 
+    // Submitter confirmation email (always when ticket is created)
+    const submissionTpl = await emailTemplates.ticketSubmissionConfirmation(
+      user.name,
+      sanitizedSubject,
+      ticket.id
+    );
+    sendEmail({
+      to: user.email,
+      subject: submissionTpl.subject,
+      html: submissionTpl.html,
+    })
+      .then((success) => {
+        if (!success) {
+          console.error(`[Ticket Controller] Failed to send submission confirmation to submitter: ${user.email}`);
+        }
+      })
+      .catch((err) => {
+        console.error(`[Ticket Controller] Error sending submission confirmation:`, err);
+      });
+
     // Send email asynchronously (non-blocking)
     if (assigned && reviewer) {
       const emailTemplate = await emailTemplates.newTicketAssigned(

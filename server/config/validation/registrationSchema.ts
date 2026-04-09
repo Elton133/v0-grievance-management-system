@@ -1,4 +1,6 @@
 import { z } from "zod"
+import { registrationPasswordSchema } from "./passwordPolicy"
+import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains"
 
 // Default group to index number prefix mapping (RMU defaults)
 // These can be overridden via TenantSettings.groupPrefixes
@@ -9,13 +11,9 @@ const DEFAULT_DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
   "Nautical Science": ["BNS"],
 }
 
-// Default valid email domains
-// Empty array means: no domain restriction by default.
-// Tenants can still enforce domains via TenantSettings.allowedEmailDomains.
-const DEFAULT_EMAIL_DOMAINS: string[] = []
-
 // Default valid roles
-const DEFAULT_ROLES = ["submitter", "class_advisor", "hod", "registrar"]
+const DEFAULT_ROLES = ["student", "advisor", "hod", "registrar"]
+const DEFAULT_ALLOWED_EMAIL_DOMAINS = ["st.rmu.edu.gh", "rmu.edu.gh"]
 
 // Index number validation based on group
 const validateIndexNumber = (indexNumber: string, group: string, prefixes?: Record<string, string[]>): boolean => {
@@ -34,28 +32,48 @@ export const createRegistrationSchema = (tenantSettings?: {
   roles?: string[]
   groupPrefixes?: Record<string, string[]>
   submitterRoleKey?: string
+  rolesConfig?: Array<{ key: string; isSubmitter?: boolean; groupScoped?: boolean }>
 }) => {
-  const emailDomains = tenantSettings?.allowedEmailDomains?.length
-    ? tenantSettings.allowedEmailDomains
-    : DEFAULT_EMAIL_DOMAINS
+  const emailDomains = normalizeAllowedEmailDomains(tenantSettings?.allowedEmailDomains)
 
   const validRoles = tenantSettings?.roles?.length
     ? tenantSettings.roles
     : DEFAULT_ROLES
 
-  const submitterRole = tenantSettings?.submitterRoleKey || "submitter"
+  const submitterRole = tenantSettings?.submitterRoleKey || "student"
 
   const deptPrefixes = tenantSettings?.groupPrefixes || DEFAULT_DEPARTMENT_INDEX_PREFIXES
 
+  const rolesConfig = tenantSettings?.rolesConfig
+
+  /** Staff need a department (`group`) unless explicitly not department-scoped (e.g. registrar). Undefined groupScoped = required. */
+  const staffRoleRequiresGroup = (role: string): boolean => {
+    const rc = rolesConfig?.find((r) => r.key === role)
+    if (rc !== undefined) return rc.groupScoped !== false
+    return role !== "registrar"
+  }
+
   // Email validation – allow all domains if settings have empty array or no domains
-  const emailSchema = emailDomains.length > 0
+  const normalizedDomains = (emailDomains.length > 0 ? emailDomains : DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    .map((d) => d.trim().toLowerCase().replace(/^@+/, ""))
+    .filter(Boolean)
+
+  const hostMatchesAllowedDomain = (email: string, domain: string): boolean => {
+    const at = email.lastIndexOf("@")
+    if (at < 0) return false
+    const host = email.slice(at + 1).toLowerCase()
+    const d = domain.toLowerCase()
+    return host === d || host.endsWith(`.${d}`)
+  }
+
+  const emailSchema = normalizedDomains.length > 0
     ? z
       .string()
       .email("Invalid email format")
       .refine(
-        (email) => emailDomains.some((domain) => email.endsWith(domain)),
+        (email) => normalizedDomains.some((domain) => hostMatchesAllowedDomain(email, domain)),
         {
-          message: `Email must be from one of: ${emailDomains.join(", ")}`,
+          message: `Email must be from one of: ${normalizedDomains.join(", ")}`,
         }
       )
     : z.string().email("Invalid email format")
@@ -64,7 +82,7 @@ export const createRegistrationSchema = (tenantSettings?: {
     .object({
       name: z.string().min(2, "Name must be at least 2 characters"),
       email: emailSchema,
-      password: z.string().min(6, "Password must be at least 6 characters"),
+      password: registrationPasswordSchema,
       role: z.string().refine((val) => validRoles.includes(val), {
         message: `Role must be one of: ${validRoles.join(", ")}`,
       }).default(submitterRole),
@@ -91,19 +109,18 @@ export const createRegistrationSchema = (tenantSettings?: {
         return true
       },
       {
-        message: "Group is required for submitters",
+        message: "Department is required for submitters",
         path: ["group"],
       }
     )
     .refine(
       (data) => {
-        if (data.role !== submitterRole) {
-          return !!data.group && data.group.trim().length > 0
-        }
-        return true
+        if (data.role === submitterRole) return true
+        if (!staffRoleRequiresGroup(data.role)) return true
+        return !!data.group && data.group.trim().length > 0
       },
       {
-        message: "Group is required for staff members",
+        message: "Department is required for this role",
         path: ["group"],
       }
     )
@@ -116,7 +133,7 @@ export const createRegistrationSchema = (tenantSettings?: {
           if (prefixes.length > 0) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Submitter ID must start with one of: ${prefixes.join(", ")} for ${data.group} group`,
+              message: `Submitter ID must start with one of: ${prefixes.join(", ")} for ${data.group} department`,
               path: ["submitterId"],
             })
           }

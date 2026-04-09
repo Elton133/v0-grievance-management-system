@@ -12,13 +12,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Shield, BarChart3, Activity, Download, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useSettings } from "@/lib/settings-context"
 
 export default function AnalyticsPage() {
   const { user, isLoading } = useAuth()
+  const { isSubmitterRole } = useSettings()
   const router = useRouter()
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const auditLogs = getAuditLogs(50) // Get last 50 audit logs
+
+  useEffect(() => {
+    if (!user || isSubmitterRole(user.role)) return
+    const fetchAnalytics = async () => {
+      try {
+        const data = await getAnalyticsData()
+        setAnalyticsData(data)
+      } catch (error) {
+        console.error("Error fetching analytics data:", error)
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+    void fetchAnalytics()
+  }, [user, isSubmitterRole])
 
   // Only allow admin users to access analytics
-  if (!user || user.role === "submitter") {
+  if (!user || isSubmitterRole(user.role)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -35,24 +55,6 @@ export default function AnalyticsPage() {
       </div>
     )
   }
-
-  const [analyticsData, setAnalyticsData] = useState<any>(null)
-  const [isLoadingData, setIsLoadingData] = useState(true)
-  const auditLogs = getAuditLogs(50) // Get last 50 audit logs
-
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const data = await getAnalyticsData()
-        setAnalyticsData(data)
-      } catch (error) {
-        console.error("Error fetching analytics data:", error)
-      } finally {
-        setIsLoadingData(false)
-      }
-    }
-    fetchAnalytics()
-  }, [])
 
   // Show loading state
   if (isLoading || isLoadingData || !analyticsData) {

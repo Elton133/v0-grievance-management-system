@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import prisma from "../db";
 import { AuthRequest } from "../middleware/auth";
+import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
+import { isSchoolBuild, schoolBuildSettingsForbidden } from "../utils/schoolBuild";
 
 // Default configuration values for a new tenant (RMU defaults)
 const DEFAULT_SETTINGS = {
@@ -8,8 +10,8 @@ const DEFAULT_SETTINGS = {
   primaryColor: "#2563eb",
   accentColor: "#1e40af",
   rolesConfig: [
-    { key: "submitter", label: "Submitter", level: 0, isSubmitter: true, groupScoped: true },
-    { key: "class_advisor", label: "Class Advisor", level: 1, isSubmitter: false, groupScoped: true },
+    { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
+    { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
     { key: "hod", label: "Head of Group", level: 2, isSubmitter: false, groupScoped: true },
     { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
   ],
@@ -37,7 +39,7 @@ const DEFAULT_SETTINGS = {
     { key: "resolved", label: "Resolved", color: "#22c55e" },
     { key: "rejected", label: "Rejected", color: "#ef4444" },
   ],
-  allowedEmailDomains: [],
+  allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
   groupPrefixes: {},
 };
 
@@ -61,7 +63,10 @@ export const getSettings = async (_req: Request, res: Response) => {
       });
     }
 
-    res.json(settings);
+    res.json({
+      ...settings,
+      allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+    });
   } catch (err) {
     console.error("[Settings] Error fetching settings:", err);
     res.status(500).json({ error: "Failed to fetch settings" });
@@ -74,6 +79,10 @@ export const getSettings = async (_req: Request, res: Response) => {
  */
 export const updateSettings = async (req: AuthRequest, res: Response) => {
   try {
+    if (isSchoolBuild()) {
+      return schoolBuildSettingsForbidden(res);
+    }
+
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -120,7 +129,9 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     if (escalationConfig !== undefined) updateData.escalationConfig = escalationConfig;
     if (ticketTypesConfig !== undefined) updateData.ticketTypesConfig = ticketTypesConfig;
     if (statusLabelsConfig !== undefined) updateData.statusLabelsConfig = statusLabelsConfig;
-    if (allowedEmailDomains !== undefined) updateData.allowedEmailDomains = allowedEmailDomains;
+    if (allowedEmailDomains !== undefined) {
+      updateData.allowedEmailDomains = normalizeAllowedEmailDomains(allowedEmailDomains);
+    }
     if (groupPrefixes !== undefined) updateData.groupPrefixes = groupPrefixes;
 
     const settings = await prisma.tenantSettings.upsert({
@@ -133,7 +144,10 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(settings);
+    res.json({
+      ...settings,
+      allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+    });
   } catch (err) {
     console.error("[Settings] Error updating settings:", err);
     res.status(500).json({ error: "Failed to update settings" });
@@ -146,6 +160,10 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
  */
 export const resetSettings = async (req: AuthRequest, res: Response) => {
   try {
+    if (isSchoolBuild()) {
+      return schoolBuildSettingsForbidden(res);
+    }
+
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -164,7 +182,10 @@ export const resetSettings = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(settings);
+    res.json({
+      ...settings,
+      allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+    });
   } catch (err) {
     console.error("[Settings] Error resetting settings:", err);
     res.status(500).json({ error: "Failed to reset settings" });

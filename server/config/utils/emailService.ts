@@ -129,6 +129,40 @@ export const emailTemplates = {
     };
   },
 
+  /** Sent to the student/submitter immediately after they file a grievance */
+  ticketSubmissionConfirmation: async (
+    submitterName: string,
+    ticketSubject: string,
+    ticketId: string
+  ) => {
+    const { orgName, primaryColor } = await getTenantBranding();
+    const baseUrl =
+      process.env.FRONTEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+      "http://localhost:3000";
+    const ticketUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${ticketId}`;
+
+    return {
+      subject: `We received your grievance: ${ticketSubject}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: ${primaryColor};">Submission confirmed</h2>
+          <p>Dear ${submitterName},</p>
+          <p>Thank you for contacting <strong>${orgName}</strong>. Your grievance has been received and logged in our system.</p>
+          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p><strong>Subject:</strong> ${ticketSubject}</p>
+            <p><strong>Reference ID:</strong> ${ticketId}</p>
+          </div>
+          <p>Your case will be reviewed by the appropriate staff member. You will receive email updates when the status changes.</p>
+          <p style="margin: 20px 0;">
+            <a href="${ticketUrl}" style="color: ${primaryColor};">View your grievance in the portal</a>
+          </p>
+          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
+        </div>
+      `,
+    };
+  },
+
   ticketStatusUpdate: async (submitterName: string, ticketSubject: string, newStatus: string, comment?: string) => {
     const { orgName, primaryColor } = await getTenantBranding();
     const statusMessages: Record<string, string> = {
@@ -177,10 +211,11 @@ export const emailTemplates = {
     };
   },
 
-  emailVerification: async (userName: string, verificationToken: string) => {
+  emailVerification: async (userName: string, verificationToken: string, userEmail?: string) => {
     const { orgName, primaryColor } = await getTenantBranding();
     const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
-    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    const emailQuery = userEmail ? `&email=${encodeURIComponent(userEmail)}` : "";
+    const verificationUrl = `${baseUrl.replace(/\/$/, "")}/verify-email?token=${verificationToken}${emailQuery}`;
 
     return {
       subject: `Verify Your Email Address - ${orgName}`,

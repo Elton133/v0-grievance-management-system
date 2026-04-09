@@ -1,6 +1,9 @@
 "use client"
 
+import { useMemo } from "react"
 import type { Ticket } from "@/lib/types"
+import { useSettings } from "@/lib/settings-context"
+import type { RoleConfig } from "@/lib/settings-context"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,39 +57,81 @@ const priorityConfig = {
   urgent: "bg-red-100 text-red-800 border-red-200",
 }
 
+/** Map current user role to workflow action sets using tenant reviewer order (same idea as ticket queue). */
+function getReviewerActionFlags(userRole: string, rolesConfig: RoleConfig[] | undefined) {
+  const reviewers = (rolesConfig ?? [])
+    .filter((r) => !r.isSubmitter && Number(r.level) > 0)
+    .sort((a, b) => Number(a.level) - Number(b.level))
+
+  const idx = reviewers.findIndex((r) => r.key === userRole)
+  const last = reviewers.length - 1
+
+  if (idx < 0 || reviewers.length === 0) {
+    return {
+      isFirstReviewer: userRole === "class_advisor" || userRole === "advisor",
+      canActAsHod: userRole === "hod",
+      canActAsRegistrar: userRole === "registrar",
+    }
+  }
+
+  const isFirst = idx === 0
+  const isLast = idx === last
+  const twoTier = reviewers.length === 2
+  const middle = idx > 0 && idx < last
+
+  return {
+    isFirstReviewer: isFirst,
+    canActAsHod: middle || (twoTier && isLast && idx > 0),
+    canActAsRegistrar: last >= 1 && isLast,
+  }
+}
+
 export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating = false }: AdminTicketCardProps) {
-  const statusInfo = statusConfig[ticket.status]
+  const { settings } = useSettings()
+
+  const flags = useMemo(
+    () => getReviewerActionFlags(userRole, settings.rolesConfig),
+    [userRole, settings.rolesConfig]
+  )
+
+  const statusKey = ticket.status as keyof typeof statusConfig
+  const statusInfo =
+    statusConfig[statusKey] ??
+    ({
+      color: "bg-muted text-foreground border-border",
+      icon: Clock,
+      label: ticket.status.replace(/_/g, " "),
+    } as (typeof statusConfig)["submitted"])
   const StatusIcon = statusInfo.icon
 
-  const getAvailableActions = () => {
-    const actions = []
+  const availableActions = useMemo(() => {
+    const actions: { label: string; status: string }[] = []
+    const { isFirstReviewer, canActAsHod, canActAsRegistrar } = flags
 
-    if (userRole === "class_advisor" && ticket.status === "submitted") {
+    if (isFirstReviewer && ticket.status === "submitted") {
       actions.push({ label: "Start Review", status: "under_review" })
       actions.push({ label: "Forward to HOD", status: "forwarded_to_hod" })
     }
 
-    if (userRole === "class_advisor" && ticket.status === "under_review") {
+    if (isFirstReviewer && ticket.status === "under_review") {
       actions.push({ label: "Resolve", status: "resolved" })
       actions.push({ label: "Forward to HOD", status: "forwarded_to_hod" })
       actions.push({ label: "Reject", status: "rejected" })
     }
 
-    if (userRole === "hod" && ["forwarded_to_hod", "under_review"].includes(ticket.status)) {
+    if (canActAsHod && ["forwarded_to_hod", "under_review"].includes(ticket.status)) {
       actions.push({ label: "Resolve", status: "resolved" })
       actions.push({ label: "Forward to Registrar", status: "forwarded_to_registrar" })
       actions.push({ label: "Reject", status: "rejected" })
     }
 
-    if (userRole === "registrar" && ticket.status === "forwarded_to_registrar") {
+    if (canActAsRegistrar && ticket.status === "forwarded_to_registrar") {
       actions.push({ label: "Resolve", status: "resolved" })
       actions.push({ label: "Reject", status: "rejected" })
     }
 
     return actions
-  }
-
-  const availableActions = getAvailableActions()
+  }, [ticket.status, flags])
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -136,6 +181,7 @@ export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating =
                 variant={action.status === "resolved" ? "default" : "outline"}
                 onClick={() => onStatusUpdate?.(ticket.id, action.status)}
                 className="text-xs"
+                disabled={isUpdating}
               >
                 {action.label}
               </Button>
