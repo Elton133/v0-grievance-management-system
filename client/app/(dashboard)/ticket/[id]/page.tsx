@@ -37,7 +37,7 @@ const priorityLevels: { value: TicketPriority; label: string }[] = [
 export default function TicketDetailPage() {
   const params = useParams()
   const { user, isLoading: authLoading } = useAuth()
-  const { settings, getStatusLabel, getStatusColor, getTicketTypeLabel } = useSettings()
+  const { settings, getStatusLabel, getStatusColor, getTicketTypeLabel, isSubmitterRole } = useSettings()
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -134,7 +134,8 @@ export default function TicketDetailPage() {
     }
   }
 
-  const canEditOrDelete = user?.role === "submitter" && ticket?.status === "submitted" && ticket?.submitterId === user?.id
+  const canEditOrDelete =
+    !!user && isSubmitterRole(user.role) && ticket?.status === "submitted" && ticket?.submitterId === user?.id
 
   // Show loading state while checking auth or fetching ticket
   if (authLoading || isLoading) {
@@ -166,7 +167,7 @@ export default function TicketDetailPage() {
   // Check if user can view this ticket
   // For submitters: must be the owner (compare user ID with ticket's submitterId which is the user UUID)
   // For staff: can view any ticket
-  const canView = user?.role !== "submitter" || ticket.submitterId === user?.id
+  const canView = !user || !isSubmitterRole(user.role) || ticket.submitterId === user?.id
 
   if (!canView) {
     return (
@@ -191,7 +192,7 @@ export default function TicketDetailPage() {
       <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href={user?.role === "submitter" ? "/dashboard" : "/admin"}>
+            <Link href={user && isSubmitterRole(user.role) ? "/dashboard" : "/admin"}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Dashboard
             </Link>
@@ -313,19 +314,21 @@ export default function TicketDetailPage() {
                   </div>
                 </div>
 
-                {ticket.assignedTo && (
+                {(ticket.assignedToUserId || ticket.assignedUserName || ticket.assignedTo) && (
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium">Assigned To</p>
-                      <p className="text-sm text-muted-foreground">{ticket.assignedTo}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {ticket.assignedUserName ?? ticket.assignedTo}
+                      </p>
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {ticket.status === "submitted" && user?.role === "submitter" && (
+            {ticket.status === "submitted" && user && isSubmitterRole(user.role) && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>

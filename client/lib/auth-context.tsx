@@ -47,68 +47,110 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const storedUser = localStorage.getItem("grievance_user")
-    const token = getToken()
+    let cleanupInactivity: (() => void) | undefined
+    let cancelled = false
 
-    const updateLastActivity = () => {
-      localStorage.setItem("grievance_last_activity", Date.now().toString())
-    }
+    const init = async () => {
+      const storedUser = localStorage.getItem("grievance_user")
+      const token = getToken()
 
-    if (storedUser && token) {
-      try {
-        const parsedUser = JSON.parse(storedUser)
-        setUser(parsedUser)
-
-        const now = Date.now()
-        const lastActivityRaw = localStorage.getItem("grievance_last_activity")
-        const lastActivity = lastActivityRaw ? parseInt(lastActivityRaw, 10) : now
-
-        // If we've been inactive for longer than the limit, log out
-        if (now - lastActivity > INACTIVITY_LIMIT_MS) {
-          console.log("Session expired due to inactivity")
-          localStorage.removeItem("grievance_user")
-          localStorage.removeItem("grievance_last_activity")
-          removeToken()
-          window.location.href = "/login"
-        } else {
-          // Record current activity time
-          updateLastActivity()
-
-          // Schedule automatic logout when inactivity limit is reached
-          const remaining = INACTIVITY_LIMIT_MS - (now - lastActivity)
-          const timeoutId = window.setTimeout(() => {
-            console.log("Inactivity timeout reached, logging out")
-            localStorage.removeItem("grievance_user")
-            localStorage.removeItem("grievance_last_activity")
-            removeToken()
-            window.location.href = "/login"
-          }, remaining)
-
-          // Listen to user activity to keep the session alive
-          window.addEventListener("click", updateLastActivity)
-          window.addEventListener("keydown", updateLastActivity)
-
-          return () => {
-            window.clearTimeout(timeoutId)
-            window.removeEventListener("click", updateLastActivity)
-            window.removeEventListener("keydown", updateLastActivity)
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse stored user:", error)
+      const clearStaleSession = () => {
         localStorage.removeItem("grievance_user")
         localStorage.removeItem("grievance_last_activity")
         removeToken()
+        setUser(null)
       }
-    } else {
-      // Clear invalid session data
-      if (storedUser && !token) {
+
+      if (!storedUser || !token) {
+        if (storedUser && !token) {
+          localStorage.removeItem("grievance_user")
+        }
+        localStorage.removeItem("grievance_last_activity")
+        setIsLoading(false)
+        return
+      }
+
+      const updateLastActivity = () => {
+        localStorage.setItem("grievance_last_activity", Date.now().toString())
+      }
+
+      let parsedUser: User
+      try {
+        parsedUser = JSON.parse(storedUser) as User
+      } catch {
+        console.error("Failed to parse stored user")
+        clearStaleSession()
+        if (!cancelled) setIsLoading(false)
+        return
+      }
+
+      const now = Date.now()
+      const lastActivityRaw = localStorage.getItem("grievance_last_activity")
+      const lastActivity = lastActivityRaw ? parseInt(lastActivityRaw, 10) : now
+
+      if (now - lastActivity > INACTIVITY_LIMIT_MS) {
+        clearStaleSession()
+        window.location.href = "/login"
+        if (!cancelled) setIsLoading(false)
+        return
+      }
+
+      updateLastActivity()
+
+      const remaining = Math.max(0, INACTIVITY_LIMIT_MS - (now - lastActivity))
+      const timeoutId = window.setTimeout(() => {
         localStorage.removeItem("grievance_user")
+        localStorage.removeItem("grievance_last_activity")
+        removeToken()
+        window.location.href = "/login"
+      }, remaining)
+
+      window.addEventListener("click", updateLastActivity)
+      window.addEventListener("keydown", updateLastActivity)
+
+      cleanupInactivity = () => {
+        window.clearTimeout(timeoutId)
+        window.removeEventListener("click", updateLastActivity)
+        window.removeEventListener("keydown", updateLastActivity)
       }
-      localStorage.removeItem("grievance_last_activity")
+
+      try {
+        const { user: u } = await authApi.me()
+        if (cancelled) return
+        const userData: User = {
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role as UserRole,
+          submitterId: u.submitterId ?? undefined,
+          group: u.group ?? undefined,
+        }
+        setUser(userData)
+        localStorage.setItem("grievance_user", JSON.stringify(userData))
+      } catch (e: unknown) {
+        if (cancelled) return
+        const status =
+          typeof e === "object" && e !== null && "status" in e
+            ? (e as { status: number }).status
+            : undefined
+        if (status === 401) {
+          cleanupInactivity()
+          cleanupInactivity = undefined
+          clearStaleSession()
+        } else {
+          setUser(parsedUser)
+        }
+      }
+
+      if (!cancelled) setIsLoading(false)
     }
 
-    setIsLoading(false)
+    void init()
+
+    return () => {
+      cancelled = true
+      cleanupInactivity?.()
+    }
   }, [])
 
   const login = async (

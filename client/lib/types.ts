@@ -22,7 +22,12 @@ export interface Ticket {
   firstResponseAt?: Date
   resolvedAt?: Date
   lastStatusChangedAt?: Date
+  /** Assignee email (or legacy string) for display */
   assignedTo?: string
+  /** User id of assignee when API provides FK / assignedUser */
+  assignedToUserId?: string
+  /** Display name when API returns assignedUser */
+  assignedUserName?: string
   comments?: TicketComment[]
   escalationLevel: number
 }

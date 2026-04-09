@@ -30,7 +30,7 @@ const priorityLevels: { value: TicketPriority; label: string; description: strin
 
 export default function NewTicketPage() {
   const { user, isLoading } = useAuth()
-  const { settings } = useSettings()
+  const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
 
   const [formData, setFormData] = useState({
@@ -57,14 +57,13 @@ export default function NewTicketPage() {
     )
   }
 
-  // Redirect if not a submitter
-  if (!user || user.role !== "submitter") {
+  if (!user || !isSubmitterRole(user.role)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <Alert variant="destructive">
-              <AlertDescription>Only submitters can submit tickets.</AlertDescription>
+              <AlertDescription>Only students can submit tickets.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -310,7 +309,7 @@ export default function NewTicketPage() {
                   <p className="text-sm text-muted-foreground">{user.submitterId}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Group</Label>
+                  <Label className="text-sm font-medium">Department</Label>
                   <p className="text-sm text-muted-foreground">{user.group}</p>
                 </div>
                 <div>

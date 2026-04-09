@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
@@ -14,7 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
 import { useSettings } from "@/lib/settings-context"
-import { registrationSchema, type RegistrationFormData } from "@/lib/validation"
+import {
+  createRegistrationFormSchema,
+  registrationRoleRequiresGroup,
+  type RegistrationFormData,
+} from "@/lib/validation"
+import { REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy"
 import Link from "next/link"
 
 export default function RegisterPage() {
@@ -23,7 +28,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "submitter",
+    role: "student",
     submitterId: "",
     group: "",
   })
@@ -33,7 +38,13 @@ export default function RegisterPage() {
   const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
 
+  const registrationFormSchema = useMemo(
+    () => createRegistrationFormSchema(settings),
+    [settings]
+  )
+
   const availableGroups = Object.keys(settings?.groupPrefixes || {})
+  const needsDepartment = registrationRoleRequiresGroup(formData.role, settings)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +52,7 @@ export default function RegisterPage() {
     setErrors({})
 
     // Validate with Zod
-    const validationResult = registrationSchema.safeParse(formData)
+    const validationResult = registrationFormSchema.safeParse(formData)
 
     if (!validationResult.success) {
       const fieldErrors: Partial<Record<keyof RegistrationFormData, string>> = {}
@@ -59,13 +70,14 @@ export default function RegisterPage() {
       return
     }
 
+    const needsGroup = registrationRoleRequiresGroup(formData.role, settings)
     const result = await register({
       name: formData.name,
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      submitterId: formData.role === "submitter" ? formData.submitterId : undefined,
-      group: formData.group || undefined,
+      submitterId: isSubmitterRole(formData.role) ? formData.submitterId : undefined,
+      group: needsGroup ? formData.group?.trim() || undefined : undefined,
     })
 
     if (result.success) {
@@ -89,7 +101,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Image 
-              src={settings?.logoUrl || "/logo.png"} 
+              src="/logo.png" 
               alt={settings?.organizationName || "School Logo"} 
               width={120} 
               height={120} 
@@ -166,89 +178,62 @@ export default function RegisterPage() {
               </div>
 
               {isSubmitterRole(formData.role) && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="submitterId">Submitter ID *</Label>
-                    <Input
-                      id="submitterId"
-                      type="text"
-                      placeholder="BIT0001526"
-                      value={formData.submitterId || ""}
-                      onChange={(e) => {
-                        setFormData({ ...formData, submitterId: e.target.value })
-                        if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
-                      }}
-                      required
-                    />
-                    {errors.submitterId && (
-                      <p className="text-sm text-destructive">{errors.submitterId}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="group">Group *</Label>
-                    {availableGroups.length > 0 ? (
-                      <Select
-                        value={formData.group}
-                        onValueChange={(value) => {
-                          setFormData({ ...formData, group: value, submitterId: "" })
-                          if (errors.group) setErrors({ ...errors, group: undefined })
-                          if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select group" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableGroups.map(g => (
-                            <SelectItem key={g} value={g}>{g}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        id="group"
-                        type="text"
-                        placeholder="E.g., Engineering"
-                        value={formData.group}
-                        onChange={(e) => {
-                          setFormData({ ...formData, group: e.target.value })
-                          if (errors.group) setErrors({ ...errors, group: undefined })
-                        }}
-                        required
-                      />
-                    )}
-                    {errors.group && (
-                      <p className="text-sm text-destructive">{errors.group}</p>
-                    )}
-                  </div>
-                </>
+                <div className="space-y-2">
+                  <Label htmlFor="submitterId">Submitter ID *</Label>
+                  <Input
+                    id="submitterId"
+                    type="text"
+                    placeholder="BIT0001526"
+                    value={formData.submitterId || ""}
+                    onChange={(e) => {
+                      setFormData({ ...formData, submitterId: e.target.value })
+                      if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
+                    }}
+                    required
+                  />
+                  {errors.submitterId && (
+                    <p className="text-sm text-destructive">{errors.submitterId}</p>
+                  )}
+                </div>
               )}
 
-              {!isSubmitterRole(formData.role) && (
+              {needsDepartment && (
                 <div className="space-y-2">
-                  <Label htmlFor="group">Group *</Label>
+                  <Label htmlFor="department">Department *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {isSubmitterRole(formData.role)
+                      ? "Same department list as in school settings (Access → Departments)."
+                      : "Select the department you belong to (same list as in school settings)."}
+                  </p>
                   {availableGroups.length > 0 ? (
                     <Select
                       value={formData.group}
                       onValueChange={(value) => {
-                        setFormData({ ...formData, group: value })
+                        setFormData((prev) => ({
+                          ...prev,
+                          group: value,
+                          ...(isSubmitterRole(prev.role) ? { submitterId: "" } : {}),
+                        }))
                         if (errors.group) setErrors({ ...errors, group: undefined })
+                        if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
                       }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select group" />
+                      <SelectTrigger id="department">
+                        <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableGroups.map(g => (
-                          <SelectItem key={g} value={g}>{g}</SelectItem>
+                        {availableGroups.map((g) => (
+                          <SelectItem key={g} value={g}>
+                            {g}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <Input
-                      id="group"
+                      id="department"
                       type="text"
-                      placeholder="E.g., Engineering"
+                      placeholder="E.g., ICT"
                       value={formData.group}
                       onChange={(e) => {
                         setFormData({ ...formData, group: e.target.value })
@@ -275,12 +260,13 @@ export default function RegisterPage() {
                     if (errors.password) setErrors({ ...errors, password: undefined })
                   }}
                   required
-                  minLength={6}
+                  minLength={8}
+                  autoComplete="new-password"
                 />
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password}</p>
                 )}
-                <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+                <p className="text-xs text-muted-foreground">{REGISTRATION_PASSWORD_HINT}</p>
               </div>
 
               <div className="space-y-2">

@@ -1,7 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { useSettings } from "@/lib/settings-context"
+import { isSchoolBuild } from "@/lib/school-build"
 import { Shield, Key, Webhook, Plus, Trash2, Code2, Copy, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +32,24 @@ interface WebhookEndpoint {
 }
 
 export default function DeveloperSettingsPage() {
+  const router = useRouter()
   const { user } = useAuth()
+  const { settings, isLoading: settingsLoading, isSubmitterRole } = useSettings()
+
+  useEffect(() => {
+    if (!isSchoolBuild() || !user) return
+    router.replace(isSubmitterRole(user.role) ? "/dashboard" : "/admin")
+  }, [user, router, isSubmitterRole])
+
+  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => Number(r.level)) ?? []))
+  const canAccessOrgSettings =
+    Boolean(user) &&
+    !isSubmitterRole(user.role) &&
+    Boolean(
+      settings?.rolesConfig?.some(
+        (r) => r.key === user.role && Number(r.level) === maxRoleLevel
+      )
+    )
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([])
@@ -44,8 +64,9 @@ export default function DeveloperSettingsPage() {
   const [isCreatingWebhook, setIsCreatingWebhook] = useState(false)
 
   useEffect(() => {
+    if (!canAccessOrgSettings) return
     void fetchDeveloperData()
-  }, [])
+  }, [canAccessOrgSettings])
 
   const fetchDeveloperData = async () => {
     setIsLoading(true)
@@ -133,6 +154,36 @@ export default function DeveloperSettingsPage() {
     } catch (error) {
       toast.error("Failed to delete webhook")
     }
+  }
+
+  if (isSchoolBuild()) {
+    return (
+      <div className="flex justify-center items-center h-[50vh] text-muted-foreground">
+        Loading...
+      </div>
+    )
+  }
+
+  if (!user || settingsLoading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh] text-muted-foreground">
+        Loading...
+      </div>
+    )
+  }
+
+  if (!canAccessOrgSettings) {
+    return (
+      <Card className="max-w-md mx-auto mt-12">
+        <CardContent className="pt-6 text-center">
+          <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+          <p className="text-muted-foreground">
+            Developer tools are only available to the top organization role (same as Settings).
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   if (isLoading) {

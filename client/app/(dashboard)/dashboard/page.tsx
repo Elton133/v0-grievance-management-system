@@ -55,7 +55,7 @@ export default function DashboardPage() {
         // Fetch all tickets (we'll paginate client-side after filtering)
         // For better performance, you can implement server-side filtering later
         let result: { data: Ticket[]; pagination: any }
-        if (user.role === "submitter") {
+        if (isSubmitterRole(user.role)) {
           result = await getTicketsBySubmitter(user.submitterId!, 1, 1000) // Fetch all for now
         } else {
           result = await getTickets(1, 1000) // Fetch all for now
@@ -70,7 +70,7 @@ export default function DashboardPage() {
     }
 
     fetchTickets()
-  }, [user])
+  }, [user, isSubmitterRole])
 
   // Filter tickets (client-side filtering for now)
   const filteredTickets = useMemo(() => {
@@ -127,7 +127,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (user.role !== "submitter" && !isSubmitterRole(user.role)) {
+  if (!isSubmitterRole(user.role)) {
     return (
       <>
         <Card className="max-w-md mx-auto">

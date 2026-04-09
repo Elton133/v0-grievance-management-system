@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { converter, formatCss } from "culori"
+import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
 
 // Types for tenant settings
 export interface RoleConfig {
@@ -53,8 +54,8 @@ const DEFAULT_SETTINGS: TenantSettings = {
   accentColor: "#1e40af",
   supportEmail: null,
   rolesConfig: [
-    { key: "submitter", label: "Submitter", level: 0, isSubmitter: true, groupScoped: true },
-    { key: "class_advisor", label: "Class Advisor", level: 1, isSubmitter: false, groupScoped: true },
+    { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
+    { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
     { key: "hod", label: "Head of Group", level: 2, isSubmitter: false, groupScoped: true },
     { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
   ],
@@ -75,7 +76,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     { key: "resolved", label: "Resolved", color: "#22c55e" },
     { key: "rejected", label: "Rejected", color: "#ef4444" },
   ],
-  allowedEmailDomains: [],
+  allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
   groupPrefixes: {},
 }
 
@@ -106,7 +107,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch(`${API_BASE_URL}/settings`)
       if (response.ok) {
         const data = await response.json()
-        setSettings(data)
+        setSettings({
+          ...data,
+          allowedEmailDomains: normalizeAllowedEmailDomains(data.allowedEmailDomains),
+        })
 
         // Apply CSS custom properties for dynamic theming (Tailwind v4 theme overrides)
         if (typeof document !== "undefined") {
@@ -161,17 +165,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const getSubmitterRole = (): RoleConfig | undefined => {
-    return settings.rolesConfig.find(r => r.isSubmitter)
+    return (settings.rolesConfig ?? []).find((r) => r.isSubmitter)
   }
 
   const getReviewerRoles = (): RoleConfig[] => {
     return settings.rolesConfig.filter(r => !r.isSubmitter).sort((a, b) => a.level - b.level)
   }
 
-  const isSubmitterRole = (roleKey: string): boolean => {
-    const submitter = getSubmitterRole()
-    return submitter?.key === roleKey
-  }
+  const isSubmitterRole = useCallback((roleKey: string): boolean => {
+    const submitter = (settings.rolesConfig ?? []).find((r) => r.isSubmitter)
+    if (submitter?.key === roleKey) return true
+    if (submitter?.key === "student" && roleKey === "submitter") return true
+    if (submitter?.key === "submitter" && roleKey === "student") return true
+    return false
+  }, [settings.rolesConfig])
 
   return (
     <SettingsContext.Provider

@@ -23,19 +23,19 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const { user, login, isLoading } = useAuth()
-  const { settings } = useSettings()
+  const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
 
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      if (user.role === "submitter") {
+      if (isSubmitterRole(user.role)) {
         router.push("/dashboard")
       } else {
         router.push("/admin")
       }
     }
-  }, [user, router])
+  }, [user, router, isSubmitterRole])
 
   // Check for registration success message
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function LoginPage() {
       if (storedUser) {
         try {
           const user = JSON.parse(storedUser)
-          if (user.role === "submitter") {
+          if (isSubmitterRole(user.role)) {
             router.push("/dashboard")
           } else {
             router.push("/admin")
@@ -94,7 +94,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Image 
-              src={settings?.logoUrl || "/logo.png"} 
+              src="/logo.png" 
               alt={settings?.organizationName || "School Logo"} 
               width={120} 
               height={120} 
