@@ -10,6 +10,7 @@ import { registrationPasswordSchema } from "../validation/passwordPolicy";
 import { sanitizeInput } from "../utils/sanitize";
 import { sendEmail, emailTemplates } from "../utils/emailService";
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
+import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
 
 export const registerUser = async (req: Request, res: Response) => {
@@ -24,7 +25,7 @@ export const registerUser = async (req: Request, res: Response) => {
         tenantConfig = {
           allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
           roles: roles.map(r => r.key),
-          groupPrefixes: (settings.groupPrefixes as Record<string, string[]>) || {},
+          groupPrefixes: effectiveGroupPrefixes(settings.groupPrefixes),
           submitterRoleKey: submitterRole?.key || "student",
           rolesConfig: (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean; groupScoped?: boolean }>) || [],
         };

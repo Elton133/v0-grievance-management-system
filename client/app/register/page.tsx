@@ -19,6 +19,7 @@ import {
   registrationRoleRequiresGroup,
   type RegistrationFormData,
 } from "@/lib/validation"
+import { departmentSelectOptions } from "@/lib/rmu-departments"
 import { REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy"
 import Link from "next/link"
 
@@ -43,7 +44,7 @@ export default function RegisterPage() {
     [settings]
   )
 
-  const availableGroups = Object.keys(settings?.groupPrefixes || {})
+  const availableGroups = departmentSelectOptions(settings?.groupPrefixes)
   const needsDepartment = registrationRoleRequiresGroup(formData.role, settings)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -202,46 +203,32 @@ export default function RegisterPage() {
                   <Label htmlFor="department">Department *</Label>
                   <p className="text-xs text-muted-foreground">
                     {isSubmitterRole(formData.role)
-                      ? "Same department list as in school settings (Access → Departments)."
-                      : "Select the department you belong to (same list as in school settings)."}
+                      ? "Select your department / faculty (same names everywhere in the system)."
+                      : "Select the department you belong to."}
                   </p>
-                  {availableGroups.length > 0 ? (
-                    <Select
-                      value={formData.group}
-                      onValueChange={(value) => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          group: value,
-                          ...(isSubmitterRole(prev.role) ? { submitterId: "" } : {}),
-                        }))
-                        if (errors.group) setErrors({ ...errors, group: undefined })
-                        if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
-                      }}
-                    >
-                      <SelectTrigger id="department">
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableGroups.map((g) => (
-                          <SelectItem key={g} value={g}>
-                            {g}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="department"
-                      type="text"
-                      placeholder="E.g., ICT"
-                      value={formData.group}
-                      onChange={(e) => {
-                        setFormData({ ...formData, group: e.target.value })
-                        if (errors.group) setErrors({ ...errors, group: undefined })
-                      }}
-                      required
-                    />
-                  )}
+                  <Select
+                    value={formData.group}
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        group: value,
+                        ...(isSubmitterRole(prev.role) ? { submitterId: "" } : {}),
+                      }))
+                      if (errors.group) setErrors({ ...errors, group: undefined })
+                      if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
+                    }}
+                  >
+                    <SelectTrigger id="department">
+                      <SelectValue placeholder="Select department / programme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableGroups.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {g}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {errors.group && (
                     <p className="text-sm text-destructive">{errors.group}</p>
                   )}

@@ -508,7 +508,7 @@ export default function SettingsPage() {
                     <div className="grid gap-6">
                       {Object.entries(formData.groupPrefixes).length === 0 && (
                         <div className="p-4 border rounded-md bg-muted/20 text-center text-sm text-muted-foreground">
-                          No departments configured. The department field on registration becomes a free-text input instead of a list.
+                          No departments configured in saved settings. The API still falls back to default RMU departments until you add or save departments here.
                         </div>
                       )}
                       

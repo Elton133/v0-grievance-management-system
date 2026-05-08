@@ -19,6 +19,7 @@ import { ArrowLeft, Calendar, User, Mail, GraduationCap, AlertCircle, Edit, Tras
 import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
+import { formatTicketRef } from "@/lib/ticket-ref"
 
 const priorityColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-800",
@@ -200,7 +201,7 @@ export default function TicketDetailPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">Ticket #{ticket.id.slice(0, 8)}...</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">{formatTicketRef(ticket)}</h1>
               <p className="text-sm sm:text-base text-muted-foreground break-words">{ticket.subject}</p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -274,7 +275,9 @@ export default function TicketDetailPage() {
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="font-medium">{ticket.submitterName}</p>
-                    <p className="text-sm text-muted-foreground">{ticket.submitterId}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {ticket.submitterIndexNumber ?? (ticket.submitterId === user?.id ? user?.submitterId : undefined) ?? "N/A"}
+                    </p>
                   </div>
                 </div>
 

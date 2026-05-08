@@ -1,23 +1,15 @@
 import { z } from "zod"
 import { registrationPasswordSchema } from "./passwordPolicy"
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains"
-
-// Default group to index number prefix mapping (RMU defaults)
-// These can be overridden via TenantSettings.groupPrefixes
-const DEFAULT_DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
-  ICT: ["BIT", "BCS", "BCE", "DIT"],
-  Transport: ["BPS", "BLG", "DPS"],
-  "Marine Electrical & Electronic Engineering": ["BEE", "BME"],
-  "Nautical Science": ["BNS"],
-}
+import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes"
 
 // Default valid roles
 const DEFAULT_ROLES = ["student", "advisor", "hod", "registrar"]
 const DEFAULT_ALLOWED_EMAIL_DOMAINS = ["st.rmu.edu.gh", "rmu.edu.gh"]
 
 // Index number validation based on group
-const validateIndexNumber = (indexNumber: string, group: string, prefixes?: Record<string, string[]>): boolean => {
-  const deptPrefixes = (prefixes || DEFAULT_DEPARTMENT_INDEX_PREFIXES)[group]
+const validateIndexNumber = (indexNumber: string, group: string, prefixes: Record<string, string[]>): boolean => {
+  const deptPrefixes = prefixes[group]
   if (!deptPrefixes) return false
   return deptPrefixes.some((prefix) => indexNumber.toUpperCase().startsWith(prefix))
 }
@@ -42,7 +34,8 @@ export const createRegistrationSchema = (tenantSettings?: {
 
   const submitterRole = tenantSettings?.submitterRoleKey || "student"
 
-  const deptPrefixes = tenantSettings?.groupPrefixes || DEFAULT_DEPARTMENT_INDEX_PREFIXES
+  const deptPrefixes = effectiveGroupPrefixes(tenantSettings?.groupPrefixes)
+  const allowedDepartments = Object.keys(deptPrefixes)
 
   const rolesConfig = tenantSettings?.rolesConfig
 
@@ -124,11 +117,24 @@ export const createRegistrationSchema = (tenantSettings?: {
         path: ["group"],
       }
     )
+    .refine(
+      (data) => {
+        const needsGroup =
+          data.role === submitterRole || (data.role !== submitterRole && staffRoleRequiresGroup(data.role))
+        if (!needsGroup) return true
+        const g = data.group?.trim()
+        if (!g) return true
+        if (allowedDepartments.length === 0) return true
+        return allowedDepartments.includes(g)
+      },
+      {
+        message: "Choose a department from the list",
+        path: ["group"],
+      }
+    )
     .superRefine((data, ctx) => {
       if (data.role === submitterRole && data.submitterId && data.group) {
-        // Only validate index number if group prefixes exist for this group
-        const hasPrefixes = Object.keys(deptPrefixes).length > 0
-        if (hasPrefixes && !validateIndexNumber(data.submitterId, data.group, deptPrefixes)) {
+        if (!validateIndexNumber(data.submitterId, data.group, deptPrefixes)) {
           const prefixes = deptPrefixes[data.group] || []
           if (prefixes.length > 0) {
             ctx.addIssue({

@@ -7,6 +7,7 @@ export type TicketPriority = "low" | "medium" | "high" | "urgent"
 export interface Ticket {
   id: string
   submitterId: string
+  submitterIndexNumber?: string
   submitterName: string
   submitterEmail: string
   group: string

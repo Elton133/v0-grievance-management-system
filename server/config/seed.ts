@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_RMU_GROUP_PREFIXES } from "./utils/defaultGroupPrefixes";
 
 const prisma = new PrismaClient();
 
@@ -51,7 +52,7 @@ async function main() {
         { key: "rejected", label: "Rejected", color: "#ef4444" },
       ],
       allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
-      groupPrefixes: {},
+      groupPrefixes: DEFAULT_RMU_GROUP_PREFIXES,
     },
   });
   console.log("✅ Default tenant settings created");

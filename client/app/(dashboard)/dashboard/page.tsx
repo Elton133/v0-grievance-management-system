@@ -16,6 +16,7 @@ import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { formatTicketRef } from "@/lib/ticket-ref"
 
 export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -78,7 +79,8 @@ export default function DashboardPage() {
       const matchesSearch =
         ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
+        ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        formatTicketRef(ticket).toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus = statusFilter === "all" || ticket.status === statusFilter
       const matchesType = typeFilter === "all" || ticket.type === typeFilter
