@@ -245,7 +245,7 @@ export default function AdminPage() {
       <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">{getRoleTitle()}</h2>
           <p className="text-sm sm:text-base text-muted-foreground">{getRoleDescription()}</p>
-          {user.group && (
+          {user.group && user.role !== "registrar" && (
             <Badge variant="outline" className="mt-2">
               Department: {user.group}
             </Badge>

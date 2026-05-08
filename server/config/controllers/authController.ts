@@ -13,6 +13,14 @@ import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
 
+type PublicRoleConfig = { key: string; isSubmitter?: boolean; groupScoped?: boolean };
+
+function isPublicRegistrableRole(role: PublicRoleConfig): boolean {
+  const key = role.key.toLowerCase();
+  if (key.includes("registrar") || key.includes("admin")) return false;
+  return role.isSubmitter === true || role.groupScoped !== false;
+}
+
 export const registerUser = async (req: Request, res: Response) => {
   try {
     // Load tenant settings for dynamic validation
@@ -51,6 +59,28 @@ export const registerUser = async (req: Request, res: Response) => {
     }
 
     const { name, email, password, role, submitterId, group } = validationResult.data;
+
+    const configuredRoles: PublicRoleConfig[] =
+      tenantConfig?.rolesConfig?.length
+        ? tenantConfig.rolesConfig
+        : [
+            { key: "student", isSubmitter: true, groupScoped: true },
+            { key: "advisor", groupScoped: true },
+            { key: "hod", groupScoped: true },
+            { key: "registrar", groupScoped: false },
+          ];
+    const publicRoleKeys = configuredRoles.filter(isPublicRegistrableRole).map((r) => r.key);
+    if (!publicRoleKeys.includes(role)) {
+      return res.status(403).json({
+        msg: "This role cannot be created from public registration",
+        errors: [
+          {
+            field: "role",
+            message: "Registrar/admin accounts must be created by seed, database admin, or a protected admin screen.",
+          },
+        ],
+      });
+    }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
