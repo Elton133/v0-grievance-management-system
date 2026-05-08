@@ -83,7 +83,8 @@ function getReviewerActionFlags(userRole: string, rolesConfig: RoleConfig[] | un
   return {
     isFirstReviewer: isFirst,
     canActAsHod: middle || (twoTier && isLast && idx > 0),
-    canActAsRegistrar: last >= 1 && isLast,
+    // Last reviewer in the configured chain is the final approver (registrar-equivalent).
+    canActAsRegistrar: isLast,
   }
 }
 
@@ -127,7 +128,12 @@ export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating =
       actions.push({ label: "Reject", status: "rejected" })
     }
 
-    if (canActAsRegistrar && ticket.status === "forwarded_to_registrar") {
+    // Registrar/final approver: allow terminal actions when ticket is at final escalation slot.
+    const atRegistrarStage =
+      ticket.status === "forwarded_to_registrar" ||
+      (ticket.escalationLevel >= 3 && !["resolved", "rejected"].includes(ticket.status))
+
+    if (canActAsRegistrar && atRegistrarStage) {
       actions.push({ label: "Resolve", status: "resolved" })
       actions.push({ label: "Reject", status: "rejected" })
     }
