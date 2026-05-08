@@ -23,6 +23,12 @@ import { departmentSelectOptions } from "@/lib/rmu-departments"
 import { REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy"
 import Link from "next/link"
 
+function isPublicRegistrableRole(role: { key: string; isSubmitter?: boolean; groupScoped?: boolean }) {
+  const key = role.key.toLowerCase()
+  if (key.includes("registrar") || key.includes("admin")) return false
+  return role.isSubmitter === true || role.groupScoped !== false
+}
+
 export default function RegisterPage() {
   const [formData, setFormData] = useState<RegistrationFormData>({
     name: "",
@@ -39,13 +45,23 @@ export default function RegisterPage() {
   const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
 
+  const publicRoleOptions = useMemo(
+    () => (settings?.rolesConfig ?? []).filter(isPublicRegistrableRole),
+    [settings?.rolesConfig]
+  )
+
+  const publicRegistrationSettings = useMemo(
+    () => ({ ...settings, rolesConfig: publicRoleOptions }),
+    [settings, publicRoleOptions]
+  )
+
   const registrationFormSchema = useMemo(
-    () => createRegistrationFormSchema(settings),
-    [settings]
+    () => createRegistrationFormSchema(publicRegistrationSettings),
+    [publicRegistrationSettings]
   )
 
   const availableGroups = departmentSelectOptions(settings?.groupPrefixes)
-  const needsDepartment = registrationRoleRequiresGroup(formData.role, settings)
+  const needsDepartment = registrationRoleRequiresGroup(formData.role, publicRegistrationSettings)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,7 +87,7 @@ export default function RegisterPage() {
       return
     }
 
-    const needsGroup = registrationRoleRequiresGroup(formData.role, settings)
+    const needsGroup = registrationRoleRequiresGroup(formData.role, publicRegistrationSettings)
     const result = await register({
       name: formData.name,
       email: formData.email,
@@ -171,7 +187,7 @@ export default function RegisterPage() {
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {settings?.rolesConfig?.map((r) => (
+                    {publicRoleOptions.map((r) => (
                       <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
                     ))}
                   </SelectContent>

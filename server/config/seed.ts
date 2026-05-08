@@ -146,6 +146,35 @@ async function main() {
     console.log(`✅ Created HOD: ${hod.name} (${hod.group})`);
   }
 
+  // Registrar (created by seed/admin, not public registration)
+  console.log("🏛️ Creating registrar...");
+  const registrarData = [
+    {
+      name: "Registrar Office",
+      email: "registrar@rmu.edu.gh",
+      password: "Registrar@123",
+      role: "registrar",
+      group: null,
+    },
+  ];
+
+  for (const registrar of registrarData) {
+    const passwordHash = await hashPassword(registrar.password);
+    await prisma.user.upsert({
+      where: { email: registrar.email },
+      update: {},
+      create: {
+        name: registrar.name,
+        email: registrar.email,
+        passwordHash,
+        role: registrar.role,
+        group: registrar.group,
+        emailVerified: true,
+      },
+    });
+    console.log(`✅ Created registrar: ${registrar.name}`);
+  }
+
   console.log("\n✨ Seed completed successfully!");
   console.log("\n📝 Login Credentials Summary:");
   console.log("\n👨‍🎓 Submitters:");
@@ -154,6 +183,8 @@ async function main() {
   console.log("  - Email: eltonmorden029@gmail.com | Password: Advisor@123");
   console.log("\n👔 HODs:");
   console.log("  - Email: eltonmorden@icloud.com | Password: HOD@123");
+  console.log("\n🏛️ Registrar:");
+  console.log("  - Email: registrar@rmu.edu.gh | Password: Registrar@123");
 }
 
 main()
