@@ -1,18 +1,14 @@
 import { z } from "zod"
 import { registrationPasswordSchema } from "./password-policy"
 import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
+import { effectiveGroupPrefixes, DEFAULT_RMU_GROUP_PREFIXES } from "./rmu-departments"
 
-// Group to index number prefix mapping
-const DEPARTMENT_INDEX_PREFIXES: Record<string, string[]> = {
-  ICT: ["BIT", "BCS", "BCE", "DIT"],
-  Transport: ["BPS", "BLG", "DPS"],
-  "Marine Electrical & Electronic Engineering": ["BEE", "BME"],
-  "Nautical Science": ["BNS"],
-}
+export { DEFAULT_RMU_GROUP_PREFIXES as DEPARTMENT_INDEX_PREFIXES }
 
 type RegistrationFormSettings = {
   rolesConfig: { key: string; isSubmitter?: boolean; groupScoped?: boolean }[]
   allowedEmailDomains: string[]
+  groupPrefixes?: Record<string, string[]>
 }
 const DEFAULT_ALLOWED_EMAIL_DOMAINS = ["st.rmu.edu.gh", "rmu.edu.gh"]
 
@@ -63,6 +59,7 @@ export function registrationRoleRequiresGroup(role: string, settings: Registrati
 export function createRegistrationFormSchema(settings: RegistrationFormSettings) {
   const submitterKey = getSubmitterRoleKey(settings)
   const emailSchema = buildEmailSchema(settings)
+  const allowedDepartments = Object.keys(effectiveGroupPrefixes(settings.groupPrefixes ?? null))
 
   return z
     .object({
@@ -94,6 +91,19 @@ export function createRegistrationFormSchema(settings: RegistrationFormSettings)
         path: ["group"],
       }
     )
+    .refine(
+      (data) => {
+        if (!registrationRoleRequiresGroup(data.role, settings)) return true
+        const g = data.group?.trim()
+        if (!g) return true
+        if (allowedDepartments.length === 0) return true
+        return allowedDepartments.includes(g)
+      },
+      {
+        message: "Choose a department from the list",
+        path: ["group"],
+      }
+    )
     .refine((data) => data.password === data.confirmPassword, {
       message: "Passwords do not match",
       path: ["confirmPassword"],
@@ -109,6 +119,7 @@ export const registrationSchema = createRegistrationFormSchema({
     { key: "registrar", groupScoped: false },
   ],
   allowedEmailDomains: [],
+  groupPrefixes: DEFAULT_RMU_GROUP_PREFIXES,
 })
 
 export type RegistrationFormData = {
@@ -120,6 +131,3 @@ export type RegistrationFormData = {
   submitterId?: string
   group?: string
 }
-
-export { DEPARTMENT_INDEX_PREFIXES }
-

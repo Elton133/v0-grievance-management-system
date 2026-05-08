@@ -54,15 +54,17 @@ export type { Ticket, TicketStatus, TicketComment }
 
 // Transform backend ticket to frontend Ticket type
 function transformTicket(backendTicket: any): Ticket {
-  // Backend returns submitterId as the User ID (UUID), not the submitter ID string
-  // Also handle nested submitter object if present
+  // Keep internal FK (UUID) for ownership checks.
   const submitterId = backendTicket.submitterId || backendTicket.submitter?.id
+  // Human-facing student index number for UI display.
+  const submitterIndexNumber = backendTicket.submitter?.submitterId || backendTicket.submitterIndexNumber
   const submitterName = backendTicket.submitterName || backendTicket.submitter?.name
   const submitterEmail = backendTicket.submitterEmail || backendTicket.submitter?.email
 
   return {
     id: backendTicket.id,
-    submitterId: submitterId, // This is the User ID (UUID), not the submitter ID string
+    submitterId: submitterId,
+    submitterIndexNumber,
     submitterName: submitterName,
     submitterEmail: submitterEmail,
     group: backendTicket.group,

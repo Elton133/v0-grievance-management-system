@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, Eye, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react"
 import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
+import { formatTicketRef } from "@/lib/ticket-ref"
 
 interface TicketCardProps {
   ticket: Ticket
@@ -52,6 +53,7 @@ const priorityConfig = {
 
 export function TicketCard({ ticket }: TicketCardProps) {
   const { settings, getStatusLabel, getStatusColor } = useSettings()
+  const ticketRef = formatTicketRef(ticket)
 
   // Resolve status label and color from tenant settings, with sensible defaults
   const labelFromSettings = getStatusLabel(ticket.status)
@@ -74,7 +76,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div className="space-y-1 flex-1 min-w-0">
             <h3 className="font-semibold text-foreground line-clamp-2 sm:line-clamp-1 break-words">{ticket.subject}</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground">#{ticket.id.slice(0, 8)}...</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{ticketRef}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge

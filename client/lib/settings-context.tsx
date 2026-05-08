@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { converter, formatCss } from "culori"
 import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
+import { DEFAULT_RMU_GROUP_PREFIXES } from "./rmu-departments"
 
 // Types for tenant settings
 export interface RoleConfig {
@@ -77,7 +78,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     { key: "rejected", label: "Rejected", color: "#ef4444" },
   ],
   allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
-  groupPrefixes: {},
+  groupPrefixes: DEFAULT_RMU_GROUP_PREFIXES,
 }
 
 interface SettingsContextType {

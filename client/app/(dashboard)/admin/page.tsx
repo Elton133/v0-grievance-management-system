@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
+import { formatTicketRef } from "@/lib/ticket-ref"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -71,7 +72,16 @@ export default function AdminPage() {
       }
     }
 
-    fetchTickets()
+    void fetchTickets()
+    const id = window.setInterval(() => {
+      void fetchTickets()
+    }, 30000)
+    const onFocus = () => void fetchTickets()
+    window.addEventListener("focus", onFocus)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener("focus", onFocus)
+    }
   }, [user, settings.rolesConfig])
 
   const filteredTickets = useMemo(() => {
@@ -101,7 +111,8 @@ export default function AdminPage() {
         ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ticket.submitterName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
+        ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        formatTicketRef(ticket).toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus = statusFilter === "all" || ticket.status === statusFilter
       const matchesType = typeFilter === "all" || ticket.type === typeFilter
@@ -302,11 +313,11 @@ export default function AdminPage() {
         {/* Tabs and Filters */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex flex-col gap-4">
-            <TabsList className="w-full sm:w-auto overflow-x-auto">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1">
               <TabsTrigger value="all" className="text-xs sm:text-sm">All Tickets</TabsTrigger>
-              <TabsTrigger value="pending" className="text-xs sm:text-sm">Pending</TabsTrigger>
-              <TabsTrigger value="urgent" className="text-xs sm:text-sm">Urgent</TabsTrigger>
-              <TabsTrigger value="assigned" className="text-xs sm:text-sm">Assigned to Me</TabsTrigger>
+              <TabsTrigger value="pending" className="text-xs sm:text-sm text-amber-700 data-[state=active]:text-amber-800">Pending</TabsTrigger>
+              <TabsTrigger value="urgent" className="text-xs sm:text-sm text-red-700 data-[state=active]:text-red-800">Urgent</TabsTrigger>
+              <TabsTrigger value="assigned" className="text-xs sm:text-sm text-blue-700 data-[state=active]:text-blue-800">Assigned to Me</TabsTrigger>
             </TabsList>
 
             <div className="flex flex-col sm:flex-row gap-2 w-full">

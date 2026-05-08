@@ -102,7 +102,11 @@ export function TicketTimeline({ ticket }: TicketTimelineProps) {
                   </div>
 
                   {step.actorHint && (
-                    <p className="text-xs text-muted-foreground mb-1">{step.actorHint}</p>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {stepStatus === "completed" && index > 0
+                        ? `Completed: ${step.label}`
+                        : step.actorHint}
+                    </p>
                   )}
 
                   {stepStatus === "completed" && index === 0 && (

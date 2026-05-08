@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Eye, User, GraduationCap, AlertCircle, CheckCircle, Clock, ArrowRight, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { formatTicketRef } from "@/lib/ticket-ref"
 
 interface AdminTicketCardProps {
   ticket: Ticket
@@ -88,6 +89,7 @@ function getReviewerActionFlags(userRole: string, rolesConfig: RoleConfig[] | un
 
 export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating = false }: AdminTicketCardProps) {
   const { settings } = useSettings()
+  const ticketRef = formatTicketRef(ticket)
 
   const flags = useMemo(
     () => getReviewerActionFlags(userRole, settings.rolesConfig),
@@ -136,15 +138,15 @@ export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating =
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1 min-w-0">
             <h3 className="font-semibold text-foreground line-clamp-1">{ticket.subject}</h3>
-            <p className="text-sm text-muted-foreground">#{ticket.id}</p>
+            <p className="text-sm text-muted-foreground">{ticketRef}</p>
           </div>
-          <div className="flex gap-2">
-            <Badge className={statusInfo.color} variant="outline">
+          <div className="flex gap-2 flex-wrap justify-end max-w-[65%]">
+            <Badge className={`${statusInfo.color} max-w-full`} variant="outline">
               <StatusIcon className="mr-1 h-3 w-3" />
-              {statusInfo.label}
+              <span className="truncate">{statusInfo.label}</span>
             </Badge>
             <Badge className={priorityConfig[ticket.priority]} variant="outline">
               {ticket.priority.toUpperCase()}

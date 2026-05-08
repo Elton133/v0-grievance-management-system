@@ -11,6 +11,7 @@ import {
 import { sendEmail, emailTemplates } from "../utils/emailService";
 import { sanitizeInput, sanitizeText } from "../utils/sanitize";
 import { dispatchWebhookEvent } from "../utils/webhookService";
+import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 
 // Create a new ticket
 export const createTicket = async (req: AuthRequest, res: Response) => {
@@ -233,6 +234,7 @@ export const getTicketById = async (req: AuthRequest, res: Response) => {
         submitter: {
           select: {
             id: true,
+            submitterId: true,
             name: true,
             email: true,
             role: true,
@@ -618,7 +620,20 @@ export const updateTicket = async (req: AuthRequest, res: Response) => {
     const sanitizedSubject = subject ? sanitizeInput(subject) : ticket.subject;
     const sanitizedDescription = description ? sanitizeText(description) : ticket.description;
     const sanitizedYear = year ? sanitizeInput(year) : ticket.year;
-    const sanitizedGroup = group ? sanitizeInput(group) : ticket.group;
+
+    let sanitizedGroup = ticket.group;
+    if (group !== undefined && group !== null && String(group).trim() !== "") {
+      const g = sanitizeInput(String(group));
+      const tenant = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+      const allowed = Object.keys(effectiveGroupPrefixes(tenant?.groupPrefixes));
+      if (!allowed.includes(g)) {
+        return res.status(400).json({
+          error: "Invalid department",
+          message: "Choose a department from the configured list.",
+        });
+      }
+      sanitizedGroup = g;
+    }
 
     const updatedTicket = await prisma.ticket.update({
       where: { id },

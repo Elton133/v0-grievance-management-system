@@ -3,6 +3,10 @@ import prisma from "../db";
 import { AuthRequest } from "../middleware/auth";
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
 import { isSchoolBuild, schoolBuildSettingsForbidden } from "../utils/schoolBuild";
+import {
+  DEFAULT_RMU_GROUP_PREFIXES,
+  effectiveGroupPrefixes,
+} from "../utils/defaultGroupPrefixes";
 
 // Default configuration values for a new tenant (RMU defaults)
 const DEFAULT_SETTINGS = {
@@ -40,7 +44,7 @@ const DEFAULT_SETTINGS = {
     { key: "rejected", label: "Rejected", color: "#ef4444" },
   ],
   allowedEmailDomains: ["st.rmu.edu.gh", "rmu.edu.gh"],
-  groupPrefixes: {},
+  groupPrefixes: DEFAULT_RMU_GROUP_PREFIXES,
 };
 
 /**
@@ -66,6 +70,7 @@ export const getSettings = async (_req: Request, res: Response) => {
     res.json({
       ...settings,
       allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+      groupPrefixes: effectiveGroupPrefixes(settings.groupPrefixes),
     });
   } catch (err) {
     console.error("[Settings] Error fetching settings:", err);
@@ -147,6 +152,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     res.json({
       ...settings,
       allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+      groupPrefixes: effectiveGroupPrefixes(settings.groupPrefixes),
     });
   } catch (err) {
     console.error("[Settings] Error updating settings:", err);
@@ -185,6 +191,7 @@ export const resetSettings = async (req: AuthRequest, res: Response) => {
     res.json({
       ...settings,
       allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
+      groupPrefixes: effectiveGroupPrefixes(settings.groupPrefixes),
     });
   } catch (err) {
     console.error("[Settings] Error resetting settings:", err);
