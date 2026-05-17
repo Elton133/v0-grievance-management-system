@@ -87,22 +87,55 @@ async function findUserForRoleKey(
     whereBase.group = { equals: normalizedGroup, mode: "insensitive" };
   }
 
-  let reviewer = await prisma.user.findFirst({
+  const reviewers = await prisma.user.findMany({
     where: whereBase,
     select: { id: true, email: true, name: true },
+    orderBy: { id: "asc" },
   });
 
-  if (!reviewer && normalizedGroup && isDeptScoped) {
-    console.warn(
-      `[WorkflowService] No ${targetRole} in department "${normalizedGroup}"; trying school-wide ${targetRole}`
-    );
-    reviewer = await prisma.user.findFirst({
-      where: { role: targetRole },
-      select: { id: true, email: true, name: true },
-    });
+  if (reviewers.length === 0) {
+    if (normalizedGroup && isDeptScoped) {
+      console.warn(
+        `[WorkflowService] No ${targetRole} in department "${normalizedGroup}"; trying school-wide ${targetRole}`
+      );
+      const fallbackList = await prisma.user.findMany({
+        where: { role: targetRole },
+        select: { id: true, email: true, name: true },
+        orderBy: { id: "asc" },
+      });
+      return pickReviewerWithLightestLoad(fallbackList);
+    }
+    return null;
   }
 
-  return reviewer;
+  return pickReviewerWithLightestLoad(reviewers);
+}
+
+/** Among users with the same role/department, prefer the one with fewest open (non-terminal) tickets — not random. */
+async function pickReviewerWithLightestLoad(
+  reviewers: { id: string; email: string; name: string }[]
+): Promise<{ id: string; email: string; name: string } | null> {
+  if (reviewers.length === 0) return null;
+  if (reviewers.length === 1) return reviewers[0];
+
+  const terminal = ["resolved", "rejected"];
+  const withCounts = await Promise.all(
+    reviewers.map(async (r) => ({
+      ...r,
+      openCount: await prisma.ticket.count({
+        where: {
+          assignedTo: r.id,
+          status: { notIn: terminal },
+        },
+      }),
+    }))
+  );
+
+  let best = withCounts[0];
+  for (const row of withCounts) {
+    if (row.openCount < best.openCount) best = row;
+  }
+  return { id: best.id, email: best.email, name: best.name };
 }
 
 /**
@@ -126,7 +159,9 @@ const getStatusProgression = async (): Promise<Record<string, string[]>> => {
 };
 
 /**
- * Get the next reviewer based on escalation level
+ * Get the next reviewer based on escalation level.
+ * When several staff share the same role and department, assignment picks whoever has the
+ * fewest open (non-resolved / non-rejected) tickets — not random, not always the same row order.
  */
 export const getNextReviewer = async (
   escalationLevel: number,

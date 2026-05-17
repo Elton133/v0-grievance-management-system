@@ -163,7 +163,7 @@ export function AdminTicketCard({ ticket, userRole, onStatusUpdate, isUpdating =
       <CardContent className="pt-0 space-y-4">
         <p className="text-sm text-muted-foreground line-clamp-2">{ticket.description}</p>
 
-        {/* Submitter Information */}
+        {/* Student summary */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
           <div className="flex items-center gap-1">
             <User className="h-3 w-3" />

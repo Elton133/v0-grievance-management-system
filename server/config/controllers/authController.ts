@@ -8,7 +8,7 @@ import prisma from "../db";
 import { createRegistrationSchema } from "../validation/registrationSchema";
 import { registrationPasswordSchema } from "../validation/passwordPolicy";
 import { sanitizeInput } from "../utils/sanitize";
-import { sendEmail, emailTemplates } from "../utils/emailService";
+import { sendEmail, emailTemplates, isEmailSendingConfigured } from "../utils/emailService";
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
@@ -121,33 +121,48 @@ export const registerUser = async (req: Request, res: Response) => {
       },
     });
 
-    // Send verification email
     const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken, user.email);
-    sendEmail({
-      to: user.email,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-    }).catch((err) => {
-      console.error("Error sending verification email:", err);
-    });
+    const mailReady = isEmailSendingConfigured();
+    let verificationEmailSent = false;
+    if (mailReady) {
+      verificationEmailSent = await sendEmail({
+        to: user.email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+      });
+      if (!verificationEmailSent) {
+        console.error(
+          "[Auth] Verification email failed after registration — check server logs (Resend domain / SMTP credentials)."
+        );
+      }
+    }
 
-    // Auto-verify if email service is not configured (for development)
-    if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) {
+    // Auto-verify when mail is not configured (local demo)
+    let emailVerifiedOut = user.emailVerified;
+    if (!mailReady) {
       await prisma.user.update({
         where: { id: user.id },
         data: { emailVerified: true },
       });
+      emailVerifiedOut = true;
     }
 
     res.status(201).json({
       msg: "User registered",
+      verificationEmailSent: mailReady ? verificationEmailSent : undefined,
+      ...(mailReady && !verificationEmailSent
+        ? {
+            warning:
+              "Account created but the verification email could not be sent. Fix Resend/SMTP in .env, then use “Resend verification” on the login page.",
+          }
+        : {}),
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        emailVerified: user.emailVerified,
-      }
+        emailVerified: emailVerifiedOut,
+      },
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -180,7 +195,7 @@ export const loginUser = async (req: Request, res: Response) => {
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     // Require verification when mail is configured (set REQUIRE_EMAIL_VERIFICATION=false to bypass, e.g. local dev)
-    const emailServiceConfigured = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+    const emailServiceConfigured = isEmailSendingConfigured();
     const mustVerifyEmail =
       emailServiceConfigured && process.env.REQUIRE_EMAIL_VERIFICATION !== "false";
     if (mustVerifyEmail && !user.emailVerified) {
@@ -347,21 +362,25 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       },
     });
 
-    // Send password reset email
     const emailTemplate = await emailTemplates.passwordReset(user.name, passwordResetToken);
-    sendEmail({
-      to: user.email,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-    }).catch((err) => {
-      console.error("Error sending password reset email:", err);
-    });
+    const mailReady = isEmailSendingConfigured();
+    if (mailReady) {
+      const sent = await sendEmail({
+        to: user.email,
+        subject: emailTemplate.subject,
+        html: emailTemplate.html,
+      });
+      if (!sent) {
+        return res.status(503).json({
+          msg: "Could not send email. Check Resend/SMTP configuration on the server, then try again.",
+        });
+      }
+    }
 
     res.json({
       msg: "If the email exists, a password reset link has been sent",
-      // In development, you might want to return the token for testing
-      // Remove this in production!
-      ...(process.env.NODE_ENV === "development" && !process.env.RESEND_API_KEY && !process.env.SMTP_USER && { token: passwordResetToken }),
+      ...(process.env.NODE_ENV === "development" &&
+        !mailReady && { token: passwordResetToken }),
     });
   } catch (err) {
     if (respondIfDatabaseUnavailable(res, err)) return;

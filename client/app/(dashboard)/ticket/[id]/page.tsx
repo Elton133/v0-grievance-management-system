@@ -268,13 +268,14 @@ export default function TicketDetailPage() {
           <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Submitter Information</CardTitle>
+                <CardTitle className="text-lg">Student information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="font-medium">{ticket.submitterName}</p>
+                    <p className="text-xs text-muted-foreground">Student ID</p>
                     <p className="text-sm text-muted-foreground">
                       {ticket.submitterIndexNumber ?? (ticket.submitterId === user?.id ? user?.submitterId : undefined) ?? "N/A"}
                     </p>

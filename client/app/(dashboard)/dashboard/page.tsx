@@ -160,7 +160,7 @@ export default function DashboardPage() {
         <p className="text-sm sm:text-base text-muted-foreground">
           {isSubmitterRole(user.role)
             ? "Track your tickets and submit new grievances"
-            : "Manage and review submitter tickets"}
+            : "Manage and review student tickets"}
         </p>
       </div>
 

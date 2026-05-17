@@ -2,6 +2,7 @@ import { z } from "zod"
 import { registrationPasswordSchema } from "./password-policy"
 import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
 import { effectiveGroupPrefixes, DEFAULT_RMU_GROUP_PREFIXES } from "./rmu-departments"
+import { rosterValidationEnabledClient, validateStudentAgainstRosterClient } from "./studentRosterClient"
 
 export { DEFAULT_RMU_GROUP_PREFIXES as DEPARTMENT_INDEX_PREFIXES }
 
@@ -11,6 +12,54 @@ type RegistrationFormSettings = {
   groupPrefixes?: Record<string, string[]>
 }
 const DEFAULT_ALLOWED_EMAIL_DOMAINS = ["st.rmu.edu.gh", "rmu.edu.gh"]
+
+function validateStudentIndexForDepartment(
+  indexNumber: string,
+  group: string,
+  prefixes: Record<string, string[]>
+): boolean {
+  const deptPrefixes = prefixes[group]
+  if (!deptPrefixes) return false
+  return deptPrefixes.some((prefix) => indexNumber.toUpperCase().startsWith(prefix))
+}
+
+/**
+ * While the user types, treat the ID as valid if it could still become a valid index
+ * (matches a configured prefix, or is a prefix of one). Submit still requires full `startsWith(prefix)`.
+ */
+export function isStudentIdPrefixCompatibleWithDepartment(
+  submitterId: string,
+  group: string,
+  settings: Pick<RegistrationFormSettings, "groupPrefixes">
+): boolean {
+  const g = group.trim()
+  const sid = submitterId.trim().toUpperCase()
+  if (!g || !sid) return true
+  const map = effectiveGroupPrefixes(settings.groupPrefixes ?? null)
+  const deptPrefixes = map[g]
+  if (!deptPrefixes?.length) return true
+  return deptPrefixes.some((p) => {
+    const pu = p.toUpperCase()
+    return pu.startsWith(sid) || sid.startsWith(pu)
+  })
+}
+
+/** Live feedback while typing: ID must still be completable to a valid prefix for the department. */
+export function getLiveStudentIdPrefixError(
+  data: { role: string; submitterId?: string; group?: string },
+  settings: RegistrationFormSettings
+): string | undefined {
+  const submitterKey = getSubmitterRoleKey(settings)
+  if (data.role !== submitterKey) return undefined
+  const g = data.group?.trim()
+  const sid = data.submitterId?.trim()
+  if (!g || !sid) return undefined
+  if (isStudentIdPrefixCompatibleWithDepartment(sid, g, settings)) return undefined
+  const deptPrefixes = effectiveGroupPrefixes(settings.groupPrefixes ?? null)
+  const prefixes = deptPrefixes[g] || []
+  if (prefixes.length === 0) return undefined
+  return `Student ID must start with one of: ${prefixes.join(", ")} for ${g}`
+}
 
 function hostMatchesAllowedDomain(email: string, domain: string): boolean {
   const at = email.lastIndexOf("@")
@@ -77,7 +126,7 @@ export function createRegistrationFormSchema(settings: RegistrationFormSettings)
         return !!data.submitterId && data.submitterId.trim().length > 0
       },
       {
-        message: "Submitter ID is required for submitters",
+        message: "Student ID is required for students",
         path: ["submitterId"],
       }
     )
@@ -107,6 +156,35 @@ export function createRegistrationFormSchema(settings: RegistrationFormSettings)
     .refine((data) => data.password === data.confirmPassword, {
       message: "Passwords do not match",
       path: ["confirmPassword"],
+    })
+    .superRefine((data, ctx) => {
+      if (data.role !== submitterKey) return
+      const sid = data.submitterId?.trim()
+      const g = data.group?.trim()
+      if (!sid || !g) return
+      const deptPrefixes = effectiveGroupPrefixes(settings.groupPrefixes ?? null)
+      if (validateStudentIndexForDepartment(sid, g, deptPrefixes)) return
+      const prefixes = deptPrefixes[g] || []
+      if (prefixes.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Student ID must start with one of: ${prefixes.join(", ")} for ${g}`,
+          path: ["submitterId"],
+        })
+      }
+    })
+    .superRefine((data, ctx) => {
+      if (data.role !== submitterKey || !rosterValidationEnabledClient()) return
+      const sid = data.submitterId?.trim()
+      if (!sid) return
+      const issue = validateStudentAgainstRosterClient(data.name.trim(), sid, data.group?.trim())
+      if (issue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: [issue.path],
+        })
+      }
     })
 }
 
