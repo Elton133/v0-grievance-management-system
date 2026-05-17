@@ -498,7 +498,7 @@ export default function SettingsPage() {
                       <div>
                         <h3 className="text-lg font-medium">Departments</h3>
                         <p className="text-sm text-muted-foreground">
-                          Define departments for your school (e.g. ICT → programmes under that department). Students and staff select their department when registering.
+                          Define departments for your school (e.g. Information Technology → index prefixes BIT, DIT, BCS). Students and staff select their department when registering.
                         </p>
                       </div>
                       <Button onClick={handleAddGroupCategory} size="sm" variant="outline">

@@ -47,14 +47,19 @@ export const sendEmailViaResend = async (
     });
 
     if (error) {
-      console.error("[Resend] ❌ Error sending email:", error);
+      const detail =
+        typeof error === "object" && error !== null && Object.keys(error as object).length > 0
+          ? JSON.stringify(error, null, 2)
+          : String(error);
+      console.error("[Resend] ❌ Error sending email:", detail);
       return false;
     }
 
     console.log("[Resend] ✅ Email sent successfully:", data?.id);
     return true;
-  } catch (error: any) {
-    console.error("[Resend] ❌ Exception sending email:", error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Resend] ❌ Exception sending email:", msg, error);
     return false;
   }
 };

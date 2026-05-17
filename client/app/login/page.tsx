@@ -102,7 +102,7 @@ export default function LoginPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-foreground">
-            {settings?.organizationName ? `${settings.organizationName} Portal` : "Submitter Grievance Portal"}
+            {settings?.organizationName ? `${settings.organizationName} Portal` : "Student Grievance Portal"}
           </h1>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>

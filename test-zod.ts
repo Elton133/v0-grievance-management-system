@@ -13,7 +13,7 @@ const payload = {
   password: "Password1!",
   role: "student",
   submitterId: "BIT0001526",
-  group: "ICT"
+  group: "Information Technology"
 };
 
 const result = schema.safeParse(payload);

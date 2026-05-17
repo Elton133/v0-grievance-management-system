@@ -27,7 +27,7 @@ interface AuthContextType {
     role?: string
     submitterId?: string
     group?: string
-  }) => Promise<{ success: boolean; error?: string }>
+  }) => Promise<{ success: boolean; error?: string; warning?: string }>
   logout: () => void
   isLoading: boolean
 }
@@ -193,14 +193,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role?: string
     submitterId?: string
     group?: string
-  }): Promise<{ success: boolean; error?: string }> => {
+  }): Promise<{ success: boolean; error?: string; warning?: string }> => {
     setIsLoading(true)
     try {
       const response = await authApi.register(data)
-      
-      // Registration successful - user can now log in
+
       setIsLoading(false)
-      return { success: true }
+      return { success: true, warning: response.warning }
     } catch (error) {
       setIsLoading(false)
       const errorMessage =
@@ -210,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
+    setIsLoading(true)
     setUser(null)
     removeToken()
     if (typeof window !== "undefined") {

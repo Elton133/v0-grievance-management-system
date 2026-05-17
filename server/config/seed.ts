@@ -66,7 +66,7 @@ async function main() {
       password: "Morden@123",
       role: "student",
       submitterId: "BIT0001526",
-      group: "ICT",
+      group: "Information Technology",
     }
   ];
 
@@ -96,7 +96,7 @@ async function main() {
       email: "eltonmorden029@gmail.com",
       password: "Advisor@123",
       role: "advisor",
-      group: "ICT",
+      group: "Information Technology",
     }
   ];
 
@@ -125,7 +125,7 @@ async function main() {
       email: "eltonmorden@icloud.com",
       password: "HOD@123",
       role: "hod",
-      group: "ICT",
+      group: "Information Technology",
     },
   ];
 

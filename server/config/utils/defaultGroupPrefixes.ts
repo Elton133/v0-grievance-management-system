@@ -3,10 +3,10 @@
  * Keep in sync with `client/lib/rmu-departments.ts`.
  */
 export const DEFAULT_RMU_GROUP_PREFIXES: Record<string, string[]> = {
-  ICT: ["BIT", "BCS", "BCE", "DIT"],
-  Transport: ["BPS", "BLG", "DPS"],
-  "Marine Electrical & Electronic Engineering": ["BEE", "BME"],
-  "Nautical Science": ["BNS"],
+  "Department of Transport": ["BLG", "BPS", "DPS"],
+  "Nautical Science": ["BNS", "DNS"],
+  "Computer Engineering": ["BEE", "DEE", "BCE"],
+  "Information Technology": ["BIT", "DIT", "BCS"],
 }
 
 export function normalizeGroupPrefixesJson(value: unknown): Record<string, string[]> {

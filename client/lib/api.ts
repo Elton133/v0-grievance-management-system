@@ -95,7 +95,12 @@ export const authApi = {
     submitterId?: string;
     group?: string;
   }) => {
-    return apiRequest<{ msg: string; user: any }>("/auth/register", {
+    return apiRequest<{
+      msg: string;
+      user: unknown;
+      warning?: string;
+      verificationEmailSent?: boolean;
+    }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     });

@@ -2,6 +2,7 @@ import { z } from "zod"
 import { registrationPasswordSchema } from "./passwordPolicy"
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains"
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes"
+import { rosterValidationEnabled, validateStudentAgainstRoster } from "../utils/studentRoster"
 
 // Default valid roles
 const DEFAULT_ROLES = ["student", "advisor", "hod", "registrar"]
@@ -90,7 +91,7 @@ export const createRegistrationSchema = (tenantSettings?: {
         return true
       },
       {
-        message: "Submitter ID is required for submitters",
+        message: "Student ID is required for students",
         path: ["submitterId"],
       }
     )
@@ -139,11 +140,24 @@ export const createRegistrationSchema = (tenantSettings?: {
           if (prefixes.length > 0) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Submitter ID must start with one of: ${prefixes.join(", ")} for ${data.group} department`,
+              message: `Student ID must start with one of: ${prefixes.join(", ")} for ${data.group}`,
               path: ["submitterId"],
             })
           }
         }
+      }
+    })
+    .superRefine((data, ctx) => {
+      if (data.role !== submitterRole || !rosterValidationEnabled()) return
+      const sid = data.submitterId?.trim()
+      if (!sid) return
+      const issue = validateStudentAgainstRoster(data.name.trim(), sid, data.group?.trim())
+      if (issue) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: issue.message,
+          path: [issue.path],
+        })
       }
     })
 }

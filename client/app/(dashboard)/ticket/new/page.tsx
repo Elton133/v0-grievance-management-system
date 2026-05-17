@@ -297,7 +297,7 @@ export default function NewTicketPage() {
           <div className="space-y-6 order-1 lg:order-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Submitter Information</CardTitle>
+                <CardTitle className="text-lg">Your details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
@@ -305,7 +305,7 @@ export default function NewTicketPage() {
                   <p className="text-sm text-muted-foreground">{user.name}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Submitter ID</Label>
+                  <Label className="text-sm font-medium">Student ID</Label>
                   <p className="text-sm text-muted-foreground">{user.submitterId}</p>
                 </div>
                 <div>

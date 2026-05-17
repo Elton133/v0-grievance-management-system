@@ -17,10 +17,13 @@ import { useSettings } from "@/lib/settings-context"
 import {
   createRegistrationFormSchema,
   registrationRoleRequiresGroup,
+  getLiveStudentIdPrefixError,
   type RegistrationFormData,
 } from "@/lib/validation"
 import { departmentSelectOptions } from "@/lib/rmu-departments"
+import { getLiveRosterRegistrationIssues, rosterValidationEnabledClient } from "@/lib/studentRosterClient"
 import { REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy"
+import { PasswordStrengthMeter } from "@/components/password-strength-meter"
 import Link from "next/link"
 
 function isPublicRegistrableRole(role: { key: string; isSubmitter?: boolean; groupScoped?: boolean }) {
@@ -59,6 +62,24 @@ export default function RegisterPage() {
     () => createRegistrationFormSchema(publicRegistrationSettings),
     [publicRegistrationSettings]
   )
+
+  const liveStudentIdPrefixError = useMemo(
+    () => getLiveStudentIdPrefixError(formData, publicRegistrationSettings),
+    [formData.role, formData.submitterId, formData.group, publicRegistrationSettings]
+  )
+
+  const rosterIssues = useMemo(
+    () => getLiveRosterRegistrationIssues(formData, publicRegistrationSettings),
+    [formData.name, formData.role, formData.submitterId, formData.group, publicRegistrationSettings]
+  )
+
+  const nameMessage = errors.name ?? rosterIssues.name
+  const groupMessage = errors.group ?? rosterIssues.group
+  const submitterIdMessage = errors.submitterId ?? rosterIssues.submitterId ?? liveStudentIdPrefixError
+
+  const studentBlockingIssue =
+    isSubmitterRole(formData.role) &&
+    !!(liveStudentIdPrefixError || rosterIssues.name || rosterIssues.group || rosterIssues.submitterId)
 
   const availableGroups = departmentSelectOptions(settings?.groupPrefixes)
   const needsDepartment = registrationRoleRequiresGroup(formData.role, publicRegistrationSettings)
@@ -101,7 +122,9 @@ export default function RegisterPage() {
       toast.success("Account created successfully!", {
         description: "Redirecting to login page...",
       })
-      // Redirect to login page with success message
+      if (result.warning) {
+        toast.warning("Verification email", { description: result.warning })
+      }
       router.push("/login?registered=true")
     } else {
       const errorMsg = result.error || "Registration failed. Please try again."
@@ -148,9 +171,14 @@ export default function RegisterPage() {
                     if (errors.name) setErrors({ ...errors, name: undefined })
                   }}
                   required
+                  aria-invalid={!!nameMessage}
+                  aria-describedby={nameMessage ? "name-hint" : undefined}
+                  className={nameMessage ? "border-destructive focus-visible:ring-destructive" : undefined}
                 />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name}</p>
+                {nameMessage && (
+                  <p id="name-hint" className="text-sm text-destructive" role="alert">
+                    {nameMessage}
+                  </p>
                 )}
               </div>
 
@@ -194,32 +222,14 @@ export default function RegisterPage() {
                 </Select>
               </div>
 
-              {isSubmitterRole(formData.role) && (
-                <div className="space-y-2">
-                  <Label htmlFor="submitterId">Submitter ID *</Label>
-                  <Input
-                    id="submitterId"
-                    type="text"
-                    placeholder="BIT0001526"
-                    value={formData.submitterId || ""}
-                    onChange={(e) => {
-                      setFormData({ ...formData, submitterId: e.target.value })
-                      if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
-                    }}
-                    required
-                  />
-                  {errors.submitterId && (
-                    <p className="text-sm text-destructive">{errors.submitterId}</p>
-                  )}
-                </div>
-              )}
-
               {needsDepartment && (
                 <div className="space-y-2">
                   <Label htmlFor="department">Department *</Label>
                   <p className="text-xs text-muted-foreground">
                     {isSubmitterRole(formData.role)
-                      ? "Select your department / faculty (same names everywhere in the system)."
+                      ? rosterValidationEnabledClient()
+                        ? "Select your department first — your full name and Student ID must match the school's official class list (e.g. ICT and Information Technology count as the same department)."
+                        : "Select your department first — your Student ID prefix must match this department."
                       : "Select the department you belong to."}
                   </p>
                   <Select
@@ -245,8 +255,33 @@ export default function RegisterPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.group && (
-                    <p className="text-sm text-destructive">{errors.group}</p>
+                  {groupMessage && (
+                    <p className="text-sm text-destructive">{groupMessage}</p>
+                  )}
+                </div>
+              )}
+
+              {isSubmitterRole(formData.role) && (
+                <div className="space-y-2">
+                  <Label htmlFor="submitterId">Student ID *</Label>
+                  <Input
+                    id="submitterId"
+                    type="text"
+                    placeholder="e.g. BIT0001526"
+                    value={formData.submitterId || ""}
+                    onChange={(e) => {
+                      setFormData({ ...formData, submitterId: e.target.value })
+                      if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
+                    }}
+                    required
+                    aria-invalid={!!submitterIdMessage}
+                    aria-describedby={submitterIdMessage ? "submitterId-hint" : undefined}
+                    className={submitterIdMessage ? "border-destructive focus-visible:ring-destructive" : undefined}
+                  />
+                  {submitterIdMessage && (
+                    <p id="submitterId-hint" className="text-sm text-destructive" role="alert">
+                      {submitterIdMessage}
+                    </p>
                   )}
                 </div>
               )}
@@ -269,6 +304,7 @@ export default function RegisterPage() {
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password}</p>
                 )}
+                <PasswordStrengthMeter password={formData.password} />
                 <p className="text-xs text-muted-foreground">{REGISTRATION_PASSWORD_HINT}</p>
               </div>
 
@@ -296,7 +332,11 @@ export default function RegisterPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || studentBlockingIssue}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,31 +1,75 @@
 import nodemailer from "nodemailer";
 import { sendEmailViaResend, isResendConfigured } from "./resendService";
 import prisma from "../db";
+import {
+  type EmailBranding,
+  escapeHtml,
+  renderBrandedEmail,
+  emailButton,
+  emailDetailCard,
+  resolveLogoUrlForEmail,
+} from "./emailHtml";
+
+/** True when the app can attempt to send mail (Resend API key or full SMTP credentials). */
+export function isEmailSendingConfigured(): boolean {
+  if (isResendConfigured()) return true;
+  return !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS);
+}
 
 // Cache settings to avoid DB query on every email
-let cachedSettings: { organizationName: string; primaryColor: string } | null = null;
+let cachedSettings: {
+  organizationName: string;
+  primaryColor: string;
+  accentColor: string;
+  logoUrl: string | null;
+  supportEmail: string | null;
+} | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60000; // 1 minute
 
 /**
- * Get tenant branding for email templates
+ * Get tenant branding for email templates (logo URL resolved for absolute email links).
  */
-const getTenantBranding = async (): Promise<{ orgName: string; primaryColor: string }> => {
+const getTenantBranding = async (): Promise<EmailBranding> => {
   const now = Date.now();
   if (cachedSettings && now - cacheTimestamp < CACHE_TTL_MS) {
-    return { orgName: cachedSettings.organizationName, primaryColor: cachedSettings.primaryColor };
+    return {
+      orgName: cachedSettings.organizationName,
+      primaryColor: cachedSettings.primaryColor,
+      accentColor: cachedSettings.accentColor,
+      logoAbsoluteUrl: resolveLogoUrlForEmail(cachedSettings.logoUrl),
+      supportEmail: cachedSettings.supportEmail,
+    };
   }
   try {
     const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
     if (settings) {
-      cachedSettings = { organizationName: settings.organizationName, primaryColor: settings.primaryColor };
+      cachedSettings = {
+        organizationName: settings.organizationName,
+        primaryColor: settings.primaryColor,
+        accentColor: settings.accentColor,
+        logoUrl: settings.logoUrl,
+        supportEmail: settings.supportEmail,
+      };
       cacheTimestamp = now;
-      return { orgName: settings.organizationName, primaryColor: settings.primaryColor };
+      return {
+        orgName: settings.organizationName,
+        primaryColor: settings.primaryColor,
+        accentColor: settings.accentColor,
+        logoAbsoluteUrl: resolveLogoUrlForEmail(settings.logoUrl),
+        supportEmail: settings.supportEmail,
+      };
     }
   } catch {
     // Fall through to defaults
   }
-  return { orgName: "Grievance Management System", primaryColor: "#2563eb" };
+  return {
+    orgName: "Grievance Management System",
+    primaryColor: "#2563eb",
+    accentColor: "#1e40af",
+    logoAbsoluteUrl: resolveLogoUrlForEmail(null),
+    supportEmail: null,
+  };
 };
 
 // Email service configuration
@@ -106,26 +150,31 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
   }
 };
 
-// Email templates — use dynamic branding from TenantSettings
+// Email templates — branded layout, fonts, logo (TenantSettings), HTML-escaped dynamic text
 export const emailTemplates = {
   newTicketAssigned: async (reviewerName: string, submitterName: string, ticketSubject: string, ticketId: string) => {
-    const { orgName, primaryColor } = await getTenantBranding();
+    const branding = await getTenantBranding();
+    const receivedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(reviewerName)},</p>
+      <p style="margin:0 0 16px;">A new grievance has been assigned to you for review. Please log in to the staff portal and respond within the timeframes set by your department.</p>
+      ${emailDetailCard([
+        { label: "Student", value: submitterName },
+        { label: "Subject", value: ticketSubject },
+        { label: "Reference", value: ticketId },
+        { label: "Notified", value: receivedAt },
+      ])}
+      <p style="margin:20px 0 0;font-size:14px;color:#475569;">If you are not the correct reviewer, contact your administrator so the case can be reassigned.</p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
     return {
-      subject: `New Grievance Assigned: ${ticketSubject}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: ${primaryColor};">New Grievance Assigned</h2>
-          <p>Dear ${reviewerName},</p>
-          <p>A new grievance has been submitted and assigned to you for review:</p>
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p><strong>Submitter:</strong> ${submitterName}</p>
-            <p><strong>Subject:</strong> ${ticketSubject}</p>
-            <p><strong>Ticket ID:</strong> ${ticketId}</p>
-          </div>
-          <p>Please review this grievance at your earliest convenience.</p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      subject: `New grievance assigned: ${ticketSubject}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `New case from ${submitterName} — ${ticketSubject}`,
+        headline: "New grievance assigned",
+        bodyHtml,
+      }),
     };
   },
 
@@ -135,36 +184,47 @@ export const emailTemplates = {
     ticketSubject: string,
     ticketId: string
   ) => {
-    const { orgName, primaryColor } = await getTenantBranding();
+    const branding = await getTenantBranding();
     const baseUrl =
       process.env.FRONTEND_URL ||
       process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
       "http://localhost:3000";
     const ticketUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${ticketId}`;
+    const submittedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(submitterName)},</p>
+      <p style="margin:0 0 16px;">Thank you for contacting <strong>${escapeHtml(branding.orgName)}</strong>. Your grievance has been received and logged securely. You will receive email updates when the status changes.</p>
+      ${emailDetailCard([
+        { label: "Subject", value: ticketSubject },
+        { label: "Reference", value: ticketId },
+        { label: "Submitted", value: submittedAt },
+        { label: "Portal", value: ticketUrl },
+      ])}
+      <p style="margin:0 0 8px;font-size:14px;color:#475569;"><strong>What happens next</strong></p>
+      <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:#475569;line-height:1.6;">
+        <li>Your case is routed to the appropriate advisor or office based on type and department.</li>
+        <li>Keep this reference ID for any follow-up with support staff.</li>
+        <li>Do not share your portal password; official staff will never ask for it by email.</li>
+      </ul>
+      ${emailButton(ticketUrl, "View grievance in portal", branding.primaryColor)}
+      <p style="margin:16px 0 0;font-size:13px;color:#64748b;">If the button does not work, copy this link into your browser:<br /><span style="word-break:break-all;">${escapeHtml(ticketUrl)}</span></p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
 
     return {
       subject: `We received your grievance: ${ticketSubject}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: ${primaryColor};">Submission confirmed</h2>
-          <p>Dear ${submitterName},</p>
-          <p>Thank you for contacting <strong>${orgName}</strong>. Your grievance has been received and logged in our system.</p>
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p><strong>Subject:</strong> ${ticketSubject}</p>
-            <p><strong>Reference ID:</strong> ${ticketId}</p>
-          </div>
-          <p>Your case will be reviewed by the appropriate staff member. You will receive email updates when the status changes.</p>
-          <p style="margin: 20px 0;">
-            <a href="${ticketUrl}" style="color: ${primaryColor};">View your grievance in the portal</a>
-          </p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `Reference ${ticketId} — we will review your request soon.`,
+        headline: "Submission confirmed",
+        bodyHtml,
+      }),
     };
   },
 
   ticketStatusUpdate: async (submitterName: string, ticketSubject: string, newStatus: string, comment?: string) => {
-    const { orgName, primaryColor } = await getTenantBranding();
+    const branding = await getTenantBranding();
     const statusMessages: Record<string, string> = {
       under_review: "is now under review",
       forwarded_to_hod: "has been forwarded to the next reviewer",
@@ -172,91 +232,132 @@ export const emailTemplates = {
       resolved: "has been resolved",
       rejected: "has been rejected",
     };
+    const statusLabels: Record<string, string> = {
+      under_review: "Under review",
+      forwarded_to_hod: "Forwarded (next level)",
+      forwarded_to_registrar: "Forwarded (registrar)",
+      resolved: "Resolved",
+      rejected: "Rejected",
+    };
 
     const message = statusMessages[newStatus] || "status has been updated";
+    const statusLabel = statusLabels[newStatus] || newStatus;
+    const updatedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+
+    const commentBlock =
+      comment ?
+        `<div style="margin:18px 0;padding:16px 18px;background-color:#fffbeb;border-radius:10px;border:1px solid #fde68a;">
+          <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#92400e;text-transform:uppercase;letter-spacing:0.04em;">Staff comment</p>
+          <p style="margin:0;font-size:14px;color:#78350f;line-height:1.55;white-space:pre-wrap;">${escapeHtml(comment)}</p>
+        </div>`
+      : "";
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(submitterName)},</p>
+      <p style="margin:0 0 16px;">Your grievance <strong>${escapeHtml(ticketSubject)}</strong> ${escapeHtml(message)}.</p>
+      ${emailDetailCard([
+        { label: "Status", value: statusLabel },
+        { label: "Updated", value: updatedAt },
+      ])}
+      ${commentBlock}
+      <p style="margin:20px 0 0;font-size:14px;color:#475569;">You can review the full history and any attachments by signing in to the student portal.</p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
 
     return {
-      subject: `Grievance Status Update: ${ticketSubject}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: ${primaryColor};">Grievance Status Update</h2>
-          <p>Dear ${submitterName},</p>
-          <p>Your grievance "${ticketSubject}" ${message}.</p>
-          ${comment ? `<div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;"><p><strong>Comment:</strong> ${comment}</p></div>` : ""}
-          <p>You can check the status of your grievance in the dashboard.</p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      subject: `Grievance update: ${ticketSubject}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `${statusLabel} — ${ticketSubject}`,
+        headline: "Grievance status update",
+        bodyHtml,
+      }),
     };
   },
 
-  nextReviewerAlert: async (reviewerName: string, submitterName: string, ticketSubject: string, ticketId: string, currentLevel: string) => {
-    const { orgName, primaryColor } = await getTenantBranding();
+  nextReviewerAlert: async (
+    reviewerName: string,
+    submitterName: string,
+    ticketSubject: string,
+    ticketId: string,
+    currentLevel: string
+  ) => {
+    const branding = await getTenantBranding();
+    const forwardedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(reviewerName)},</p>
+      <p style="margin:0 0 16px;">A grievance has been escalated and is now waiting for your action in the workflow.</p>
+      ${emailDetailCard([
+        { label: "Student", value: submitterName },
+        { label: "Subject", value: ticketSubject },
+        { label: "Reference", value: ticketId },
+        { label: "Stage", value: currentLevel },
+        { label: "Forwarded", value: forwardedAt },
+      ])}
+      <p style="margin:20px 0 0;font-size:14px;color:#475569;">Please review the case, add notes if required, and move it to the next status according to institutional policy.</p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
     return {
-      subject: `Grievance Forwarded for Review: ${ticketSubject}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: ${primaryColor};">Grievance Forwarded for Review</h2>
-          <p>Dear ${reviewerName},</p>
-          <p>A grievance has been forwarded to you for review:</p>
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p><strong>Submitter:</strong> ${submitterName}</p>
-            <p><strong>Subject:</strong> ${ticketSubject}</p>
-            <p><strong>Ticket ID:</strong> ${ticketId}</p>
-          </div>
-          <p>Please review this grievance and take appropriate action.</p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      subject: `Grievance forwarded for review: ${ticketSubject}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `Action required — ${ticketSubject}`,
+        headline: "Grievance forwarded to you",
+        bodyHtml,
+      }),
     };
   },
 
   emailVerification: async (userName: string, verificationToken: string, userEmail?: string) => {
-    const { orgName, primaryColor } = await getTenantBranding();
-    const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
+    const branding = await getTenantBranding();
+    const baseUrl =
+      process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
     const emailQuery = userEmail ? `&email=${encodeURIComponent(userEmail)}` : "";
     const verificationUrl = `${baseUrl.replace(/\/$/, "")}/verify-email?token=${verificationToken}${emailQuery}`;
 
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(userName)},</p>
+      <p style="margin:0 0 16px;">Thank you for registering with <strong>${escapeHtml(branding.orgName)}</strong>. Confirm your email address to activate your account and access the grievance portal.</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#475569;">For your security, this link expires in <strong>24 hours</strong>. If you did not create an account, you can ignore this message.</p>
+      ${emailButton(verificationUrl, "Verify email address", branding.primaryColor)}
+      <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Or paste this link into your browser:<br /><span style="word-break:break-all;">${escapeHtml(verificationUrl)}</span></p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
+
     return {
-      subject: `Verify Your Email Address - ${orgName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: ${primaryColor};">Verify Your Email Address</h2>
-          <p>Dear ${userName},</p>
-          <p>Thank you for registering with ${orgName}. Please verify your email address to complete your registration.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationUrl}" style="background-color: ${primaryColor}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email Address</a>
-          </div>
-          <p>Or copy and paste this link into your browser:</p>
-          <p style="color: #6b7280; word-break: break-all;">${verificationUrl}</p>
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">This link will expire in 24 hours.</p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      subject: `Verify your email — ${branding.orgName}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: "Confirm your email to finish signing up.",
+        headline: "Verify your email",
+        bodyHtml,
+      }),
     };
   },
 
   passwordReset: async (userName: string, resetToken: string) => {
-    const { orgName, primaryColor } = await getTenantBranding();
-    const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
-    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+    const branding = await getTenantBranding();
+    const baseUrl =
+      process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3000";
+    const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset-password?token=${resetToken}`;
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(userName)},</p>
+      <p style="margin:0 0 16px;">We received a request to reset the password for your <strong>${escapeHtml(branding.orgName)}</strong> account. Use the button below to choose a new password.</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#b45309;background-color:#fffbeb;padding:12px 14px;border-radius:8px;border:1px solid #fde68a;"><strong>Security tip:</strong> This link expires in <strong>1 hour</strong>. If you did not request a reset, ignore this email — your password will stay the same.</p>
+      ${emailButton(resetUrl, "Reset password", branding.primaryColor)}
+      <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Link not working? Copy and paste:<br /><span style="word-break:break-all;">${escapeHtml(resetUrl)}</span></p>
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
 
     return {
-      subject: `Reset Your Password - ${orgName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: ${primaryColor};">Reset Your Password</h2>
-          <p>Dear ${userName},</p>
-          <p>We received a request to reset your password for your ${orgName} account.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background-color: ${primaryColor}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
-          </div>
-          <p>Or copy and paste this link into your browser:</p>
-          <p style="color: #6b7280; word-break: break-all;">${resetUrl}</p>
-          <p style="color: #dc2626; font-size: 14px; margin-top: 20px;"><strong>⚠️ Important:</strong> This link will expire in 1 hour. If you didn't request this, please ignore this email.</p>
-          <p style="margin-top: 30px;">Best regards,<br>${orgName}</p>
-        </div>
-      `,
+      subject: `Reset your password — ${branding.orgName}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: "Password reset requested for your account.",
+        headline: "Reset your password",
+        bodyHtml,
+      }),
     };
   },
 };
@@ -266,7 +367,7 @@ export const emailTemplates = {
  */
 export const checkEmailConfiguration = () => {
   const resendConfigured = isResendConfigured();
-  const smtpConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+  const smtpConfigured = !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
 
   const config = {
     provider: resendConfigured ? "Resend" : smtpConfigured ? "SMTP" : "None",
@@ -277,7 +378,7 @@ export const checkEmailConfiguration = () => {
     smtpUser: process.env.SMTP_USER,
     smtpPass: process.env.SMTP_PASS ? "***" : undefined,
     smtpFrom: process.env.SMTP_FROM,
-    isConfigured: resendConfigured || smtpConfigured,
+    isConfigured: isEmailSendingConfigured(),
   };
 
   console.log("[Email Service] Configuration Status:");

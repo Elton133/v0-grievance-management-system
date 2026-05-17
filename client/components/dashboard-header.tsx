@@ -65,7 +65,7 @@ export function DashboardHeader() {
                     {getRoleLabel(user.role)}
                   </p>
                   {user.submitterId && (
-                    <p className="text-xs leading-none text-muted-foreground">ID: {user.submitterId}</p>
+                    <p className="text-xs leading-none text-muted-foreground">Student ID: {user.submitterId}</p>
                   )}
                 </div>
               </DropdownMenuLabel>
