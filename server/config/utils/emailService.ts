@@ -9,6 +9,11 @@ import {
   emailDetailCard,
   resolveLogoUrlForEmail,
 } from "./emailHtml";
+import {
+  PETITION_CHAIN_OF_COMMAND,
+  formatWorkflowRole,
+  getStudentPetitionUpdateCopy,
+} from "./workflowLabels";
 
 /** True when the app can attempt to send mail (Resend API key or full SMTP credentials). */
 export function isEmailSendingConfigured(): boolean {
@@ -178,46 +183,146 @@ export const emailTemplates = {
     };
   },
 
-  /** Sent to the student/submitter immediately after they file a grievance */
+  /** Sent to the student/submitter immediately after they file a petition */
   ticketSubmissionConfirmation: async (
     submitterName: string,
     ticketSubject: string,
-    ticketId: string
+    referenceCode: string,
+    ticketUuid: string
   ) => {
     const branding = await getTenantBranding();
     const baseUrl =
       process.env.FRONTEND_URL ||
       process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
       "http://localhost:3000";
-    const ticketUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${ticketId}`;
+    const ticketUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${ticketUuid}`;
     const submittedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    const chainList = PETITION_CHAIN_OF_COMMAND.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
 
     const bodyHtml = `
       <p style="margin:0 0 16px;">Dear ${escapeHtml(submitterName)},</p>
-      <p style="margin:0 0 16px;">Thank you for contacting <strong>${escapeHtml(branding.orgName)}</strong>. Your grievance has been received and logged securely. You will receive email updates when the status changes.</p>
+      <p style="margin:0 0 16px;">Thank you for submitting your petition to <strong>${escapeHtml(branding.orgName)}</strong>. You will receive an email each time a reviewer acts on your case.</p>
       ${emailDetailCard([
         { label: "Subject", value: ticketSubject },
-        { label: "Reference", value: ticketId },
+        { label: "Reference", value: referenceCode },
         { label: "Submitted", value: submittedAt },
-        { label: "Portal", value: ticketUrl },
       ])}
-      <p style="margin:0 0 8px;font-size:14px;color:#475569;"><strong>What happens next</strong></p>
-      <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:#475569;line-height:1.6;">
-        <li>Your case is routed to the appropriate advisor or office based on type and department.</li>
-        <li>Keep this reference ID for any follow-up with support staff.</li>
-        <li>Do not share your portal password; official staff will never ask for it by email.</li>
-      </ul>
-      ${emailButton(ticketUrl, "View grievance in portal", branding.primaryColor)}
-      <p style="margin:16px 0 0;font-size:13px;color:#64748b;">If the button does not work, copy this link into your browser:<br /><span style="word-break:break-all;">${escapeHtml(ticketUrl)}</span></p>
+      <p style="margin:0 0 8px;font-size:14px;color:#475569;"><strong>Chain of command</strong></p>
+      <ol style="margin:0 0 20px;padding-left:20px;font-size:14px;color:#475569;line-height:1.6;">
+        ${chainList}
+      </ol>
+      <p style="margin:0 0 16px;font-size:14px;color:#475569;">Keep reference <strong>${escapeHtml(referenceCode)}</strong>. Only the Registrar can approve or reject your petition.</p>
+      ${emailButton(ticketUrl, "View petition in portal", branding.primaryColor)}
+      <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Link: <span style="word-break:break-all;">${escapeHtml(ticketUrl)}</span></p>
       <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
     `;
 
     return {
-      subject: `We received your grievance: ${ticketSubject}`,
+      subject: `Petition received (${referenceCode}): ${ticketSubject}`,
       html: renderBrandedEmail({
         branding,
-        preheader: `Reference ${ticketId} — we will review your request soon.`,
-        headline: "Submission confirmed",
+        preheader: `${referenceCode} — routed to your Class Advisor`,
+        headline: "Petition submitted",
+        bodyHtml,
+      }),
+    };
+  },
+
+  petitionStudentUpdate: async (params: {
+    submitterName: string;
+    ticketSubject: string;
+    referenceCode: string;
+    ticketUuid: string;
+    newStatus: string;
+    actorName: string;
+    actorRole: string;
+    comment?: string | null;
+  }) => {
+    const branding = await getTenantBranding();
+    const baseUrl =
+      process.env.FRONTEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+      "http://localhost:3000";
+    const portalUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${params.ticketUuid}`;
+    const updatedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    const copy = getStudentPetitionUpdateCopy(params.newStatus, params.actorName, params.actorRole);
+    const roleLabel = formatWorkflowRole(params.actorRole);
+
+    const commentBlock = params.comment?.trim()
+      ? `<div style="margin:18px 0;padding:16px 18px;background-color:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;">
+          <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#0369a1;">Comment from ${escapeHtml(roleLabel)}</p>
+          <p style="margin:0;font-size:14px;color:#0c4a6e;line-height:1.55;white-space:pre-wrap;">${escapeHtml(params.comment.trim())}</p>
+        </div>`
+      : "";
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(params.submitterName)},</p>
+      <p style="margin:0 0 16px;">${escapeHtml(copy.summary)}</p>
+      ${emailDetailCard([
+        { label: "Reference", value: params.referenceCode },
+        { label: "Subject", value: params.ticketSubject },
+        { label: "Action by", value: `${roleLabel} — ${params.actorName}` },
+        { label: "When", value: updatedAt },
+      ])}
+      ${commentBlock}
+      <p style="margin:18px 0 8px;font-size:14px;color:#475569;"><strong>What happens next</strong></p>
+      <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">${escapeHtml(copy.nextStep)}</p>
+      ${emailButton(portalUrl, "View full activity log", branding.primaryColor)}
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
+
+    return {
+      subject: `${copy.headline} (${params.referenceCode})`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `${roleLabel} ${params.actorName}`,
+        headline: copy.headline,
+        bodyHtml,
+      }),
+    };
+  },
+
+  petitionStudentComment: async (params: {
+    submitterName: string;
+    ticketSubject: string;
+    referenceCode: string;
+    ticketUuid: string;
+    actorName: string;
+    actorRole: string;
+    comment: string;
+  }) => {
+    const branding = await getTenantBranding();
+    const baseUrl =
+      process.env.FRONTEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+      "http://localhost:3000";
+    const portalUrl = `${baseUrl.replace(/\/$/, "")}/ticket/${params.ticketUuid}`;
+    const roleLabel = formatWorkflowRole(params.actorRole);
+    const at = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+
+    const bodyHtml = `
+      <p style="margin:0 0 16px;">Dear ${escapeHtml(params.submitterName)},</p>
+      <p style="margin:0 0 16px;"><strong>${escapeHtml(roleLabel)} ${escapeHtml(params.actorName)}</strong> added a comment. Your petition status has not changed.</p>
+      ${emailDetailCard([
+        { label: "Reference", value: params.referenceCode },
+        { label: "Subject", value: params.ticketSubject },
+        { label: "From", value: `${roleLabel} — ${params.actorName}` },
+        { label: "When", value: at },
+      ])}
+      <div style="margin:18px 0;padding:16px 18px;background-color:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;">
+        <p style="margin:0;font-size:14px;color:#0c4a6e;line-height:1.55;white-space:pre-wrap;">${escapeHtml(params.comment)}</p>
+      </div>
+      <p style="margin:16px 0;font-size:14px;color:#475569;">Only the <strong>Registrar</strong> can approve or reject your petition.</p>
+      ${emailButton(portalUrl, "View petition", branding.primaryColor)}
+      <p style="margin:24px 0 0;font-size:15px;">Best regards,<br /><strong>${escapeHtml(branding.orgName)}</strong></p>
+    `;
+
+    return {
+      subject: `Comment on ${params.referenceCode} — ${roleLabel}`,
+      html: renderBrandedEmail({
+        branding,
+        preheader: `${roleLabel} ${params.actorName} commented`,
+        headline: "New comment on your petition",
         bodyHtml,
       }),
     };

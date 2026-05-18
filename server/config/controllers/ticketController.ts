@@ -12,6 +12,8 @@ import { sendEmail, emailTemplates } from "../utils/emailService";
 import { sanitizeInput, sanitizeText } from "../utils/sanitize";
 import { dispatchWebhookEvent } from "../utils/webhookService";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
+import { recordAuditLog, describeStatusChange } from "../utils/auditService";
+import { allocatePetitionReference } from "../utils/petitionReference";
 
 // Create a new ticket
 export const createTicket = async (req: AuthRequest, res: Response) => {
@@ -33,9 +35,12 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
     const ticketGroup = group ? sanitizeInput(group) : (user.group || "Unknown");
     const ticketYear = year ? sanitizeInput(year) : "Unknown";
 
+    const referenceCode = await allocatePetitionReference();
+
     // Create ticket
     const ticket = await prisma.ticket.create({
       data: {
+        referenceCode,
         submitterId: req.user.id,
         submitterName: user.name,
         submitterEmail: user.email,
@@ -63,9 +68,56 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    await prisma.ticketStatusHistory.create({
+      data: {
+        ticketId: ticket.id,
+        previousStatus: null,
+        newStatus: "submitted",
+        changedBy: req.user.id,
+        changedByName: user.name,
+        changedByRole: user.role,
+        comment: null,
+      },
+    });
+
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: "ticket.created",
+      resourceType: "ticket",
+      resourceId: ticket.id,
+      details: {
+        subject: sanitizedSubject,
+        type,
+        group: ticketGroup,
+        year: ticketYear,
+        status: "submitted",
+      },
+      req,
+    });
+
     // Auto-assign to first reviewer (Class Advisor) - optimized to get reviewer in one query
     const reviewer = await getNextReviewer(1, ticketGroup);
     const assigned = reviewer ? await autoAssignTicket(ticket.id, 1, ticketGroup) : false;
+
+    if (assigned && reviewer) {
+      await recordAuditLog({
+        userId: req.user.id,
+        userName: user.name,
+        userRole: user.role,
+        action: "ticket.assigned",
+        resourceType: "ticket",
+        resourceId: ticket.id,
+        details: {
+          assignedTo: reviewer.userId,
+          assignedToName: reviewer.userName,
+          assignedToEmail: reviewer.userEmail,
+          escalationLevel: 1,
+        },
+        req,
+      });
+    }
 
     // Batch create notifications (non-blocking)
     const notifications = [
@@ -94,9 +146,11 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
     }).catch(err => console.error("Error creating notifications:", err));
 
     // Submitter confirmation email (always when ticket is created)
+    const displayRef = ticket.referenceCode ?? ticket.id;
     const submissionTpl = await emailTemplates.ticketSubmissionConfirmation(
       user.name,
       sanitizedSubject,
+      displayRef,
       ticket.id
     );
     sendEmail({
@@ -119,7 +173,7 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
         reviewer.userName,
         user.name,
         subject,
-        ticket.id
+        displayRef
       );
       // Fire and forget - don't wait for email, but log errors
       sendEmail({
@@ -173,6 +227,7 @@ export const getTickets = async (req: AuthRequest, res: Response) => {
     const tickets = await prisma.ticket.findMany({
       select: {
         id: true,
+        referenceCode: true,
         submitterId: true,
         submitterName: true,
         submitterEmail: true,
@@ -277,7 +332,7 @@ export const getTicketById = async (req: AuthRequest, res: Response) => {
             }
           },
           orderBy: {
-            changedAt: "desc"
+            changedAt: "asc"
           }
         }
       },
@@ -324,6 +379,19 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     }
 
     const newStatus = status as string;
+    const terminal = ["resolved", "rejected"];
+    if (terminal.includes(newStatus) && user.role !== "registrar") {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only the Registrar can resolve or reject petitions.",
+      });
+    }
+    if (newStatus === "rejected" && !(typeof comment === "string" && comment.trim())) {
+      return res.status(400).json({
+        error: "Rejection reason required",
+        message: "Provide a reason for rejection in the comment field.",
+      });
+    }
     let nextEscalationLevel = ticket.escalationLevel;
     let assignedTo = ticket.assignedTo;
 
@@ -363,7 +431,10 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
       lifecycleUpdates.resolvedAt = now;
     }
 
-    const [updatedTicket] = await prisma.$transaction([
+    const sanitizedComment =
+      typeof comment === "string" && comment.trim() ? sanitizeText(comment.trim()) : null;
+
+    await prisma.$transaction([
       prisma.ticket.update({
         where: { id },
         data: {
@@ -381,10 +452,70 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
           changedBy: req.user.id,
           changedByName: user.name,
           changedByRole: user.role,
-          comment: comment || null,
+          comment: sanitizedComment,
         },
       }),
+      ...(sanitizedComment
+        ? [
+            prisma.ticketComment.create({
+              data: {
+                ticketId: id,
+                authorId: req.user.id,
+                authorName: user.name,
+                authorRole: user.role,
+                content: sanitizedComment,
+                isInternal: false,
+              },
+            }),
+          ]
+        : []),
     ]);
+
+    let assigneeName: string | null = null;
+    if (assignedTo) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: assignedTo },
+        select: { name: true, role: true },
+      });
+      assigneeName = assignee?.name ?? null;
+    }
+
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: "ticket.status_changed",
+      resourceType: "ticket",
+      resourceId: id,
+      details: {
+        summary: describeStatusChange(ticket.status, newStatus),
+        previousStatus: ticket.status,
+        newStatus,
+        comment: sanitizedComment,
+        escalationLevel: nextEscalationLevel,
+        assignedTo,
+        assignedToName: assigneeName,
+      },
+      req,
+    });
+
+    if (requiresEscalation(newStatus) && assignedTo && assigneeName) {
+      await recordAuditLog({
+        userId: req.user.id,
+        userName: user.name,
+        userRole: user.role,
+        action: "ticket.assigned",
+        resourceType: "ticket",
+        resourceId: id,
+        details: {
+          assignedTo,
+          assignedToName: assigneeName,
+          escalationLevel: nextEscalationLevel,
+          reason: describeStatusChange(ticket.status, newStatus),
+        },
+        req,
+      });
+    }
 
     // Batch create notifications and send emails asynchronously (non-blocking)
     const notifications = [
@@ -422,12 +553,16 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     }).catch(err => console.error("Error creating notifications:", err));
 
     // Send emails asynchronously (fire and forget)
-    const submitterEmailTemplate = await emailTemplates.ticketStatusUpdate(
-      ticket.submitterName,
-      ticket.subject,
+    const submitterEmailTemplate = await emailTemplates.petitionStudentUpdate({
+      submitterName: ticket.submitterName,
+      ticketSubject: ticket.subject,
+      referenceCode: ticket.referenceCode ?? id,
+      ticketUuid: id,
       newStatus,
-      comment
-    );
+      actorName: user.name,
+      actorRole: user.role,
+      comment: sanitizedComment,
+    });
     sendEmail({
       to: ticket.submitterEmail,
       subject: submitterEmailTemplate.subject,
@@ -441,11 +576,12 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     });
 
     if (nextReviewer) {
+      const displayRef = ticket.referenceCode ?? id;
       const reviewerEmailTemplate = await emailTemplates.nextReviewerAlert(
         nextReviewer.name,
         ticket.submitterName,
         ticket.subject,
-        id,
+        displayRef,
         nextEscalationLevel.toString()
       );
       sendEmail({
@@ -473,6 +609,8 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
             role: true,
           },
         },
+        statusHistory: { orderBy: { changedAt: "asc" } },
+        comments: { orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -529,6 +667,43 @@ export const addComment = async (req: AuthRequest, res: Response) => {
         }
       }
     });
+
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: "ticket.comment_added",
+      resourceType: "ticket",
+      resourceId: id,
+      details: {
+        commentId: comment.id,
+        isInternal: isInternal || false,
+        preview: sanitizedContent.slice(0, 200),
+      },
+      req,
+    });
+
+    const isStaffComment =
+      req.user.id !== ticket.submitterId &&
+      user.role !== "student" &&
+      !isInternal;
+    if (isStaffComment && sanitizedContent.trim()) {
+      const ref = ticket.referenceCode ?? id;
+      const tpl = await emailTemplates.petitionStudentComment({
+        submitterName: ticket.submitterName,
+        ticketSubject: ticket.subject,
+        referenceCode: ref,
+        ticketUuid: id,
+        actorName: user.name,
+        actorRole: user.role,
+        comment: sanitizedContent,
+      });
+      sendEmail({
+        to: ticket.submitterEmail,
+        subject: tpl.subject,
+        html: tpl.html,
+      }).catch((err) => console.error("[Ticket Controller] Comment notify email:", err));
+    }
 
     res.status(201).json(comment);
   } catch (err) {
@@ -658,6 +833,23 @@ export const updateTicket = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user?.name,
+      userRole: user?.role,
+      action: "ticket.updated",
+      resourceType: "ticket",
+      resourceId: id,
+      details: {
+        subject: sanitizedSubject,
+        type: type || ticket.type,
+        year: sanitizedYear,
+        group: sanitizedGroup,
+      },
+      req,
+    });
+
     res.json(updatedTicket);
   } catch (err) {
     console.error(err);
@@ -690,6 +882,21 @@ export const deleteTicket = async (req: AuthRequest, res: Response) => {
         message: "You can only delete tickets that are still in 'submitted' status"
       });
     }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user?.name,
+      userRole: user?.role,
+      action: "ticket.deleted",
+      resourceType: "ticket",
+      resourceId: id,
+      details: {
+        subject: ticket.subject,
+        status: ticket.status,
+      },
+      req,
+    });
 
     // Delete related data first (cascade delete should handle this, but being explicit)
     await prisma.$transaction([
@@ -745,6 +952,18 @@ export const addAttachment = async (req: AuthRequest, res: Response) => {
         fileSize: fileSize || null,
         mimeType: mimeType || null,
       },
+    });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user?.name,
+      userRole: user?.role,
+      action: "ticket.attachment_added",
+      resourceType: "ticket",
+      resourceId: id,
+      details: { fileName: attachment.fileName, attachmentId: attachment.id },
+      req,
     });
 
     res.status(201).json(attachment);
