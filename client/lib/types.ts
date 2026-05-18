@@ -17,7 +17,7 @@ export interface Ticket {
   priority: TicketPriority
   subject: string
   description: string
-  attachments?: string[]
+  attachments?: TicketAttachment[]
   status: TicketStatus
   submittedAt: Date
   updatedAt: Date
@@ -43,6 +43,15 @@ export interface TicketStatusHistoryEntry {
   changedByRole: string
   comment?: string | null
   changedAt: Date
+}
+
+export interface TicketAttachment {
+  id: string
+  fileName: string
+  fileUrl: string
+  fileSize?: number
+  mimeType?: string
+  uploadedAt: Date
 }
 
 export interface TicketComment {

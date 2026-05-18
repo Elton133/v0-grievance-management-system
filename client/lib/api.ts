@@ -322,6 +322,32 @@ export const settingsApi = {
   },
 };
 
+// Audit logs (staff / analytics)
+export const auditApi = {
+  getLogs: async (page = 1, limit = 100) => {
+    return apiRequest<{
+      data: Array<{
+        id: string;
+        timestamp: string;
+        userId: string;
+        userRole: string;
+        action: string;
+        ticketId?: string;
+        details: string;
+        ipAddress?: string;
+      }>;
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/audit-logs?page=${page}&limit=${limit}`);
+  },
+};
+
 // Developer API
 export const developerApi = {
   getKeys: async () => apiRequest<any[]>("/settings/keys"),

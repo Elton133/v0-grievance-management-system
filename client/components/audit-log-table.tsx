@@ -11,22 +11,30 @@ interface AuditLogTableProps {
   description?: string
 }
 
-const actionIcons = {
+const actionIcons: Record<string, typeof FileText> = {
+  PETITION_SUBMITTED: FileText,
   TICKET_SUBMITTED: FileText,
   STATUS_UPDATE: Settings,
+  PETITION_ASSIGNED: ArrowRight,
   TICKET_FORWARDED: ArrowRight,
-  TICKET_RESOLVED: CheckCircle,
-  TICKET_REJECTED: XCircle,
+  COMMENT_ADDED: FileText,
+  PETITION_UPDATED: Settings,
+  PETITION_DELETED: XCircle,
+  ATTACHMENT_ADDED: FileText,
   LOGIN: User,
   LOGOUT: User,
 }
 
-const actionColors = {
+const actionColors: Record<string, string> = {
+  PETITION_SUBMITTED: "bg-blue-100 text-blue-800",
   TICKET_SUBMITTED: "bg-blue-100 text-blue-800",
   STATUS_UPDATE: "bg-yellow-100 text-yellow-800",
+  PETITION_ASSIGNED: "bg-purple-100 text-purple-800",
   TICKET_FORWARDED: "bg-purple-100 text-purple-800",
-  TICKET_RESOLVED: "bg-green-100 text-green-800",
-  TICKET_REJECTED: "bg-red-100 text-red-800",
+  COMMENT_ADDED: "bg-sky-100 text-sky-800",
+  PETITION_UPDATED: "bg-orange-100 text-orange-800",
+  PETITION_DELETED: "bg-red-100 text-red-800",
+  ATTACHMENT_ADDED: "bg-gray-100 text-gray-800",
   LOGIN: "bg-gray-100 text-gray-800",
   LOGOUT: "bg-gray-100 text-gray-800",
 }
@@ -55,6 +63,14 @@ export function AuditLogTable({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {logs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                    No audit entries yet. Actions such as petition submissions, forwards, and
+                    registrar decisions will appear here.
+                  </TableCell>
+                </TableRow>
+              )}
               {logs.map((log) => {
                 const ActionIcon = actionIcons[log.action as keyof typeof actionIcons] || Settings
                 const actionColor = actionColors[log.action as keyof typeof actionColors] || "bg-gray-100 text-gray-800"

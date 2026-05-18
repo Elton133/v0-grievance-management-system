@@ -7,6 +7,7 @@ import { getTicketById, updateTicketDetails, deleteTicketById, type Ticket } fro
 import type { TicketType } from "@/lib/types"
 import { TicketTimeline } from "@/components/ticket-timeline"
 import { PetitionReviewPanel } from "@/components/petition-review-panel"
+import { PetitionAttachments } from "@/components/petition-attachments"
 import { canUserReviewPetition } from "@/lib/reviewer-actions"
 import {
   petitionSubjectLabel,
@@ -251,6 +252,8 @@ export default function TicketDetailPage() {
                   <h3 className="font-semibold mb-2">Description</h3>
                   <p className="text-muted-foreground leading-relaxed">{ticket.description}</p>
                 </div>
+
+                <PetitionAttachments attachments={ticket.attachments} />
 
                 {ticket.status === "rejected" && (
                   <Alert variant="destructive">

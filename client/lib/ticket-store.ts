@@ -1,6 +1,6 @@
 "use client"
 
-import type { Ticket, TicketStatus, TicketComment } from "./types"
+import type { Ticket, TicketStatus, TicketComment, TicketAttachment } from "./types"
 import type { RoleConfig } from "./settings-context"
 import { ticketApi } from "./api"
 import { departmentsEquivalentForRoster } from "./departmentRosterMatch"
@@ -109,6 +109,24 @@ function transformTicket(backendTicket: any): Ticket {
         comment: h.comment,
         changedAt: new Date(h.changedAt),
       })) || [],
+    attachments:
+      backendTicket.attachments?.map(
+        (a: {
+          id: string
+          fileName: string
+          fileUrl: string
+          fileSize?: number | null
+          mimeType?: string | null
+          uploadedAt: string
+        }): TicketAttachment => ({
+          id: a.id,
+          fileName: a.fileName,
+          fileUrl: a.fileUrl,
+          fileSize: a.fileSize ?? undefined,
+          mimeType: a.mimeType ?? undefined,
+          uploadedAt: new Date(a.uploadedAt),
+        })
+      ) ?? [],
   }
 }
 
