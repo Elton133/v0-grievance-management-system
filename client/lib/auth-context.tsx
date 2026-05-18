@@ -209,14 +209,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
-    setIsLoading(true)
-    setUser(null)
     removeToken()
     if (typeof window !== "undefined") {
       localStorage.removeItem("grievance_user")
       localStorage.removeItem("grievance_last_activity")
-      // Redirect to login page
+      // Navigate before clearing React state to avoid a flash of "access denied" on protected routes
       window.location.href = "/login"
+    } else {
+      setUser(null)
+      setIsLoading(false)
     }
   }
 

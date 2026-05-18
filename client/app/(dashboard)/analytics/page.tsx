@@ -15,19 +15,26 @@ import { useRouter } from "next/navigation"
 import { useSettings } from "@/lib/settings-context"
 
 export default function AnalyticsPage() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { isSubmitterRole } = useSettings()
   const router = useRouter()
   const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [auditLogs, setAuditLogs] = useState<Awaited<ReturnType<typeof getAuditLogs>>>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
-  const auditLogs = getAuditLogs(50) // Get last 50 audit logs
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login")
+    }
+  }, [authLoading, user, router])
 
   useEffect(() => {
     if (!user || isSubmitterRole(user.role)) return
     const fetchAnalytics = async () => {
       try {
-        const data = await getAnalyticsData()
+        const [data, logs] = await Promise.all([getAnalyticsData(), getAuditLogs(100)])
         setAnalyticsData(data)
+        setAuditLogs(logs)
       } catch (error) {
         console.error("Error fetching analytics data:", error)
       } finally {
@@ -37,8 +44,15 @@ export default function AnalyticsPage() {
     void fetchAnalytics()
   }, [user, isSubmitterRole])
 
-  // Only allow admin users to access analytics
-  if (!user || isSubmitterRole(user.role)) {
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AppLoader message={authLoading ? "Loading..." : "Redirecting to sign in..."} />
+      </div>
+    )
+  }
+
+  if (isSubmitterRole(user.role)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -56,8 +70,7 @@ export default function AnalyticsPage() {
     )
   }
 
-  // Show loading state
-  if (isLoading || isLoadingData || !analyticsData) {
+  if (isLoadingData || !analyticsData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <AppLoader message="Loading analytics..." />

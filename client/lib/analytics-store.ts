@@ -1,6 +1,7 @@
 "use client"
 
 import { getTickets } from "./ticket-store"
+import { auditApi } from "./api"
 import type { TicketStatus, TicketType } from "./types"
 
 export interface AnalyticsData {
@@ -29,42 +30,10 @@ export interface AuditLog {
   ipAddress?: string
 }
 
-// Mock audit logs
-const auditLogs: AuditLog[] = [
-  {
-    id: "AUDIT-001",
-    timestamp: new Date("2024-01-16T10:30:00"),
-    userId: "advisor@university.edu",
-    userRole: "advisor",
-    action: "STATUS_UPDATE",
-    ticketId: "PET-2024-001",
-    details: "Changed ticket status from 'submitted' to 'under_review'",
-  },
-  {
-    id: "AUDIT-002",
-    timestamp: new Date("2024-01-15T14:20:00"),
-    userId: "ST2024001",
-    userRole: "student",
-    action: "TICKET_SUBMITTED",
-    ticketId: "PET-2024-001",
-    details: "New ticket submitted: Grade Discrepancy in Data Structures Course",
-  },
-  {
-    id: "AUDIT-003",
-    timestamp: new Date("2024-01-12T16:45:00"),
-    userId: "advisor@university.edu",
-    userRole: "advisor",
-    action: "TICKET_FORWARDED",
-    ticketId: "PET-2024-002",
-    details: "Ticket forwarded to HOD for escalation",
-  },
-]
-
 export async function getAnalyticsData(): Promise<AnalyticsData> {
   const result = await getTickets(1, 1000)
   const tickets = result.data
 
-  // Calculate basic metrics
   const totalTickets = tickets.length
 
   const ticketsByStatus = tickets.reduce(
@@ -72,7 +41,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       acc[ticket.status] = (acc[ticket.status] || 0) + 1
       return acc
     },
-    {} as Record<TicketStatus, number>,
+    {} as Record<TicketStatus, number>
   )
 
   const ticketsByType = tickets.reduce(
@@ -80,7 +49,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       acc[ticket.type] = (acc[ticket.type] || 0) + 1
       return acc
     },
-    {} as Record<TicketType, number>,
+    {} as Record<TicketType, number>
   )
 
   const ticketsByPriority = tickets.reduce(
@@ -88,7 +57,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       acc[ticket.priority] = (acc[ticket.priority] || 0) + 1
       return acc
     },
-    {} as Record<string, number>,
+    {} as Record<string, number>
   )
 
   const ticketsByGroup = tickets.reduce(
@@ -96,34 +65,45 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
       acc[ticket.group] = (acc[ticket.group] || 0) + 1
       return acc
     },
-    {} as Record<string, number>,
+    {} as Record<string, number>
   )
 
-  // Calculate resolution time using resolvedAt when available (falls back to updatedAt)
   const resolvedTickets = tickets.filter((p) => p.resolvedAt)
   const averageResolutionTime =
     resolvedTickets.length > 0
       ? resolvedTickets.reduce((acc, ticket) => {
-        const end = ticket.resolvedAt ?? ticket.updatedAt
-        const resolutionTime = end.getTime() - ticket.submittedAt.getTime()
-        return acc + resolutionTime / (1000 * 60 * 60 * 24) // Convert to days
-      }, 0) / resolvedTickets.length
+          const end = ticket.resolvedAt ?? ticket.updatedAt
+          const resolutionTime = end.getTime() - ticket.submittedAt.getTime()
+          return acc + resolutionTime / (1000 * 60 * 60 * 24)
+        }, 0) / resolvedTickets.length
       : 0
 
-  // Generate monthly trends (mock data)
-  const monthlyTrends = [
-    { month: "Dec 2023", count: 8, resolved: 6 },
-    { month: "Jan 2024", count: 12, resolved: 9 },
-    { month: "Feb 2024", count: 15, resolved: 11 },
-    { month: "Mar 2024", count: 10, resolved: 8 },
-  ]
-
-  // Response time metrics
-  const responseTimeMetrics = {
-    averageResponseTime: 2.5, // days
-    medianResponseTime: 2.0, // days
-    escalationRate: 0.25, // 25% of tickets get escalated
+  const monthMap = new Map<string, { count: number; resolved: number }>()
+  for (const t of tickets) {
+    const d = t.submittedAt
+    const key = `${d.toLocaleString("en", { month: "short" })} ${d.getFullYear()}`
+    const cur = monthMap.get(key) ?? { count: 0, resolved: 0 }
+    cur.count += 1
+    if (t.status === "resolved") cur.resolved += 1
+    monthMap.set(key, cur)
   }
+  const monthlyTrends = Array.from(monthMap.entries())
+    .map(([month, v]) => ({ month, ...v }))
+    .slice(-6)
+
+  const withResponse = tickets.filter((t) => t.firstResponseAt)
+  const responseDays = withResponse.map(
+    (t) => (t.firstResponseAt!.getTime() - t.submittedAt.getTime()) / (1000 * 60 * 60 * 24)
+  )
+  responseDays.sort((a, b) => a - b)
+  const averageResponseTime =
+    responseDays.length > 0 ? responseDays.reduce((a, b) => a + b, 0) / responseDays.length : 0
+  const medianResponseTime =
+    responseDays.length > 0
+      ? responseDays[Math.floor(responseDays.length / 2)]
+      : 0
+  const escalated = tickets.filter((t) => t.escalationLevel >= 2).length
+  const escalationRate = totalTickets > 0 ? escalated / totalTickets : 0
 
   return {
     totalTickets,
@@ -133,30 +113,30 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     ticketsByGroup,
     averageResolutionTime,
     monthlyTrends,
-    responseTimeMetrics,
+    responseTimeMetrics: {
+      averageResponseTime,
+      medianResponseTime,
+      escalationRate,
+    },
   }
 }
 
-export function getAuditLogs(limit?: number): AuditLog[] {
-  const sortedLogs = auditLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-  return limit ? sortedLogs.slice(0, limit) : sortedLogs
-}
-
-export function addAuditLog(log: Omit<AuditLog, "id" | "timestamp">): void {
-  const newLog: AuditLog = {
-    ...log,
-    id: `AUDIT-${Date.now()}`,
-    timestamp: new Date(),
+/** Load audit entries from the database (written by recordAuditLog on the server). */
+export async function getAuditLogs(limit = 100): Promise<AuditLog[]> {
+  try {
+    const res = await auditApi.getLogs(1, limit)
+    return res.data.map((row) => ({
+      id: row.id,
+      timestamp: new Date(row.timestamp),
+      userId: row.userId,
+      userRole: row.userRole,
+      action: row.action,
+      ticketId: row.ticketId,
+      details: row.details,
+      ipAddress: row.ipAddress,
+    }))
+  } catch (error) {
+    console.error("Error fetching audit logs:", error)
+    return []
   }
-  auditLogs.push(newLog)
-}
-
-export function getAuditLogsByTicket(ticketId: string): AuditLog[] {
-  return auditLogs
-    .filter((log) => log.ticketId === ticketId)
-    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-}
-
-export function getAuditLogsByUser(userId: string): AuditLog[] {
-  return auditLogs.filter((log) => log.userId === userId).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 }
