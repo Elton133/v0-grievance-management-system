@@ -6,6 +6,7 @@ import { Calendar, Eye, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-
 import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
 import { formatTicketRef } from "@/lib/ticket-ref"
+import { petitionSubjectLabel, petitionTypeLabel } from "@/lib/petition-form-options"
 
 interface TicketCardProps {
   ticket: Ticket
@@ -44,13 +45,6 @@ const defaultStatusConfig = {
   },
 } as const
 
-const priorityConfig = {
-  low: "bg-gray-100 text-gray-800 border-gray-200",
-  medium: "bg-blue-100 text-blue-800 border-blue-200",
-  high: "bg-orange-100 text-orange-800 border-orange-200",
-  urgent: "bg-red-100 text-red-800 border-red-200",
-}
-
 export function TicketCard({ ticket }: TicketCardProps) {
   const { settings, getStatusLabel, getStatusColor } = useSettings()
   const ticketRef = formatTicketRef(ticket)
@@ -75,7 +69,9 @@ export function TicketCard({ ticket }: TicketCardProps) {
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div className="space-y-1 flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground line-clamp-2 sm:line-clamp-1 break-words">{ticket.subject}</h3>
+            <h3 className="font-semibold text-foreground line-clamp-2 sm:line-clamp-1 break-words">
+              {petitionSubjectLabel(ticket.subject)}
+            </h3>
             <p className="text-xs sm:text-sm text-muted-foreground">{ticketRef}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -94,8 +90,8 @@ export function TicketCard({ ticket }: TicketCardProps) {
                 {(labelFromSettings || fallback.label).split(" ")[0]}
               </span>
             </Badge>
-            <Badge className={`${priorityConfig[ticket.priority]} text-xs`} variant="outline">
-              {ticket.priority.toUpperCase()}
+            <Badge variant="secondary" className="text-xs">
+              {ticket.year}
             </Badge>
           </div>
         </div>
@@ -109,7 +105,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
               <Calendar className="h-3 w-3" />
               <span className="whitespace-nowrap">{ticket.submittedAt.toLocaleDateString()}</span>
             </div>
-            <div className="capitalize">{ticket.type.replace(/_/g, " ")}</div>
+            <div>{petitionTypeLabel(ticket.type)}</div>
           </div>
 
           <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">

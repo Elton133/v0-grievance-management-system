@@ -57,17 +57,13 @@ const DEFAULT_SETTINGS: TenantSettings = {
   rolesConfig: [
     { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
     { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
-    { key: "hod", label: "Head of Group", level: 2, isSubmitter: false, groupScoped: true },
+    { key: "hod", label: "Head of Department", level: 2, isSubmitter: false, groupScoped: true },
     { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
   ],
   escalationConfig: [],
   ticketTypesConfig: [
-    { key: "academic_issue", label: "Academic Issue" },
-    { key: "administrative_issue", label: "Administrative Issue" },
-    { key: "facility_issue", label: "Facility Issue" },
-    { key: "disciplinary_issue", label: "Disciplinary Issue" },
-    { key: "financial_issue", label: "Financial Issue" },
-    { key: "other", label: "Other" },
+    { key: "fee_issues", label: "Fee issues" },
+    { key: "results_issues", label: "Results issues" },
   ],
   statusLabelsConfig: [
     { key: "submitted", label: "Submitted", color: "#f59e0b" },

@@ -71,6 +71,7 @@ model User {
 // Main ticket table
 model Ticket {
   id              String   @id @default(uuid())
+  referenceCode   String?  @unique // e.g. PET-2024-001
   submitterId     String
   submitter       User     @relation("SubmitterTickets", fields: [submitterId], references: [id])
   submitterName   String

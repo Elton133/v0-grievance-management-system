@@ -1,16 +1,23 @@
 "use client"
 import { useParams, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
 import { getTicketById, updateTicketDetails, deleteTicketById, type Ticket } from "@/lib/ticket-store"
-import type { TicketType, TicketPriority } from "@/lib/types"
+import type { TicketType } from "@/lib/types"
 import { TicketTimeline } from "@/components/ticket-timeline"
+import { PetitionReviewPanel } from "@/components/petition-review-panel"
+import { canUserReviewPetition } from "@/lib/reviewer-actions"
+import {
+  petitionSubjectLabel,
+  petitionTypeLabel,
+  PETITION_SUBJECTS,
+  PETITION_TYPES,
+} from "@/lib/petition-form-options"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,24 +28,10 @@ import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
 import { formatTicketRef } from "@/lib/ticket-ref"
 
-const priorityColors: Record<string, string> = {
-  low: "bg-gray-100 text-gray-800",
-  medium: "bg-blue-100 text-blue-800",
-  high: "bg-orange-100 text-orange-800",
-  urgent: "bg-red-100 text-red-800",
-}
-
-const priorityLevels: { value: TicketPriority; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-]
-
 export default function TicketDetailPage() {
   const params = useParams()
   const { user, isLoading: authLoading } = useAuth()
-  const { settings, getStatusLabel, getStatusColor, getTicketTypeLabel, isSubmitterRole } = useSettings()
+  const { settings, getStatusLabel, getStatusColor, isSubmitterRole } = useSettings()
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -52,7 +45,6 @@ export default function TicketDetailPage() {
     subject: "",
     description: "",
     type: "" as TicketType,
-    priority: "medium" as TicketPriority,
   })
 
   useEffect(() => {
@@ -68,7 +60,6 @@ export default function TicketDetailPage() {
             subject: data.subject,
             description: data.description,
             type: data.type,
-            priority: data.priority,
           })
         }
       } catch (error) {
@@ -81,6 +72,14 @@ export default function TicketDetailPage() {
     fetchTicket()
   }, [params.id])
 
+  const rejectionReason = useMemo(() => {
+    if (!ticket || ticket.status !== "rejected") return null
+    const rejected = (ticket.statusHistory ?? []).filter((h) => h.newStatus === "rejected")
+    if (rejected.length === 0) return null
+    const latest = rejected.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())[0]
+    return latest.comment?.trim() || null
+  }, [ticket])
+
   const handleEdit = async () => {
     if (!ticket) return
     
@@ -88,9 +87,12 @@ export default function TicketDetailPage() {
     setError("")
     
     try {
-      const updated = await updateTicketDetails(ticket.id, editFormData)
+      const updated = await updateTicketDetails(ticket.id, {
+        ...editFormData,
+        priority: "medium",
+      })
       if (updated) {
-        toast.success("Ticket updated successfully!", {
+        toast.success("Petition updated successfully!", {
           description: "Your changes have been saved.",
         })
         setTicket(updated)
@@ -142,7 +144,7 @@ export default function TicketDetailPage() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <AppLoader message="Loading ticket..." />
+        <AppLoader message="Loading petition..." />
       </div>
     )
   }
@@ -154,7 +156,7 @@ export default function TicketDetailPage() {
           <CardContent className="pt-6">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Ticket not found.</AlertDescription>
+              <AlertDescription>Petition not found.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -177,7 +179,7 @@ export default function TicketDetailPage() {
           <CardContent className="pt-6">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>You don't have permission to view this ticket.</AlertDescription>
+              <AlertDescription>You don&apos;t have permission to view this petition.</AlertDescription>
             </Alert>
             <Button asChild className="w-full mt-4">
               <Link href="/dashboard">Return to Dashboard</Link>
@@ -202,7 +204,9 @@ export default function TicketDetailPage() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 break-words">{formatTicketRef(ticket)}</h1>
-              <p className="text-sm sm:text-base text-muted-foreground break-words">{ticket.subject}</p>
+              <p className="text-sm sm:text-base text-muted-foreground break-words">
+                {petitionSubjectLabel(ticket.subject)}
+              </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {canEditOrDelete && (
@@ -231,7 +235,6 @@ export default function TicketDetailPage() {
                 <Badge className="text-xs" style={{ backgroundColor: getStatusColor(ticket.status), color: '#fff' }}>
                   {getStatusLabel(ticket.status).toUpperCase()}
                 </Badge>
-                <Badge className={`${priorityColors[ticket.priority]} text-xs`}>{ticket.priority.toUpperCase()}</Badge>
               </div>
             </div>
           </div>
@@ -241,7 +244,7 @@ export default function TicketDetailPage() {
           <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
             <Card>
               <CardHeader>
-                <CardTitle>Ticket Details</CardTitle>
+                <CardTitle>Petition details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -249,20 +252,34 @@ export default function TicketDetailPage() {
                   <p className="text-muted-foreground leading-relaxed">{ticket.description}</p>
                 </div>
 
+                {ticket.status === "rejected" && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <span className="font-medium">Rejection reason: </span>
+                      {rejectionReason ?? "No reason was recorded."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <h4 className="font-medium mb-1">Type</h4>
-                    <p className="text-sm text-muted-foreground capitalize">{getTicketTypeLabel(ticket.type)}</p>
+                    <h4 className="font-medium mb-1">Petition type</h4>
+                    <p className="text-sm text-muted-foreground">{petitionTypeLabel(ticket.type)}</p>
                   </div>
                   <div>
-                    <h4 className="font-medium mb-1">Priority</h4>
-                    <p className="text-sm text-muted-foreground capitalize">{ticket.priority}</p>
+                    <h4 className="font-medium mb-1">Level</h4>
+                    <p className="text-sm text-muted-foreground">{ticket.year}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <TicketTimeline ticket={ticket} />
+
+            {user && canUserReviewPetition(user.role, settings.rolesConfig) && (
+              <PetitionReviewPanel ticket={ticket} userRole={user.role} onUpdated={setTicket} />
+            )}
           </div>
 
           <div className="space-y-6 order-1 lg:order-2">
@@ -290,8 +307,8 @@ export default function TicketDetailPage() {
                 <div className="flex items-center gap-2">
                   <GraduationCap className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">{ticket.group}</p>
-                    <p className="text-sm text-muted-foreground">{ticket.year}</p>
+                    <p className="text-sm font-medium">Department: {ticket.group}</p>
+                    <p className="text-sm text-muted-foreground">Level: {ticket.year}</p>
                   </div>
                 </div>
               </CardContent>
@@ -299,7 +316,7 @@ export default function TicketDetailPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Ticket Info</CardTitle>
+                <CardTitle className="text-lg">Petition info</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -336,7 +353,7 @@ export default function TicketDetailPage() {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Your ticket has been submitted successfully. You will receive email updates as it progresses through
+                  Your petition has been submitted successfully. You will receive email updates as it progresses through
                   the review process.
                 </AlertDescription>
               </Alert>
@@ -349,22 +366,30 @@ export default function TicketDetailPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Edit Ticket</DialogTitle>
+            <DialogTitle>Edit petition</DialogTitle>
             <DialogDescription>
-              Update your ticket details. You can only edit tickets that are still in "submitted" status.
+              Update your petition details. You can only edit petitions that are still in submitted status.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-subject">Subject *</Label>
-              <Input
-                id="edit-subject"
+              <Select
                 value={editFormData.subject}
-                onChange={(e) => setEditFormData({ ...editFormData, subject: e.target.value })}
-                placeholder="Enter ticket subject"
-                required
-              />
+                onValueChange={(value) => setEditFormData({ ...editFormData, subject: value })}
+              >
+                <SelectTrigger id="edit-subject">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PETITION_SUBJECTS.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -379,44 +404,23 @@ export default function TicketDetailPage() {
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-type">Type *</Label>
-                <Select
-                  value={editFormData.type}
-                  onValueChange={(value) => setEditFormData({ ...editFormData, type: value as TicketType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {settings?.ticketTypesConfig?.map((type) => (
-                      <SelectItem key={type.key} value={type.key}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-priority">Priority *</Label>
-                <Select
-                  value={editFormData.priority}
-                  onValueChange={(value) => setEditFormData({ ...editFormData, priority: value as TicketPriority })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {priorityLevels.map((priority) => (
-                      <SelectItem key={priority.value} value={priority.value}>
-                        {priority.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-type">Petition type *</Label>
+              <Select
+                value={editFormData.type}
+                onValueChange={(value) => setEditFormData({ ...editFormData, type: value as TicketType })}
+              >
+                <SelectTrigger id="edit-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PETITION_TYPES.map((type) => (
+                    <SelectItem key={type.key} value={type.key}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {error && (
@@ -448,9 +452,9 @@ export default function TicketDetailPage() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="mx-4 sm:mx-0 w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Delete Ticket</DialogTitle>
+            <DialogTitle>Delete petition</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this ticket? This action cannot be undone. You can only delete tickets that are still in "submitted" status.
+              Are you sure you want to delete this petition? This action cannot be undone. You can only delete petitions still in submitted status.
             </DialogDescription>
           </DialogHeader>
 
@@ -471,7 +475,7 @@ export default function TicketDetailPage() {
                   Deleting...
                 </>
               ) : (
-                "Delete Ticket"
+                "Delete petition"
               )}
             </Button>
           </DialogFooter>

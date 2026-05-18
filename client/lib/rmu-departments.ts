@@ -3,15 +3,24 @@
  * Keep in sync with `server/config/utils/defaultGroupPrefixes.ts`.
  */
 export const DEFAULT_RMU_GROUP_PREFIXES: Record<string, string[]> = {
-  "Department of Transport": ["BLG", "BPS", "DPS"],
-  "Nautical Science": ["BNS", "DNS"],
-  "Computer Engineering": ["BEE", "DEE", "BCE"],
   "Information Technology": ["BIT", "DIT", "BCS"],
+  "Nautical Science Department": ["BNS", "DNS", "GPR"],
+  "Marine Engineering Department": ["BME", "DME", "BOC", "BNA"],
+  "Mechanical Engineering": ["BSME", "BSMEC"],
+  "Computer Engineering": ["BEE", "DEE", "BCE"],
+  "Department of Transport": ["BLG", "BPS", "DPS"],
+  "Postgraduate Programmes": ["MSC", "MEV", "MSE", "MCM"],
+  "Vocational Programmes": ["VOC", "MEM", "SCW", "RAC", "WLD", "PIA"],
 }
 
 export function effectiveGroupPrefixes(stored: Record<string, string[]> | undefined | null): Record<string, string[]> {
-  if (stored && Object.keys(stored).length > 0) return stored
-  return DEFAULT_RMU_GROUP_PREFIXES
+  const merged: Record<string, string[]> = { ...DEFAULT_RMU_GROUP_PREFIXES }
+  if (stored) {
+    for (const [k, v] of Object.entries(stored)) {
+      merged[k] = v
+    }
+  }
+  return merged
 }
 
 /** Sorted labels for Select components */

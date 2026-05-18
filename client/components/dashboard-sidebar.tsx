@@ -68,7 +68,7 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
     ...(isSubmitter
       ? [
           {
-            label: "New Ticket",
+            label: "New Petition",
             href: "/ticket/new",
             icon: <Plus className="h-5 w-5" />,
           },

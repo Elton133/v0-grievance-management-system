@@ -22,8 +22,20 @@ const DEPARTMENT_EQUIVALENCE: ReadonlyArray<ReadonlySet<string>> = [
     "department of information technology",
   ]),
   new Set(["transport", "department of transport"]),
-  new Set(["nautical science", "department of nautical science"]),
+  new Set([
+    "nautical science",
+    "nautical science department",
+    "department of nautical science",
+  ]),
+  new Set([
+    "marine engineering",
+    "marine engineering department",
+    "department of marine engineering",
+  ]),
+  new Set(["mechanical engineering", "bsc mechanical engineering"]),
   new Set(["computer engineering", "marine electrical and electronic engineering"]),
+  new Set(["postgraduate programmes", "postgraduate programs"]),
+  new Set(["vocational programmes", "vocational programs", "vocational courses"]),
 ]
 
 function bucketFor(dept: string): string | null {

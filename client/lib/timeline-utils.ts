@@ -53,7 +53,7 @@ export function buildActorTimelineSteps(settings: TenantSettings): TimelineStep[
       status: key,
       label: reviewer ? `${reviewer.label}` : base,
       color,
-      actorHint: reviewer ? `Pending action: ${reviewer.label}` : base,
+      actorHint: reviewer ? `${reviewer.label} review` : base,
     })
   })
 

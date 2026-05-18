@@ -1,158 +1,105 @@
+"use client"
+
 import type { Ticket } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Clock, XCircle, User } from "lucide-react"
 import { useSettings } from "@/lib/settings-context"
 import { useMemo } from "react"
 import { buildActorTimelineSteps } from "@/lib/timeline-utils"
+import { getTimelineStepHint } from "@/lib/reviewer-actions"
+import { buildActivityFeed } from "@/lib/activity-feed"
+import { petitionSubjectLabel } from "@/lib/petition-form-options"
+import { CheckCircle, Clock, MessageSquare, XCircle, GitBranch } from "lucide-react"
 
 interface TicketTimelineProps {
   ticket: Ticket
 }
 
 export function TicketTimeline({ ticket }: TicketTimelineProps) {
-  const { settings } = useSettings()
-
+  const { settings, getStatusLabel } = useSettings()
   const timelineSteps = useMemo(() => buildActorTimelineSteps(settings), [settings])
-
-  const terminalStates = ["resolved", "rejected", "closed", "denied"]
-
-  const relevantSteps = useMemo(() => {
-    return timelineSteps.filter((step) => {
-      const isTerminal = terminalStates.some((t) => step.status.toLowerCase().includes(t))
-      if (isTerminal && ticket.status !== step.status) return false
-      return true
-    })
-  }, [timelineSteps, ticket.status])
-
-  const currentStepIndex = relevantSteps.findIndex((step) => step.status === ticket.status)
-
-  const getStepStatus = (stepIndex: number) => {
-    if (currentStepIndex < 0) return "upcoming"
-    if (stepIndex < currentStepIndex) return "completed"
-    if (stepIndex === currentStepIndex) return "current"
-    return "upcoming"
-  }
+  const currentStepIndex = timelineSteps.findIndex((s) => s.status === ticket.status)
+  const activity = useMemo(
+    () => buildActivityFeed(ticket, getStatusLabel),
+    [ticket, getStatusLabel]
+  )
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Status Timeline</CardTitle>
+        <CardTitle className="text-lg">Petition progress</CardTitle>
         <p className="text-sm text-muted-foreground font-normal">
-          Progress follows your school&apos;s roles (student → advisors → resolution).
+          Subject: {petitionSubjectLabel(ticket.subject)} · Level {ticket.year}
         </p>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {relevantSteps.map((step, index) => {
-            const stepStatus = getStepStatus(index)
-            const StepIcon =
-              step.status === "rejected" || step.label.toLowerCase().includes("reject")
-                ? XCircle
-                : step.status === "resolved" || step.label.toLowerCase().includes("resolv")
-                  ? CheckCircle
-                  : step.status === "submitted"
-                    ? CheckCircle
-                    : Clock
-
-            const bgColor =
-              stepStatus === "completed"
-                ? "#dcfce7"
-                : stepStatus === "current"
-                  ? `${step.color}20`
-                  : "#f3f4f6"
-
-            const iconColor =
-              stepStatus === "completed"
-                ? "#16a34a"
-                : stepStatus === "current"
-                  ? step.color
-                  : "#9ca3af"
-
+      <CardContent className="space-y-6">
+        <div className="space-y-3">
+          {timelineSteps.map((step, index) => {
+            const done = currentStepIndex >= 0 && index < currentStepIndex
+            const current = index === currentStepIndex
+            const hint =
+              getTimelineStepHint(step.status, index, currentStepIndex, ticket, settings) ??
+              step.actorHint
+            const Icon =
+              step.status === "rejected" ? XCircle : step.status === "resolved" ? CheckCircle : Clock
             return (
-              <div key={step.status} className="flex items-start gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="rounded-full p-2" style={{ backgroundColor: bgColor }}>
-                    <StepIcon className="h-4 w-4" style={{ color: iconColor }} />
-                  </div>
-                  {index < relevantSteps.length - 1 && (
-                    <div
-                      className="w-px h-8 mt-2"
-                      style={{ backgroundColor: stepStatus === "completed" ? "#bbf7d0" : "#e5e7eb" }}
-                    />
-                  )}
-                </div>
-
-                <div className="flex-1 pb-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p
-                      className={`font-medium ${
-                        stepStatus === "completed" || stepStatus === "current"
-                          ? "text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {step.label}
-                    </p>
-                    {stepStatus === "current" && (
-                      <Badge variant="outline" className="text-xs">
+              <div key={step.status} className="flex gap-3">
+                <Icon
+                  className={`h-5 w-5 mt-0.5 shrink-0 ${
+                    done ? "text-green-600" : current ? "text-primary" : "text-muted-foreground"
+                  }`}
+                />
+                <div>
+                  <p
+                    className={`font-medium ${current ? "text-foreground" : "text-muted-foreground"}`}
+                  >
+                    {step.label}
+                    {current && (
+                      <Badge variant="outline" className="ml-2 text-xs">
                         Current
                       </Badge>
                     )}
-                  </div>
-
-                  {step.actorHint && (
-                    <p className="text-xs text-muted-foreground mb-1">
-                      {stepStatus === "completed" && index > 0
-                        ? `Completed: ${step.label}`
-                        : step.actorHint}
-                    </p>
-                  )}
-
-                  {stepStatus === "completed" && index === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {ticket.submittedAt.toLocaleDateString()} at{" "}
-                      {ticket.submittedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  )}
-
-                  {stepStatus === "current" && (
-                    <p className="text-sm text-muted-foreground">
-                      Last updated: {ticket.updatedAt.toLocaleDateString()} at{" "}
-                      {ticket.updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  )}
-
-                  {ticket.assignedTo && stepStatus === "current" && (
-                    <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
-                      <User className="h-3 w-3" />
-                      <span>
-                        Assigned to: {ticket.assignedUserName ?? ticket.assignedTo}
-                      </span>
-                    </div>
-                  )}
+                  </p>
+                  {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
                 </div>
               </div>
             )
           })}
         </div>
 
-        {ticket.comments && ticket.comments.length > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <h4 className="font-medium mb-3">Recent Updates</h4>
+        <div className="border-t pt-4">
+          <h4 className="font-medium mb-3">Activity log</h4>
+          {activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+          ) : (
             <div className="space-y-3">
-              {ticket.comments.slice(-3).map((comment) => (
-                <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium">{comment.authorName}</p>
-                    <p className="text-xs text-muted-foreground">{comment.createdAt.toLocaleDateString()}</p>
+              {activity.map((item) => {
+                const Icon = item.kind === "comment" ? MessageSquare : GitBranch
+                return (
+                  <div
+                    key={item.id}
+                    className={`rounded-lg border p-3 text-sm ${
+                      item.kind === "status" ? "bg-muted/30" : "bg-background"
+                    }`}
+                  >
+                    <div className="flex gap-2 items-start">
+                      <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{item.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {item.actorRole} · {item.actorName} · {item.at.toLocaleString()}
+                        </p>
+                        {item.body && (
+                          <p className="mt-2 text-muted-foreground whitespace-pre-wrap">{item.body}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">{comment.content}</p>
-                </div>
-              ))}
+                )
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   )

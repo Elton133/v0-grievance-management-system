@@ -15,10 +15,11 @@ const DEFAULT_ESCALATION_HIERARCHY: Record<number, string> = {
 };
 
 // Default status progression map (fallback)
+/** Advisors/HODs forward only; Registrar resolves or rejects. */
 const DEFAULT_STATUS_PROGRESSION: Record<string, string[]> = {
-  submitted: ["under_review", "rejected"],
-  under_review: ["forwarded_to_hod", "resolved", "rejected"],
-  forwarded_to_hod: ["forwarded_to_registrar", "resolved", "rejected"],
+  submitted: ["under_review", "forwarded_to_hod"],
+  under_review: ["forwarded_to_hod"],
+  forwarded_to_hod: ["forwarded_to_registrar"],
   forwarded_to_registrar: ["resolved", "rejected"],
   resolved: [],
   rejected: [],
@@ -141,6 +142,19 @@ async function pickReviewerWithLightestLoad(
 /**
  * Get the status progression map from TenantSettings or use defaults
  */
+/** Only Registrar may set terminal outcomes; advisors/HODs forward only. */
+function sanitizeStatusProgression(progression: Record<string, string[]>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [from, toList] of Object.entries(progression)) {
+    if (from === "forwarded_to_registrar") {
+      out[from] = toList;
+    } else {
+      out[from] = toList.filter((s) => s !== "resolved" && s !== "rejected");
+    }
+  }
+  return { ...DEFAULT_STATUS_PROGRESSION, ...out };
+}
+
 const getStatusProgression = async (): Promise<Record<string, string[]>> => {
   try {
     const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
@@ -150,7 +164,7 @@ const getStatusProgression = async (): Promise<Record<string, string[]>> => {
       config.forEach(c => {
         progression[c.fromStatus] = c.toStatuses;
       });
-      return progression;
+      return sanitizeStatusProgression(progression);
     }
   } catch (error) {
     console.warn("[WorkflowService] Could not load status progression from settings, using defaults");
@@ -254,16 +268,15 @@ export const isValidStatusTransition = async (
  * Get the next escalation level based on status
  */
 export const getNextEscalationLevel = (status: string): number => {
-  // Default mapping — will be made configurable via TenantSettings
+  // Slot 1 = advisor, 2 = HOD, 3 = registrar (matches DEFAULT_ESCALATION_HIERARCHY)
   switch (status) {
     case "submitted":
-      return 1; // Level 1
     case "under_review":
-      return 2; // Level 2
+      return 1;
     case "forwarded_to_hod":
-      return 3; // Level 3
+      return 2;
     case "forwarded_to_registrar":
-      return 3; // Already at highest level
+      return 3;
     default:
       return 1;
   }
