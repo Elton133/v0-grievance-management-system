@@ -1,60 +1,50 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import type React from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
-import { toast } from "sonner"
-import {
-  getTicketsByRole,
-  isTicketAssignedToUser,
-  updateTicketStatus,
-  type Ticket,
-} from "@/lib/ticket-store"
-import type { TicketStatus, TicketType } from "@/lib/types"
+import { getTicketsByRole, type Ticket } from "@/lib/ticket-store"
+import type { TicketStatus } from "@/lib/types"
 import { AdminTicketCard } from "@/components/admin-ticket-card"
+import { AdminPetitionsTable } from "@/components/admin-petitions-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, FileText, Clock, CheckCircle, AlertTriangle, Users, Shield } from "lucide-react"
+import { Search, FileText, Clock, CheckCircle, Users, Shield, Loader2 } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
-import { formatTicketRef } from "@/lib/ticket-ref"
+import { PETITION_TYPES } from "@/lib/petition-form-options"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
-  const { settings, isSubmitterRole, getRoleLabel } = useSettings()
+  const { settings, isLoading: settingsLoading, isSubmitterRole, getRoleLabel } = useSettings()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
-  const [typeFilter, setTypeFilter] = useState<TicketType | "all">("all")
-  const [activeTab, setActiveTab] = useState("all")
-  const [allTickets, setAllTickets] = useState<Ticket[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [allPetitions, setAllPetitions] = useState<Ticket[]>([])
+  const [initialLoad, setInitialLoad] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
 
-  // Redirect unauthenticated users to login
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace("/login")
-    }
+    if (!authLoading && !user) router.replace("/login")
   }, [authLoading, user, router])
 
-  // Fetch tickets based on user role
-  useEffect(() => {
-    const fetchTickets = async () => {
-      if (!user) {
-        setIsLoading(false)
+  const loadPetitions = useCallback(
+    async (silent = false) => {
+      if (!user || settingsLoading) {
+        if (!user) setInitialLoad(false)
         return
       }
-
-      setIsLoading(true)
+      if (!silent) setInitialLoad(true)
+      else setIsRefreshing(true)
       try {
         const tickets = await getTicketsByRole(
           user.role,
@@ -63,187 +53,105 @@ export default function AdminPage() {
           settings.rolesConfig,
           user.id
         )
-        setAllTickets(tickets)
+        setAllPetitions(tickets)
       } catch (error) {
-        console.error("Error fetching tickets:", error)
-        setAllTickets([])
+        console.error("Error fetching petitions:", error)
+        setAllPetitions([])
       } finally {
-        setIsLoading(false)
+        setInitialLoad(false)
+        setIsRefreshing(false)
       }
-    }
+    },
+    [user, settings.rolesConfig, settingsLoading]
+  )
 
-    void fetchTickets()
-    const id = window.setInterval(() => {
-      void fetchTickets()
-    }, 30000)
-    const onFocus = () => void fetchTickets()
+  useEffect(() => {
+    if (settingsLoading) return
+    void loadPetitions(false)
+    const id = window.setInterval(() => void loadPetitions(true), 60000)
+    const onFocus = () => void loadPetitions(true)
     window.addEventListener("focus", onFocus)
     return () => {
       window.clearInterval(id)
       window.removeEventListener("focus", onFocus)
     }
-  }, [user, settings.rolesConfig])
+  }, [loadPetitions, settingsLoading])
 
-  const filteredTickets = useMemo(() => {
-    if (!user) return []
-
-    let filtered = allTickets
-
-    // Tabs filter
-    if (activeTab !== "all") {
-      filtered = filtered.filter((ticket) => {
-        switch (activeTab) {
-          case "pending":
-            return !["resolved", "rejected"].includes(ticket.status)
-          case "urgent":
-            return ticket.priority === "urgent"
-          case "assigned":
-            return isTicketAssignedToUser(ticket, user)
-          default:
-            return true
-        }
-      })
-    }
-
-    // Search + status/type filter
-    return filtered.filter((ticket) => {
+  const filteredPetitions = useMemo(() => {
+    return allPetitions.filter((p) => {
+      const q = searchQuery.toLowerCase()
       const matchesSearch =
-        ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.submitterName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        formatTicketRef(ticket).toLowerCase().includes(searchQuery.toLowerCase())
-
-      const matchesStatus = statusFilter === "all" || ticket.status === statusFilter
-      const matchesType = typeFilter === "all" || ticket.type === typeFilter
-
+        p.subject.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.submitterName.toLowerCase().includes(q)
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter
+      const matchesType = typeFilter === "all" || p.type === typeFilter
       return matchesSearch && matchesStatus && matchesType
     })
-  }, [allTickets, searchQuery, statusFilter, typeFilter, activeTab, user])
+  }, [allPetitions, searchQuery, statusFilter, typeFilter])
 
-  // Paginate filtered results
-  const paginatedTickets = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return filteredTickets.slice(startIndex, endIndex)
-  }, [filteredTickets, currentPage, itemsPerPage])
+  const paginatedPetitions = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredPetitions.slice(start, start + itemsPerPage)
+  }, [filteredPetitions, currentPage])
 
-  const filteredPagination = useMemo(() => {
-    const totalPages = Math.ceil(filteredTickets.length / itemsPerPage)
-    return {
-      page: currentPage,
-      totalPages,
-      hasNext: currentPage < totalPages,
-      hasPrev: currentPage > 1,
-    }
-  }, [filteredTickets.length, currentPage, itemsPerPage])
+  const totalPages = Math.ceil(filteredPetitions.length / itemsPerPage) || 1
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter, typeFilter, activeTab])
+  }, [searchQuery, statusFilter, typeFilter])
 
   const stats = useMemo(() => {
-    if (!user) return { total: 0, pending: 0, resolved: 0, urgent: 0, assigned: 0 }
-
-    const total = allTickets.length
-    const pending = allTickets.filter((p) => !["resolved", "rejected"].includes(p.status)).length
-    const resolved = allTickets.filter((p) => p.status === "resolved").length
-    const urgent = allTickets.filter((p) => p.priority === "urgent").length
-    const assigned = allTickets.filter((p) => isTicketAssignedToUser(p, user)).length
-
-    return { total, pending, resolved, urgent, assigned }
-  }, [allTickets, user])
-
-  const handleStatusUpdate = async (ticketId: string, newStatus: string) => {
-    if (!user) return
-    
-    setUpdatingTicketId(ticketId)
-    try {
-      const success = await updateTicketStatus(ticketId as string, newStatus as TicketStatus)
-      if (success) {
-        toast.success("Status updated successfully!", {
-          description: `Ticket status changed to ${newStatus.replace(/_/g, " ")}`,
-        })
-        // Refresh tickets after status update
-        const tickets = await getTicketsByRole(
-          user.role,
-          user.email,
-          user.group,
-          settings.rolesConfig,
-          user.id
-        )
-        setAllTickets(tickets)
-      } else {
-        toast.error("Failed to update status", {
-          description: "Please try again.",
-        })
-      }
-    } catch (error) {
-      console.error("Error updating ticket status:", error)
-      toast.error("Failed to update status", {
-        description: error instanceof Error ? error.message : "An error occurred",
-      })
-    } finally {
-      setUpdatingTicketId(null)
-    }
-  }
-
-  const getRoleTitle = () => {
-    if (!user) return "Administrative Dashboard"
-    return `${getRoleLabel(user.role)} Dashboard`
-  }
+    const pending = allPetitions.filter((p) => !["resolved", "rejected"].includes(p.status)).length
+    const resolved = allPetitions.filter((p) => p.status === "resolved").length
+    return { total: allPetitions.length, pending, resolved, assigned: allPetitions.length }
+  }, [allPetitions])
 
   const getRoleDescription = () => {
     switch (user?.role) {
       case "advisor":
       case "class_advisor":
-        return "Review and manage tickets from students in your group"
+        return "Review and manage petitions from students in your department"
       case "hod":
-        return "Handle escalated tickets and groupal issues"
+        return "Review escalated petitions from your department"
       case "registrar":
-        return "Manage university-level administrative tickets"
+        return "Final review — all resolutions and rejections end here"
       default:
-        return "Administrative ticket management"
+        return "Manage student petitions"
     }
   }
 
-  // Show loading state
-  if (authLoading || isLoading) {
+  if (authLoading || settingsLoading || initialLoad) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <AppLoader message="Loading tickets..." />
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <AppLoader message="Loading petitions..." />
       </div>
     )
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   if (isSubmitterRole(user.role)) {
     return (
-      <>
-        <Card className="w-full max-w-md mx-auto">
-          <CardContent className="pt-6">
-            <Alert variant="destructive">
-              <Shield className="h-4 w-4" />
-              <AlertDescription>Access denied. Administrative privileges required.</AlertDescription>
-            </Alert>
-            <Button onClick={() => router.push("/dashboard")} className="w-full mt-4">
-              Return to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </>
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="pt-6">
+          <Alert variant="destructive">
+            <Shield className="h-4 w-4" />
+            <AlertDescription>Access denied. Staff privileges required.</AlertDescription>
+          </Alert>
+          <Button onClick={() => router.push("/dashboard")} className="w-full mt-4">
+            Return to Dashboard
+          </Button>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
     <>
-      {/* Welcome Section */}
-      <div className="mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">{getRoleTitle()}</h2>
+      <div className="mb-6 sm:mb-8 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold">{getRoleLabel(user.role)} Dashboard</h2>
           <p className="text-sm sm:text-base text-muted-foreground">{getRoleDescription()}</p>
           {user.group && user.role !== "registrar" && (
             <Badge variant="outline" className="mt-2">
@@ -251,173 +159,116 @@ export default function AdminPage() {
             </Badge>
           )}
         </div>
+        {isRefreshing && (
+          <Badge variant="secondary" className="gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Refreshing
+          </Badge>
+        )}
+      </div>
 
-        {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">In your queue</p>
-            </CardContent>
-          </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <StatCard title="In your queue" value={stats.assigned} icon={<Users className="h-4 w-4" />} />
+        <StatCard title="Pending" value={stats.pending} icon={<Clock className="h-4 w-4" />} />
+        <StatCard title="Resolved" value={stats.resolved} icon={<CheckCircle className="h-4 w-4" />} />
+        <StatCard title="Total in queue" value={stats.total} icon={<FileText className="h-4 w-4" />} />
+      </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Awaiting action</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.resolved}</div>
-              <p className="text-xs text-muted-foreground">Completed</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Urgent</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.urgent}</div>
-              <p className="text-xs text-muted-foreground">High priority</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Assigned to Me</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.assigned}</div>
-              <p className="text-xs text-muted-foreground">Your responsibility</p>
-            </CardContent>
-          </Card>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search your queue..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as TicketStatus | "all")}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="under_review">Under review</SelectItem>
+              <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
+              <SelectItem value="forwarded_to_registrar">At Registrar</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {PETITION_TYPES.map((t) => (
+                <SelectItem key={t.key} value={t.key}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Tabs and Filters */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="flex flex-col gap-4">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1">
-              <TabsTrigger value="all" className="text-xs sm:text-sm">All Tickets</TabsTrigger>
-              <TabsTrigger value="pending" className="text-xs sm:text-sm text-amber-700 data-[state=active]:text-amber-800">Pending</TabsTrigger>
-              <TabsTrigger value="urgent" className="text-xs sm:text-sm text-red-700 data-[state=active]:text-red-800">Urgent</TabsTrigger>
-              <TabsTrigger value="assigned" className="text-xs sm:text-sm text-blue-700 data-[state=active]:text-blue-800">Assigned to Me</TabsTrigger>
-            </TabsList>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Your queue</h3>
+          <Badge variant="secondary">{filteredPetitions.length} found</Badge>
+        </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 w-full">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search tickets..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Select value={statusFilter} onValueChange={(value: TicketStatus | "all") => setStatusFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-[140px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="submitted">Submitted</SelectItem>
-                    <SelectItem value="under_review">Under Review</SelectItem>
-                    <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
-                    <SelectItem value="forwarded_to_registrar">Forwarded to Registrar</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={typeFilter} onValueChange={(value: TicketType | "all") => setTypeFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-[140px]">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="academic_issue">Academic</SelectItem>
-                    <SelectItem value="administrative_issue">Administrative</SelectItem>
-                    <SelectItem value="facility_issue">Facility</SelectItem>
-                    <SelectItem value="disciplinary_issue">Disciplinary</SelectItem>
-                    <SelectItem value="financial_issue">Financial</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {filteredPetitions.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              No petitions in your queue match your filters.
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <AdminPetitionsTable petitions={paginatedPetitions} />
+            <div className="grid gap-4 md:hidden">
+              {paginatedPetitions.map((p) => (
+                <AdminTicketCard key={p.id} ticket={p} userRole={user.role} />
+              ))}
             </div>
-          </div>
-
-          <TabsContent value={activeTab} className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">
-                {activeTab === "all" && "All Tickets"}
-                {activeTab === "pending" && "Pending Tickets"}
-                {activeTab === "urgent" && "Urgent Tickets"}
-                {activeTab === "assigned" && "Assigned to Me"}
-              </h3>
-              <Badge variant="secondary">{filteredTickets.length} found</Badge>
-            </div>
-
-            {filteredTickets.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
-                    <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">No tickets found</h3>
-                    <p className="text-muted-foreground">
-                      {searchQuery || statusFilter !== "all" || typeFilter !== "all"
-                        ? "Try adjusting your search or filters"
-                        : "No tickets match the current criteria"}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {paginatedTickets.map((ticket) => (
-                    <AdminTicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      userRole={user.role}
-                      onStatusUpdate={handleStatusUpdate}
-                      isUpdating={updatingTicketId === ticket.id}
-                    />
-                  ))}
-                </div>
-                {filteredPagination.totalPages > 1 && (
-                  <Pagination
-                    page={filteredPagination.page}
-                    totalPages={filteredPagination.totalPages}
-                    onPageChange={setCurrentPage}
-                    hasNext={filteredPagination.hasNext}
-                    hasPrev={filteredPagination.hasPrev}
-                  />
-                )}
-              </>
+            {totalPages > 1 && (
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                hasNext={currentPage < totalPages}
+                hasPrev={currentPage > 1}
+              />
             )}
-          </TabsContent>
-        </Tabs>
+          </>
+        )}
+      </div>
     </>
   )
+}
 
+function StatCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string
+  value: number
+  icon: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
+  )
 }
 

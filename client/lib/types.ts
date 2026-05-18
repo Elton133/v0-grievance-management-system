@@ -6,6 +6,7 @@ export type TicketPriority = "low" | "medium" | "high" | "urgent"
 
 export interface Ticket {
   id: string
+  referenceCode?: string
   submitterId: string
   submitterIndexNumber?: string
   submitterName: string
@@ -30,7 +31,18 @@ export interface Ticket {
   /** Display name when API returns assignedUser */
   assignedUserName?: string
   comments?: TicketComment[]
+  statusHistory?: TicketStatusHistoryEntry[]
   escalationLevel: number
+}
+
+export interface TicketStatusHistoryEntry {
+  id: string
+  previousStatus: string | null
+  newStatus: string
+  changedByName: string
+  changedByRole: string
+  comment?: string | null
+  changedAt: Date
 }
 
 export interface TicketComment {

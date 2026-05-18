@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, FileText, Clock, CheckCircle, AlertTriangle, Settings } from "lucide-react"
+import { Plus, Search, FileText, Clock, CheckCircle, Settings } from "lucide-react"
 import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
 import Link from "next/link"
@@ -116,15 +116,13 @@ export default function DashboardPage() {
     const total = allTickets.length
     const pending = allTickets.filter((p) => !["resolved", "rejected"].includes(p.status)).length
     const resolved = allTickets.filter((p) => p.status === "resolved").length
-    const urgent = allTickets.filter((p) => p.priority === "urgent").length
-
-    return { total, pending, resolved, urgent }
+    return { total, pending, resolved }
   }, [allTickets])
 
   if (authLoading || isLoading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <AppLoader message="Loading tickets..." />
+        <AppLoader message="Loading petitions..." />
       </div>
     )
   }
@@ -139,7 +137,7 @@ export default function DashboardPage() {
               Administrative Access
             </CardTitle>
             <CardDescription>
-              You have administrative privileges. Access the admin portal to manage tickets.
+              You have administrative privileges. Access the admin portal to manage petitions in your department.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -159,16 +157,16 @@ export default function DashboardPage() {
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Welcome back, {user.name.split(" ")[0]}!</h2>
         <p className="text-sm sm:text-base text-muted-foreground">
           {isSubmitterRole(user.role)
-            ? "Track your tickets and submit new grievances"
-            : "Manage and review student tickets"}
+            ? "Track your petitions and submit new requests"
+            : "Manage and review student petitions"}
         </p>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -200,17 +198,6 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Successfully completed</p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.urgent}</div>
-            <p className="text-xs text-muted-foreground">High priority items</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Actions and Filters */}
@@ -220,7 +207,7 @@ export default function DashboardPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search tickets..."
+                placeholder="Search petitions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -261,7 +248,7 @@ export default function DashboardPage() {
               <Button asChild className="w-full sm:w-auto">
                 <Link href="/ticket/new">
                   <Plus className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">New Ticket</span>
+                  <span className="hidden sm:inline">New Petition</span>
                   <span className="sm:hidden">New</span>
                 </Link>
               </Button>
@@ -270,11 +257,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Tickets List */}
+      {/* Petitions List */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground">
-            {isSubmitterRole(user.role) ? "Your Tickets" : "All Tickets"}
+            {isSubmitterRole(user.role) ? "Your Petitions" : "All Petitions"}
           </h3>
           <Badge variant="secondary">{filteredTickets.length} found</Badge>
         </div>
@@ -284,19 +271,19 @@ export default function DashboardPage() {
             <CardContent className="py-12">
               <div className="text-center">
                 <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">No tickets found</h3>
+                <h3 className="text-lg font-medium text-foreground mb-2">No petitions found</h3>
                 <p className="text-muted-foreground mb-4">
                   {searchQuery || statusFilter !== "all" || typeFilter !== "all"
                     ? "Try adjusting your search or filters"
                     : isSubmitterRole(user.role)
-                      ? "You haven't submitted any tickets yet"
-                      : "No tickets have been submitted"}
+                      ? "You haven't submitted any petitions yet"
+                      : "No petitions have been submitted"}
                 </p>
                 {isSubmitterRole(user.role) && (
                   <Button asChild>
                     <Link href="/ticket/new">
                       <Plus className="mr-2 h-4 w-4" />
-                      Submit Your First Ticket
+                      Submit Your First Petition
                     </Link>
                   </Button>
                 )}

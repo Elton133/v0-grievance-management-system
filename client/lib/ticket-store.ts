@@ -3,6 +3,7 @@
 import type { Ticket, TicketStatus, TicketComment } from "./types"
 import type { RoleConfig } from "./settings-context"
 import { ticketApi } from "./api"
+import { departmentsEquivalentForRoster } from "./departmentRosterMatch"
 
 function normGroup(s?: string | null) {
   return s?.trim().toLowerCase() ?? ""
@@ -63,6 +64,7 @@ function transformTicket(backendTicket: any): Ticket {
 
   return {
     id: backendTicket.id,
+    referenceCode: backendTicket.referenceCode ?? undefined,
     submitterId: submitterId,
     submitterIndexNumber,
     submitterName: submitterName,
@@ -89,6 +91,7 @@ function transformTicket(backendTicket: any): Ticket {
     assignedUserName: backendTicket.assignedUser?.name,
     comments: backendTicket.comments?.map((c: any) => ({
       id: c.id,
+      ticketId: backendTicket.id,
       authorId: c.authorId,
       authorName: c.authorName || c.author?.name,
       authorRole: c.authorRole || c.author?.role,
@@ -96,6 +99,16 @@ function transformTicket(backendTicket: any): Ticket {
       isInternal: c.isInternal,
       createdAt: new Date(c.createdAt),
     })) || [],
+    statusHistory:
+      backendTicket.statusHistory?.map((h: any) => ({
+        id: h.id,
+        previousStatus: h.previousStatus,
+        newStatus: h.newStatus,
+        changedByName: h.changedByName,
+        changedByRole: h.changedByRole,
+        comment: h.comment,
+        changedAt: new Date(h.changedAt),
+      })) || [],
   }
 }
 
@@ -109,7 +122,7 @@ export async function submitTicket(
       type: ticketData.type,
       group: ticketData.group,
       year: ticketData.year,
-      priority: ticketData.priority,
+      priority: ticketData.priority ?? "medium",
     })
     return transformTicket(response)
   } catch (error) {
@@ -161,34 +174,39 @@ export async function getTicketById(id: string): Promise<Ticket | null> {
   }
 }
 
-function filterTicketsByLegacyRole(
-  allTickets: Ticket[],
+/** Statuses each reviewer role should see in their department queue. */
+const STATUS_QUEUE_BY_ROLE: Record<string, TicketStatus[]> = {
+  advisor: ["submitted", "under_review"],
+  class_advisor: ["submitted", "under_review"],
+  hod: ["forwarded_to_hod"],
+  registrar: ["forwarded_to_registrar"],
+}
+
+function departmentMatches(
+  ticketGroup: string | undefined,
+  userGroup: string | undefined,
+  groupScoped: boolean
+): boolean {
+  if (!groupScoped) return true
+  if (!userGroup?.trim()) return !ticketGroup?.trim()
+  if (departmentsEquivalentForRoster(ticketGroup, userGroup)) return true
+  return normGroup(ticketGroup) === normGroup(userGroup)
+}
+
+function ticketInRoleQueue(
+  ticket: Ticket,
   userRole: string,
-  group?: string
-): Ticket[] {
-  switch (userRole) {
-    case "class_advisor":
-    case "advisor":
-      return allTickets.filter(
-        (p) => normGroup(p.group) === normGroup(group) && p.escalationLevel === 1
-      )
-    case "hod":
-      return allTickets.filter(
-        (p) => normGroup(p.group) === normGroup(group) && p.escalationLevel >= 2
-      )
-    case "registrar":
-      return allTickets.filter((p) => p.escalationLevel >= 3)
-    default:
-      return []
-  }
+  userGroup: string | undefined,
+  groupScoped: boolean
+): boolean {
+  const statuses = STATUS_QUEUE_BY_ROLE[userRole]
+  if (!statuses?.includes(ticket.status)) return false
+  return departmentMatches(ticket.group, userGroup, groupScoped)
 }
 
 /**
- * Reviewer queue: uses tenant `rolesConfig` when provided (sorted by level).
- * First reviewer sees escalationLevel === 1; later reviewers see escalationLevel >= index+1.
- * Always merges tickets where assignedTo matches this user so advisors see work even when
- * escalationLevel is out of sync (e.g. manual DB assign or level 2 while still "submitted").
- * Unknown role with no config match returns tickets assigned to the user (by id/email).
+ * Reviewer queue by workflow status + department (ICT/IT equivalents).
+ * Also merges anything explicitly assigned to this user (id or email).
  */
 export async function getTicketsByRole(
   userRole: string,
@@ -205,34 +223,20 @@ export async function getTicketsByRole(
       .filter((r) => !r.isSubmitter && Number(r.level) > 0)
       .sort((a, b) => Number(a.level) - Number(b.level))
 
-    const idx = reviewers.findIndex((r) => r.key === userRole)
+    const roleConfig = reviewers.find((r) => r.key === userRole)
+    const groupScoped =
+      userRole === "registrar"
+        ? roleConfig?.groupScoped === true
+        : roleConfig?.groupScoped !== false
 
     let queue: Ticket[] = []
 
-    if (idx >= 0) {
-      const my = reviewers[idx]
-      const groupScoped = my.groupScoped !== false
-
-      const groupMatch = (p: Ticket) => {
-        if (!groupScoped) return true
-        if (!group?.trim()) return normGroup(p.group) === ""
-        return normGroup(p.group) === normGroup(group)
-      }
-
-      if (idx === 0) {
-        queue = allTickets.filter((p) => groupMatch(p) && p.escalationLevel === 1)
-      } else {
-        queue = allTickets.filter((p) => groupMatch(p) && p.escalationLevel >= idx + 1)
-      }
-    } else {
-      const legacy = filterTicketsByLegacyRole(allTickets, userRole, group)
-      if (legacy.length > 0 || ["class_advisor", "advisor", "hod", "registrar"].includes(userRole)) {
-        queue = legacy
-      } else if (userId) {
-        queue = allTickets.filter((t) =>
-          isTicketAssignedToUser(t, { id: userId, email: userEmail })
-        )
-      }
+    if (STATUS_QUEUE_BY_ROLE[userRole]) {
+      queue = allTickets.filter((p) => ticketInRoleQueue(p, userRole, group, groupScoped))
+    } else if (userId) {
+      queue = allTickets.filter((t) =>
+        isTicketAssignedToUser(t, { id: userId, email: userEmail })
+      )
     }
 
     return mergeQueueWithDirectAssignments(queue, allTickets, userId, userEmail)
