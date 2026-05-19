@@ -14,6 +14,8 @@ import { dispatchWebhookEvent } from "../utils/webhookService";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { recordAuditLog, describeStatusChange } from "../utils/auditService";
 import { allocatePetitionReference } from "../utils/petitionReference";
+import { uploadFile } from "../utils/supabaseStorage";
+import { validateAttachmentMeta } from "../utils/attachmentValidation";
 
 // Create a new ticket
 export const createTicket = async (req: AuthRequest, res: Response) => {
@@ -917,7 +919,91 @@ export const deleteTicket = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Add attachment to ticket
+// Upload file to storage and attach to ticket (server-side; uses service role)
+export const uploadAttachmentFile = async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { fileName, mimeType, data } = req.body as {
+    fileName?: string;
+    mimeType?: string;
+    data?: string;
+  };
+
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!fileName || !data) {
+      return res.status(400).json({ error: "fileName and data (base64) are required" });
+    }
+
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    if (ticket.submitterId !== req.user.id) {
+      return res.status(403).json({ error: "You can only add attachments to your own tickets" });
+    }
+
+    if (ticket.status !== "submitted") {
+      return res.status(400).json({
+        error: "Cannot add attachment",
+        message: "You can only add attachments to tickets that are still in 'submitted' status",
+      });
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(data, "base64");
+    } catch {
+      return res.status(400).json({ error: "Invalid file data encoding" });
+    }
+
+    const validationError = validateAttachmentMeta(fileName, mimeType, buffer.length);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    const uploaded = await uploadFile(buffer, fileName, id, req.user.id, mimeType);
+    if (!uploaded) {
+      return res.status(500).json({
+        error: "File upload failed",
+        message:
+          "Storage is unavailable. Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set on the server and the petition-attachments Storage bucket exists.",
+      });
+    }
+
+    const attachment = await prisma.ticketAttachment.create({
+      data: {
+        ticketId: id,
+        fileName: sanitizeInput(fileName),
+        fileUrl: uploaded.url,
+        fileSize: buffer.length,
+        mimeType: mimeType || null,
+      },
+    });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    await recordAuditLog({
+      userId: req.user.id,
+      userName: user?.name,
+      userRole: user?.role,
+      action: "ticket.attachment_added",
+      resourceType: "ticket",
+      resourceId: id,
+      details: { fileName: attachment.fileName, attachmentId: attachment.id },
+      req,
+    });
+
+    res.status(201).json(attachment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error", details: err });
+  }
+};
+
+// Add attachment to ticket (metadata only — file already hosted)
 export const addAttachment = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { fileName, fileUrl, fileSize, mimeType } = req.body;

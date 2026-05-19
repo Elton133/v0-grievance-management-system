@@ -1,4 +1,4 @@
-import { supabase, TICKET_ATTACHMENTS_BUCKET } from "./supabase"
+import { supabase, PETITION_ATTACHMENTS_BUCKET } from "./supabase"
 
 export interface UploadedFile {
   url: string
@@ -48,7 +48,7 @@ export async function uploadFileToSupabase(
 
     // Upload file
     const { data, error } = await supabase.storage
-      .from(TICKET_ATTACHMENTS_BUCKET)
+      .from(PETITION_ATTACHMENTS_BUCKET)
       .upload(filePath, file, {
         contentType: file.type,
         upsert: false,
@@ -62,7 +62,7 @@ export async function uploadFileToSupabase(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
+    } = supabase.storage.from(PETITION_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
 
     return {
       url: publicUrl,
@@ -83,7 +83,7 @@ export async function uploadFileToSupabase(
 export async function deleteFileFromSupabase(filePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
-      .from(TICKET_ATTACHMENTS_BUCKET)
+      .from(PETITION_ATTACHMENTS_BUCKET)
       .remove([filePath])
 
     if (error) {

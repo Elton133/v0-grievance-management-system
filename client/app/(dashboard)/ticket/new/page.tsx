@@ -16,8 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, FileText, Send, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { FileUpload } from "@/components/file-upload"
-import { uploadFileToSupabase } from "@/lib/file-upload"
-import { ticketApi } from "@/lib/api"
+import { uploadPetitionAttachments } from "@/lib/attachment-upload"
 import {
   PETITION_TYPES,
   PETITION_SUBJECTS,
@@ -89,25 +88,15 @@ export default function NewPetitionPage() {
       })
 
       if (selectedFiles.length > 0 && petition.id) {
-        try {
-          const uploads = await Promise.all(
-            selectedFiles.map((file) => uploadFileToSupabase(file, petition.id, user.id))
-          )
-          const ok = uploads.filter(Boolean)
-          if (ok.length > 0) {
-            await Promise.all(
-              ok.map((file) =>
-                ticketApi.addAttachment(petition.id, {
-                  fileName: file!.fileName,
-                  fileUrl: file!.url,
-                  fileSize: file!.fileSize,
-                  mimeType: file!.mimeType,
-                })
-              )
-            )
-          }
-        } catch {
-          toast.warning("Petition saved; some attachments could not be uploaded.")
+        const { uploaded, errors } = await uploadPetitionAttachments(petition.id, selectedFiles)
+        if (uploaded === 0 && errors.length > 0) {
+          toast.error("Petition saved, but petition attachments failed to upload.", {
+            description: errors.slice(0, 2).join(" "),
+          })
+        } else if (errors.length > 0) {
+          toast.warning(`Petition saved. ${uploaded} file(s) uploaded; ${errors.length} failed.`, {
+            description: errors[0],
+          })
         }
       }
 

@@ -265,7 +265,22 @@ export const ticketApi = {
     });
   },
 
-  // Add attachment to ticket
+  // Upload petition attachment file via server (recommended)
+  uploadAttachment: async (
+    ticketId: string,
+    data: {
+      fileName: string;
+      mimeType: string;
+      data: string;
+    }
+  ) => {
+    return apiRequest<any>(`/tickets/${ticketId}/attachments/upload`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Register petition attachment metadata when file is already hosted (legacy)
   addAttachment: async (
     ticketId: string,
     data: {
@@ -281,7 +296,7 @@ export const ticketApi = {
     });
   },
 
-  // Delete attachment from ticket
+  // Delete petition attachment
   deleteAttachment: async (ticketId: string, attachmentId: string) => {
     return apiRequest<{ message: string }>(
       `/tickets/${ticketId}/attachments/${attachmentId}`,
