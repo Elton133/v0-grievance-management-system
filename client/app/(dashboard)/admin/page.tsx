@@ -113,7 +113,7 @@ export default function AdminPage() {
       case "class_advisor":
         return "Review and manage petitions from students in your department"
       case "hod":
-        return "Review escalated petitions from your department"
+        return "Review petitions forwarded to you as Registrar"
       case "registrar":
         return "Final review — all resolutions and rejections end here"
       default:
@@ -193,7 +193,7 @@ export default function AdminPage() {
               <SelectItem value="all">All status</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
               <SelectItem value="under_review">Under review</SelectItem>
-              <SelectItem value="forwarded_to_hod">Forwarded to HOD</SelectItem>
+              <SelectItem value="forwarded_to_hod">Forwarded to Registrar</SelectItem>
               <SelectItem value="forwarded_to_registrar">At Registrar</SelectItem>
               <SelectItem value="resolved">Resolved</SelectItem>
               <SelectItem value="rejected">Rejected</SelectItem>

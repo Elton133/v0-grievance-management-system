@@ -67,7 +67,7 @@ export function describeStatusChange(
   const to = statusKeyToLabel(newStatus);
   if (newStatus === "rejected") return `Rejected (was ${from})`;
   if (newStatus === "resolved") return `Resolved (was ${from})`;
-  if (newStatus === "forwarded_to_hod") return `Forwarded to Head of Department`;
+  if (newStatus === "forwarded_to_hod") return `Forwarded to Registrar`;
   if (newStatus === "forwarded_to_registrar") return `Forwarded to Registrar`;
   if (newStatus === "under_review") return `Review started`;
   return `Status changed: ${from} → ${to}`;

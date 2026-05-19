@@ -10,16 +10,16 @@ import prisma from "../db";
 // Default escalation hierarchy (fallback)
 const DEFAULT_ESCALATION_HIERARCHY: Record<number, string> = {
   1: "advisor",
-  2: "hod",
-  3: "registrar",
+  2: "registrar",
+  3: "hod", // legacy accounts; assignment falls through to registrar
 };
 
 // Default status progression map (fallback)
-/** Advisors/HODs forward only; Registrar resolves or rejects. */
+/** Advisors forward to Registrar; only Registrar resolves or rejects. */
 const DEFAULT_STATUS_PROGRESSION: Record<string, string[]> = {
-  submitted: ["under_review", "forwarded_to_hod"],
-  under_review: ["forwarded_to_hod"],
-  forwarded_to_hod: ["forwarded_to_registrar"],
+  submitted: ["under_review", "forwarded_to_registrar"],
+  under_review: ["forwarded_to_registrar"],
+  forwarded_to_hod: ["forwarded_to_registrar"], // legacy status
   forwarded_to_registrar: ["resolved", "rejected"],
   resolved: [],
   rejected: [],
@@ -297,9 +297,8 @@ export const getNextEscalationLevel = (status: string): number => {
     case "under_review":
       return 1;
     case "forwarded_to_hod":
-      return 2;
     case "forwarded_to_registrar":
-      return 3;
+      return 2;
     default:
       return 1;
   }

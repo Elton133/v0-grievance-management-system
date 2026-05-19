@@ -382,7 +382,8 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
 
     const newStatus = status as string;
     const terminal = ["resolved", "rejected"];
-    if (terminal.includes(newStatus) && user.role !== "registrar") {
+    const canFinalize = user.role === "registrar" || user.role === "hod";
+    if (terminal.includes(newStatus) && !canFinalize) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Only the Registrar can resolve or reject petitions.",

@@ -98,7 +98,7 @@ function formatStatusTitle(
     case "under_review":
       return "Review started"
     case "forwarded_to_hod":
-      return "Forwarded to Head of Department"
+      return "Forwarded to Registrar"
     case "forwarded_to_registrar":
       return "Forwarded to Registrar"
     case "resolved":
