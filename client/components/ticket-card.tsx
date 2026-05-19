@@ -26,7 +26,7 @@ const defaultStatusConfig = {
   forwarded_to_hod: {
     color: "#8b5cf6",
     icon: AlertCircle,
-    label: "Forwarded to HOD",
+    label: "Forwarded to Registrar",
   },
   forwarded_to_registrar: {
     color: "#6366f1",

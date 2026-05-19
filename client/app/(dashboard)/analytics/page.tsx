@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button"
 import { Shield, BarChart3, Activity, Download, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useSettings } from "@/lib/settings-context"
+import { downloadAnalyticsReport } from "@/lib/export-analytics"
+import { toast } from "sonner"
 
 export default function AnalyticsPage() {
   const { user, isLoading: authLoading } = useAuth()
-  const { isSubmitterRole } = useSettings()
+  const { isSubmitterRole, settings, getStatusLabel, getTicketTypeLabel } = useSettings()
   const router = useRouter()
   const [analyticsData, setAnalyticsData] = useState<any>(null)
   const [auditLogs, setAuditLogs] = useState<Awaited<ReturnType<typeof getAuditLogs>>>([])
@@ -79,8 +81,17 @@ export default function AnalyticsPage() {
   }
 
   const handleExportData = () => {
-    // In a real app, this would generate and download a report
-    alert("Export functionality would be implemented here")
+    try {
+      downloadAnalyticsReport(analyticsData, auditLogs, {
+        organizationName: settings.organizationName,
+        statusLabel: getStatusLabel,
+        typeLabel: getTicketTypeLabel,
+      })
+      toast.success("Report downloaded")
+    } catch (err) {
+      console.error(err)
+      toast.error("Could not export report")
+    }
   }
 
   return (
@@ -92,7 +103,7 @@ export default function AnalyticsPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
             <p className="text-sm sm:text-base text-muted-foreground">
-              Comprehensive insights into ticket management and system performance
+              Comprehensive insights into petition management and system performance
             </p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
@@ -127,7 +138,7 @@ export default function AnalyticsPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -186,7 +197,7 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Group Performance</CardTitle>
-                <CardDescription>Ticket volume and resolution metrics by group</CardDescription>
+                <CardDescription>Petition volume and resolution metrics by department</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

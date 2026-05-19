@@ -24,6 +24,14 @@ function getReviewers(rolesConfig: RoleConfig[] | undefined) {
     .sort((a, b) => Number(a.level) - Number(b.level))
 }
 
+function getRegistrarLabel(rolesConfig: RoleConfig[] | undefined): string {
+  const reviewers = getReviewers(rolesConfig)
+  const reg =
+    reviewers.find((r) => r.key === "registrar") ??
+    reviewers[reviewers.length - 1]
+  return reg?.label ?? "Registrar"
+}
+
 function getReviewerFlags(userRole: string, rolesConfig: RoleConfig[] | undefined) {
   const reviewers = getReviewers(rolesConfig)
   const idx = reviewers.findIndex((r) => r.key === userRole)
@@ -32,15 +40,13 @@ function getReviewerFlags(userRole: string, rolesConfig: RoleConfig[] | undefine
   if (idx < 0 || reviewers.length === 0) {
     return {
       isAdvisor: userRole === "advisor" || userRole === "class_advisor",
-      isHod: userRole === "hod",
-      isRegistrar: userRole === "registrar",
+      isRegistrar: userRole === "registrar" || userRole === "hod",
     }
   }
 
   return {
     isAdvisor: idx === 0,
-    isHod: idx > 0 && idx < last,
-    isRegistrar: idx === last,
+    isRegistrar: idx === last || userRole === "hod" || userRole === "registrar",
   }
 }
 
@@ -53,14 +59,14 @@ export function getOwnerLabelForStatus(
   status: string,
   rolesConfig?: RoleConfig[]
 ): string {
+  const registrar = getRegistrarLabel(rolesConfig)
   switch (status) {
     case "submitted":
     case "under_review":
       return reviewerLabel(rolesConfig, 0, "Advisor")
     case "forwarded_to_hod":
-      return reviewerLabel(rolesConfig, 1, "Head of Department")
     case "forwarded_to_registrar":
-      return reviewerLabel(rolesConfig, 2, "Registrar")
+      return registrar
     case "resolved":
       return "Completed"
     case "rejected":
@@ -70,44 +76,35 @@ export function getOwnerLabelForStatus(
   }
 }
 
-/** Advisors/HODs forward with a comment; only Registrar resolves or rejects. */
+/** Advisors forward to Registrar; only Registrar resolves or rejects. */
 export function getPetitionReviewActions(
   ticket: Ticket,
   userRole: string,
   rolesConfig?: RoleConfig[]
 ): ReviewAction[] {
-  const { isAdvisor, isHod, isRegistrar } = getReviewerFlags(userRole, rolesConfig)
+  const { isAdvisor, isRegistrar } = getReviewerFlags(userRole, rolesConfig)
   const terminal = ["resolved", "rejected"]
+  const regLabel = getRegistrarLabel(rolesConfig)
 
   if (terminal.includes(ticket.status)) return []
 
   if (isAdvisor && (ticket.status === "submitted" || ticket.status === "under_review")) {
     return [
       {
-        id: "fwd-hod",
-        label: "Forward to Head of Department",
-        status: "forwarded_to_hod",
-        requiresComment: true,
-        variant: "default",
-        description: "Sends your comment to the HOD for the next review.",
-      },
-    ]
-  }
-
-  if (isHod && ticket.status === "forwarded_to_hod") {
-    return [
-      {
-        id: "fwd-reg",
-        label: "Forward to Registrar",
+        id: "fwd-registrar",
+        label: `Forward to ${regLabel}`,
         status: "forwarded_to_registrar",
         requiresComment: true,
         variant: "default",
-        description: "Sends your comment to the Registrar for a final decision.",
+        description: `Sends your comment to the ${regLabel} for review and final decision.`,
       },
     ]
   }
 
-  if (isRegistrar && ticket.status === "forwarded_to_registrar") {
+  if (
+    isRegistrar &&
+    (ticket.status === "forwarded_to_registrar" || ticket.status === "forwarded_to_hod")
+  ) {
     return [
       {
         id: "resolve",
@@ -131,8 +128,8 @@ export function getPetitionReviewActions(
 }
 
 export function canUserReviewPetition(userRole: string, rolesConfig?: RoleConfig[]): boolean {
-  const { isAdvisor, isHod, isRegistrar } = getReviewerFlags(userRole, rolesConfig)
-  return isAdvisor || isHod || isRegistrar
+  const { isAdvisor, isRegistrar } = getReviewerFlags(userRole, rolesConfig)
+  return isAdvisor || isRegistrar
 }
 
 export function canUserActOnPetition(
@@ -150,34 +147,23 @@ export function getPetitionReviewGuide(
 ): ReviewGuide {
   const actions = getPetitionReviewActions(ticket, userRole, rolesConfig)
   const owner = getOwnerLabelForStatus(ticket.status, rolesConfig)
-  const hodLabel = reviewerLabel(rolesConfig, 1, "Head of Department")
-  const regLabel = reviewerLabel(rolesConfig, 2, "Registrar")
+  const regLabel = getRegistrarLabel(rolesConfig)
 
   if (actions.length > 0) {
-    if (actions[0].id === "fwd-hod") {
+    if (actions[0].id === "fwd-registrar") {
       return {
         title: "Your turn — Advisor review",
         steps: [
           "Read the student’s petition and any notes below.",
-          "Write your comment (required) — the student and HOD will see it.",
+          `Write your comment (required) — the student and ${regLabel} will see it.`,
           `Click “${actions[0].label}” when you are done. Do not use multiple buttons; forwarding is the final step for you.`,
         ],
       }
     }
-    if (actions[0].id === "fwd-reg") {
-      return {
-        title: "Your turn — HOD review",
-        steps: [
-          "Read the advisor’s comments and the petition details.",
-          "Write your comment (required) for the Registrar and student.",
-          `Click “${actions[0].label}” to send the petition to the ${regLabel}.`,
-        ],
-      }
-    }
     return {
-      title: "Your turn — Final decision",
+      title: `Your turn — ${regLabel} decision`,
       steps: [
-        "Read all advisor and HOD comments below.",
+        "Read the advisor’s comments and the petition details.",
         "Add a note if helpful (required only when rejecting).",
         "Choose Approve & resolve or Reject petition.",
       ],
