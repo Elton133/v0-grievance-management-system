@@ -1,6 +1,6 @@
 "use client"
 
-import type { Ticket, TicketStatus, TicketComment, TicketAttachment } from "./types"
+import type { Ticket, TicketStatus, TicketComment, PetitionAttachment } from "./types"
 import type { RoleConfig } from "./settings-context"
 import { ticketApi } from "./api"
 import { departmentsEquivalentForRoster } from "./departmentRosterMatch"
@@ -118,7 +118,7 @@ function transformTicket(backendTicket: any): Ticket {
           fileSize?: number | null
           mimeType?: string | null
           uploadedAt: string
-        }): TicketAttachment => ({
+        }): PetitionAttachment => ({
           id: a.id,
           fileName: a.fileName,
           fileUrl: a.fileUrl,

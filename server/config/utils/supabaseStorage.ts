@@ -16,8 +16,8 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   },
 })
 
-// Storage bucket name for ticket attachments
-export const TICKET_ATTACHMENTS_BUCKET = "ticket-attachments"
+/** Supabase Storage bucket name (must match bucket created in Supabase dashboard). */
+export const PETITION_ATTACHMENTS_BUCKET = "petition-attachments"
 
 /**
  * Upload a file to Supabase Storage
@@ -31,9 +31,15 @@ export async function uploadFile(
   file: Buffer | string,
   fileName: string,
   ticketId: string,
-  userId: string
+  userId: string,
+  mimeType?: string
 ): Promise<{ url: string; path: string } | null> {
   try {
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Supabase storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)")
+      return null
+    }
+
     // Create a unique file path: tickets/{ticketId}/{userId}/{timestamp}-{fileName}
     const timestamp = Date.now()
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_")
@@ -41,9 +47,9 @@ export async function uploadFile(
 
     // Upload file
     const { data, error } = await supabase.storage
-      .from(TICKET_ATTACHMENTS_BUCKET)
+      .from(PETITION_ATTACHMENTS_BUCKET)
       .upload(filePath, file, {
-        contentType: "application/octet-stream",
+        contentType: mimeType || "application/octet-stream",
         upsert: false,
       })
 
@@ -55,7 +61,7 @@ export async function uploadFile(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
+    } = supabase.storage.from(PETITION_ATTACHMENTS_BUCKET).getPublicUrl(filePath)
 
     return {
       url: publicUrl,
@@ -74,7 +80,7 @@ export async function uploadFile(
 export async function deleteFile(filePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
-      .from(TICKET_ATTACHMENTS_BUCKET)
+      .from(PETITION_ATTACHMENTS_BUCKET)
       .remove([filePath])
 
     if (error) {

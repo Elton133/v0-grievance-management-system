@@ -1,12 +1,12 @@
 "use client"
 
-import type { TicketAttachment } from "@/lib/types"
+import type { PetitionAttachment } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { FileText, ImageIcon, File, ExternalLink, Paperclip } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface PetitionAttachmentsProps {
-  attachments?: TicketAttachment[]
+  attachments?: PetitionAttachment[]
   className?: string
 }
 
@@ -37,9 +37,9 @@ export function PetitionAttachments({ attachments = [], className }: PetitionAtt
       <div className={cn("space-y-2", className)}>
         <h3 className="font-semibold flex items-center gap-2">
           <Paperclip className="h-4 w-4" />
-          Supporting documents
+          Petition attachments
         </h3>
-        <p className="text-sm text-muted-foreground">No attachments were submitted with this petition.</p>
+        <p className="text-sm text-muted-foreground">No petition attachments were submitted.</p>
       </div>
     )
   }
@@ -48,7 +48,7 @@ export function PetitionAttachments({ attachments = [], className }: PetitionAtt
     <div className={cn("space-y-3", className)}>
       <h3 className="font-semibold flex items-center gap-2">
         <Paperclip className="h-4 w-4" />
-        Supporting documents ({attachments.length})
+        Petition attachments ({attachments.length})
       </h3>
       <div className="space-y-3">
         {attachments.map((attachment) => {

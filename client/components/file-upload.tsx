@@ -69,9 +69,9 @@ export function FileUpload({
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium">Attachments (Optional)</label>
+        <label className="text-sm font-medium">Petition attachments (optional)</label>
         <p className="text-xs text-muted-foreground mb-2">
-          Upload supporting documents (PDF, images, Word docs). Max 10MB per file.
+          Upload supporting files for your petition (PDF, images, Word docs). Max 10MB per file.
         </p>
         <Button
           type="button"

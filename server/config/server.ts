@@ -4,6 +4,7 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes";
 import ticketRoutes from "./routes/ticketRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
+import auditRoutes from "./routes/auditRoutes";
 import v1TicketRoutes from "./routes/v1/ticketRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
 import { requireApiToken } from "./middleware/apiAuthMiddleware";
@@ -18,12 +19,13 @@ app.set("trust proxy", "loopback");
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes); // Internal React App Routes
 app.use("/api/settings", settingsRoutes);
+app.use("/api/audit-logs", auditRoutes);
 
 // External Developer APIs (v1)
 app.use("/api/v1/tickets", requireApiToken, v1TicketRoutes);

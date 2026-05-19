@@ -11,6 +11,7 @@ import {
   updateTicket,
   deleteTicket,
   addAttachment,
+  uploadAttachmentFile,
   deleteAttachment,
 } from "../controllers/ticketController";
 
@@ -46,7 +47,10 @@ router.put("/:id", updateTicket);
 // DELETE /api/tickets/:id - Delete ticket (submitters only, submitted status only)
 router.delete("/:id", deleteTicket);
 
-// POST /api/tickets/:id/attachments - Add attachment to ticket
+// POST /api/tickets/:id/attachments/upload - Upload file via server (Supabase service role)
+router.post("/:id/attachments/upload", uploadAttachmentFile);
+
+// POST /api/tickets/:id/attachments - Register attachment metadata (legacy / external URL)
 router.post("/:id/attachments", addAttachment);
 
 // DELETE /api/tickets/:id/attachments/:attachmentId - Delete attachment from ticket
