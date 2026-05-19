@@ -6,9 +6,9 @@ import { useSettings } from "@/lib/settings-context"
 import {
   getPetitionReviewActions,
   getPetitionReviewGuide,
-  canUserReviewPetition,
   canUserActOnPetition,
   getOwnerLabelForStatus,
+  isStaffReviewerRole,
 } from "@/lib/reviewer-actions"
 import { updateTicketStatus, getTicketById } from "@/lib/ticket-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,7 +30,7 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
   const [pendingAction, setPendingAction] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  if (!canUserReviewPetition(userRole, settings.rolesConfig)) return null
+  if (!isStaffReviewerRole(userRole, settings.rolesConfig)) return null
 
   const actions = getPetitionReviewActions(ticket, userRole, settings.rolesConfig)
   const guide = getPetitionReviewGuide(ticket, userRole, settings.rolesConfig)

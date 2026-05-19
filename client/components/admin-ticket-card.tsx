@@ -9,6 +9,7 @@ import { Calendar, Eye, User, GraduationCap, Clock } from "lucide-react"
 import Link from "next/link"
 import { formatTicketRef } from "@/lib/ticket-ref"
 import { petitionSubjectLabel, petitionTypeLabel } from "@/lib/petition-form-options"
+import { canUserActOnPetition } from "@/lib/reviewer-actions"
 
 interface AdminTicketCardProps {
   ticket: Ticket
@@ -24,8 +25,9 @@ const statusColors: Record<string, string> = {
   rejected: "bg-red-100 text-red-800 border-red-200",
 }
 
-export function AdminTicketCard({ ticket }: AdminTicketCardProps) {
-  const { getStatusLabel } = useSettings()
+export function AdminTicketCard({ ticket, userRole }: AdminTicketCardProps) {
+  const { getStatusLabel, settings } = useSettings()
+  const needsDecision = canUserActOnPetition(ticket, userRole, settings.rolesConfig)
   const ref = formatTicketRef(ticket)
   const statusClass = statusColors[ticket.status] ?? "bg-muted text-foreground border-border"
 
@@ -37,10 +39,15 @@ export function AdminTicketCard({ ticket }: AdminTicketCardProps) {
             <h3 className="font-semibold line-clamp-1">{petitionSubjectLabel(ticket.subject)}</h3>
             <p className="text-sm text-muted-foreground">{ref}</p>
           </div>
-          <Badge className={statusClass} variant="outline">
-            <Clock className="mr-1 h-3 w-3" />
-            {getStatusLabel(ticket.status)}
-          </Badge>
+          <motion.div className="flex flex-col items-end gap-1">
+            <Badge className={statusClass} variant="outline">
+              <Clock className="mr-1 h-3 w-3" />
+              {getStatusLabel(ticket.status)}
+            </Badge>
+            {needsDecision && (
+              <Badge className="bg-primary text-primary-foreground">Decision needed</Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">

@@ -197,7 +197,26 @@ const STATUS_QUEUE_BY_ROLE: Record<string, TicketStatus[]> = {
   advisor: ["submitted", "under_review"],
   class_advisor: ["submitted", "under_review"],
   hod: ["forwarded_to_hod"],
-  registrar: ["forwarded_to_registrar"],
+  /** Include forwarded_to_hod so registrar can monitor pipeline; actions only at forwarded_to_registrar */
+  registrar: ["forwarded_to_registrar", "forwarded_to_hod"],
+}
+
+function resolveStatusQueueForRole(
+  userRole: string,
+  rolesConfig?: RoleConfig[]
+): TicketStatus[] | null {
+  if (STATUS_QUEUE_BY_ROLE[userRole]) {
+    return STATUS_QUEUE_BY_ROLE[userRole]
+  }
+
+  const reviewers = (rolesConfig ?? [])
+    .filter((r) => !r.isSubmitter && Number(r.level) > 0)
+    .sort((a, b) => Number(a.level) - Number(b.level))
+  const idx = reviewers.findIndex((r) => r.key === userRole)
+  if (idx === 0) return STATUS_QUEUE_BY_ROLE.advisor
+  if (idx === reviewers.length - 1) return STATUS_QUEUE_BY_ROLE.registrar
+  if (idx > 0) return STATUS_QUEUE_BY_ROLE.hod
+  return null
 }
 
 function departmentMatches(
@@ -215,9 +234,10 @@ function ticketInRoleQueue(
   ticket: Ticket,
   userRole: string,
   userGroup: string | undefined,
-  groupScoped: boolean
+  groupScoped: boolean,
+  rolesConfig?: RoleConfig[]
 ): boolean {
-  const statuses = STATUS_QUEUE_BY_ROLE[userRole]
+  const statuses = resolveStatusQueueForRole(userRole, rolesConfig)
   if (!statuses?.includes(ticket.status)) return false
   return departmentMatches(ticket.group, userGroup, groupScoped)
 }
@@ -249,8 +269,11 @@ export async function getTicketsByRole(
 
     let queue: Ticket[] = []
 
-    if (STATUS_QUEUE_BY_ROLE[userRole]) {
-      queue = allTickets.filter((p) => ticketInRoleQueue(p, userRole, group, groupScoped))
+    const statusQueue = resolveStatusQueueForRole(userRole, rolesConfig)
+    if (statusQueue) {
+      queue = allTickets.filter((p) =>
+        ticketInRoleQueue(p, userRole, group, groupScoped, rolesConfig)
+      )
     } else if (userId) {
       queue = allTickets.filter((t) =>
         isTicketAssignedToUser(t, { id: userId, email: userEmail })
