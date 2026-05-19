@@ -143,7 +143,7 @@ async function pickReviewerWithLightestLoad(
  * Get the status progression map from TenantSettings or use defaults
  */
 /** Only Registrar may set terminal outcomes; advisors/HODs forward only. */
-function sanitizeStatusProgression(progression: Record<string, string[]>): Record<string, string[]> {
+function sanitizeTenantProgression(progression: Record<string, string[]>): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [from, toList] of Object.entries(progression)) {
     if (from === "forwarded_to_registrar") {
@@ -152,7 +152,27 @@ function sanitizeStatusProgression(progression: Record<string, string[]>): Recor
       out[from] = toList.filter((s) => s !== "resolved" && s !== "rejected");
     }
   }
-  return { ...DEFAULT_STATUS_PROGRESSION, ...out };
+  return out;
+}
+
+/** Union tenant rules with defaults so older DB configs cannot drop valid forward paths. */
+function mergeStatusProgression(
+  base: Record<string, string[]>,
+  tenant: Record<string, string[]>
+): Record<string, string[]> {
+  const merged: Record<string, string[]> = { ...base };
+  const allKeys = new Set([...Object.keys(base), ...Object.keys(tenant)]);
+
+  for (const from of allKeys) {
+    const combined = [...new Set([...(base[from] ?? []), ...(tenant[from] ?? [])])];
+    if (from === "forwarded_to_registrar") {
+      merged[from] = [...new Set([...combined, "resolved", "rejected"])];
+    } else {
+      merged[from] = combined.filter((s) => s !== "resolved" && s !== "rejected");
+    }
+  }
+
+  return merged;
 }
 
 const getStatusProgression = async (): Promise<Record<string, string[]>> => {
@@ -164,7 +184,10 @@ const getStatusProgression = async (): Promise<Record<string, string[]>> => {
       config.forEach(c => {
         progression[c.fromStatus] = c.toStatuses;
       });
-      return sanitizeStatusProgression(progression);
+      return mergeStatusProgression(
+        DEFAULT_STATUS_PROGRESSION,
+        sanitizeTenantProgression(progression)
+      );
     }
   } catch (error) {
     console.warn("[WorkflowService] Could not load status progression from settings, using defaults");
