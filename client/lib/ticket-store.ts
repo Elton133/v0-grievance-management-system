@@ -193,13 +193,11 @@ export async function getTicketById(id: string): Promise<Ticket | null> {
 }
 
 /** Statuses each reviewer role should see in their department queue. */
-const REGISTRAR_QUEUE: TicketStatus[] = ["forwarded_to_registrar", "forwarded_to_hod"]
-
 const STATUS_QUEUE_BY_ROLE: Record<string, TicketStatus[]> = {
   advisor: ["submitted", "under_review"],
   class_advisor: ["submitted", "under_review"],
-  hod: REGISTRAR_QUEUE,
-  registrar: REGISTRAR_QUEUE,
+  hod: ["forwarded_to_hod"],
+  registrar: ["forwarded_to_registrar"],
 }
 
 function departmentMatches(

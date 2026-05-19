@@ -372,21 +372,32 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     }
 
     // Validate status transition
+    const newStatus = status as string;
+    const terminal = ["resolved", "rejected"];
+
+    if (terminal.includes(newStatus)) {
+      if (user.role !== "registrar") {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Only the Registrar can resolve or reject petitions.",
+        });
+      }
+      if (ticket.status !== "forwarded_to_registrar") {
+        return res.status(400).json({
+          error: "Invalid status transition",
+          message:
+            ticket.status === "forwarded_to_hod"
+              ? "The Head of Department must forward this petition to the Registrar before it can be approved or rejected."
+              : `Cannot transition from ${ticket.status} to ${newStatus}. The petition must be with the Registrar first.`,
+        });
+      }
+    }
+
     const validTransition = await isValidStatusTransition(ticket.status, status);
     if (!validTransition) {
       return res.status(400).json({
         error: "Invalid status transition",
         message: `Cannot transition from ${ticket.status} to ${status}`,
-      });
-    }
-
-    const newStatus = status as string;
-    const terminal = ["resolved", "rejected"];
-    const canFinalize = user.role === "registrar" || user.role === "hod";
-    if (terminal.includes(newStatus) && !canFinalize) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "Only the Registrar can resolve or reject petitions.",
       });
     }
     if (newStatus === "rejected" && !(typeof comment === "string" && comment.trim())) {

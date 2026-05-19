@@ -45,6 +45,25 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
   }
 
   const runAction = async (action: (typeof actions)[0]) => {
+    const isTerminal =
+      action.status === "resolved" || action.status === "rejected"
+    if (isTerminal && ticket.status !== "forwarded_to_registrar") {
+      toast.error(
+        "This petition must be forwarded to the Registrar before it can be approved or rejected.",
+        {
+          description:
+            ticket.status === "forwarded_to_hod"
+              ? "The Head of Department still needs to review and forward it."
+              : undefined,
+        }
+      )
+      return
+    }
+    if (isTerminal && userRole === "hod") {
+      toast.error("Only the Registrar can approve or reject. Forward the petition to the Registrar first.")
+      return
+    }
+
     const trimmed = comment.trim()
     if (action.requiresComment && !trimmed) {
       toast.error(

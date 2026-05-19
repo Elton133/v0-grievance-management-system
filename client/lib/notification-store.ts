@@ -79,7 +79,7 @@ export function createStatusUpdateNotification(
 ): void {
   const statusMessages = {
     under_review: "is now under review by the class advisor",
-    forwarded_to_hod: "has been forwarded to the Registrar",
+    forwarded_to_hod: "has been forwarded to the Head of Department",
     forwarded_to_registrar: "has been forwarded to the Registrar",
     resolved: "has been resolved",
     rejected: "has been rejected",
