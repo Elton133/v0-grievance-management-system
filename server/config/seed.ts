@@ -24,11 +24,12 @@ async function main() {
       rolesConfig: [
         { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
         { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
-        { key: "registrar", label: "Registrar", level: 2, isSubmitter: false, groupScoped: false },
+        { key: "hod", label: "Head of Department", level: 2, isSubmitter: false, groupScoped: true },
+        { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
       ],
       escalationConfig: [
-        { fromStatus: "submitted", toStatuses: ["under_review", "forwarded_to_registrar"] },
-        { fromStatus: "under_review", toStatuses: ["forwarded_to_registrar"] },
+        { fromStatus: "submitted", toStatuses: ["under_review", "forwarded_to_hod"] },
+        { fromStatus: "under_review", toStatuses: ["forwarded_to_hod"] },
         { fromStatus: "forwarded_to_hod", toStatuses: ["forwarded_to_registrar"] },
         { fromStatus: "forwarded_to_registrar", toStatuses: ["resolved", "rejected"] },
         { fromStatus: "resolved", toStatuses: [] },
@@ -41,7 +42,7 @@ async function main() {
       statusLabelsConfig: [
         { key: "submitted", label: "Submitted", color: "#f59e0b" },
         { key: "under_review", label: "Under Review", color: "#3b82f6" },
-        { key: "forwarded_to_hod", label: "Forwarded to Registrar", color: "#8b5cf6" },
+        { key: "forwarded_to_hod", label: "Forwarded to HOD", color: "#8b5cf6" },
         { key: "forwarded_to_registrar", label: "Forwarded to Registrar", color: "#6366f1" },
         { key: "resolved", label: "Resolved", color: "#22c55e" },
         { key: "rejected", label: "Rejected", color: "#ef4444" },

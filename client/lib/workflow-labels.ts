@@ -3,7 +3,7 @@ export const WORKFLOW_ROLE_LABELS: Record<string, string> = {
   student: "Student",
   advisor: "Class Advisor",
   class_advisor: "Class Advisor",
-  hod: "Registrar",
+  hod: "Head of Department (HOD)",
   registrar: "Registrar",
 }
 
