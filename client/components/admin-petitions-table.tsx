@@ -16,13 +16,15 @@ import {
 } from "@/components/ui/table"
 import Link from "next/link"
 import { Eye } from "lucide-react"
+import { canUserActOnPetition } from "@/lib/reviewer-actions"
 
 type AdminPetitionsTableProps = {
   petitions: Ticket[]
+  userRole: string
 }
 
-export function AdminPetitionsTable({ petitions }: AdminPetitionsTableProps) {
-  const { getStatusLabel } = useSettings()
+export function AdminPetitionsTable({ petitions, userRole }: AdminPetitionsTableProps) {
+  const { getStatusLabel, settings } = useSettings()
 
   return (
     <div className="rounded-md border hidden md:block">
@@ -54,12 +56,19 @@ export function AdminPetitionsTable({ petitions }: AdminPetitionsTableProps) {
                 {p.submittedAt.toLocaleDateString()}
               </TableCell>
               <TableCell className="text-right">
-                <Button asChild size="sm" variant="ghost">
-                  <Link href={`/ticket/${p.id}`}>
-                    <Eye className="mr-1 h-4 w-4" />
-                    Review
-                  </Link>
-                </Button>
+                <div className="flex items-center justify-end gap-2">
+                  {canUserActOnPetition(p, userRole, settings.rolesConfig) && (
+                    <Badge className="bg-primary text-primary-foreground text-xs">
+                      Decide
+                    </Badge>
+                  )}
+                  <Button asChild size="sm" variant={canUserActOnPetition(p, userRole, settings.rolesConfig) ? "default" : "ghost"}>
+                    <Link href={`/ticket/${p.id}`}>
+                      <Eye className="mr-1 h-4 w-4" />
+                      Review
+                    </Link>
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

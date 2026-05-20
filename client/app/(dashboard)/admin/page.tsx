@@ -228,7 +228,7 @@ export default function AdminPage() {
           </Card>
         ) : (
           <>
-            <AdminPetitionsTable petitions={paginatedPetitions} />
+            <AdminPetitionsTable petitions={paginatedPetitions} userRole={user.role} />
             <div className="grid gap-4 md:hidden">
               {paginatedPetitions.map((p) => (
                 <AdminTicketCard key={p.id} ticket={p} userRole={user.role} />

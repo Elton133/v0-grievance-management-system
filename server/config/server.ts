@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes";
 import ticketRoutes from "./routes/ticketRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
 import auditRoutes from "./routes/auditRoutes";
+import usersRoutes from "./routes/usersRoutes";
 import v1TicketRoutes from "./routes/v1/ticketRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
 import { requireApiToken } from "./middleware/apiAuthMiddleware";
@@ -25,6 +26,7 @@ app.use(express.json({ limit: "15mb" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes); // Internal React App Routes
 app.use("/api/settings", settingsRoutes);
+app.use("/api/users", usersRoutes);
 app.use("/api/audit-logs", auditRoutes);
 
 // External Developer APIs (v1)

@@ -363,6 +363,36 @@ export const auditApi = {
   },
 };
 
+export type StaffUserRecord = {
+  id: string
+  name: string
+  email: string
+  role: string
+  group: string | null
+  emailVerified: boolean
+  createdAt: string
+}
+
+// Staff user management (registrar / highest-level admin only)
+export const usersApi = {
+  listStaff: async () => {
+    return apiRequest<{ data: StaffUserRecord[] }>("/users/staff")
+  },
+
+  createStaff: async (data: {
+    name: string
+    email: string
+    password: string
+    role: string
+    group?: string
+  }) => {
+    return apiRequest<{ msg: string; user: StaffUserRecord }>("/users/staff", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+}
+
 // Developer API
 export const developerApi = {
   getKeys: async () => apiRequest<any[]>("/settings/keys"),

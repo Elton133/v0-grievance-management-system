@@ -18,10 +18,24 @@ export type ReviewGuide = {
   readOnlyNote?: string
 }
 
-function getReviewers(rolesConfig: RoleConfig[] | undefined) {
+export function getReviewers(rolesConfig: RoleConfig[] | undefined) {
   return (rolesConfig ?? [])
     .filter((r) => !r.isSubmitter && Number(r.level) > 0)
     .sort((a, b) => Number(a.level) - Number(b.level))
+}
+
+/** True when workflow includes a middle HOD step (advisor → HOD → registrar). */
+export function usesHodStep(rolesConfig?: RoleConfig[]): boolean {
+  return getReviewers(rolesConfig).length >= 3
+}
+
+export function getAdvisorForwardStatus(rolesConfig?: RoleConfig[]): string {
+  return usesHodStep(rolesConfig) ? "forwarded_to_hod" : "forwarded_to_registrar"
+}
+
+export function isStaffReviewerRole(userRole: string, rolesConfig?: RoleConfig[]): boolean {
+  if (["advisor", "class_advisor", "hod", "registrar"].includes(userRole)) return true
+  return getReviewers(rolesConfig).some((r) => r.key === userRole)
 }
 
 function getReviewerFlags(userRole: string, rolesConfig: RoleConfig[] | undefined) {
@@ -40,7 +54,8 @@ function getReviewerFlags(userRole: string, rolesConfig: RoleConfig[] | undefine
   return {
     isAdvisor: idx === 0,
     isHod: userRole === "hod" || (idx > 0 && idx < last && userRole !== "registrar"),
-    isRegistrar: idx === last && userRole !== "hod",
+    isRegistrar:
+      userRole === "registrar" || (idx === last && userRole !== "hod"),
   }
 }
 
@@ -98,14 +113,17 @@ export function getPetitionReviewActions(
   if (terminal.includes(ticket.status)) return []
 
   if (isAdvisor && (ticket.status === "submitted" || ticket.status === "under_review")) {
+    const forwardStatus = getAdvisorForwardStatus(rolesConfig)
+    const forwardLabel =
+      forwardStatus === "forwarded_to_hod" ? hodLabel : regLabel
     return [
       {
-        id: "fwd-hod",
-        label: `Forward to ${hodLabel}`,
-        status: "forwarded_to_hod",
+        id: forwardStatus === "forwarded_to_hod" ? "fwd-hod" : "fwd-registrar",
+        label: `Forward to ${forwardLabel}`,
+        status: forwardStatus,
         requiresComment: true,
         variant: "default",
-        description: `Sends your comment to the ${hodLabel} for the next review.`,
+        description: `Sends your comment to the ${forwardLabel} for the next review.`,
       },
     ]
   }
@@ -150,6 +168,7 @@ export function getPetitionReviewActions(
 }
 
 export function canUserReviewPetition(userRole: string, rolesConfig?: RoleConfig[]): boolean {
+  if (!isStaffReviewerRole(userRole, rolesConfig)) return false
   const { isAdvisor, isHod, isRegistrar } = getReviewerFlags(userRole, rolesConfig)
   return isAdvisor || isHod || isRegistrar
 }
@@ -173,17 +192,18 @@ export function getPetitionReviewGuide(
   const regLabel = reviewerLabel(rolesConfig, 2, "Registrar")
 
   if (actions.length > 0) {
-    if (actions[0].id === "fwd-hod") {
+    if (actions[0].id === "fwd-hod" || (actions[0].id === "fwd-registrar" && !usesHodStep(rolesConfig))) {
+      const nextLabel = usesHodStep(rolesConfig) ? hodLabel : regLabel
       return {
         title: "Your turn — Advisor review",
         steps: [
           "Read the student’s petition and any notes below.",
-          `Write your comment (required) — the student and ${hodLabel} will see it.`,
+          `Write your comment (required) — the student and ${nextLabel} will see it.`,
           `Click “${actions[0].label}” when you are done. Forwarding is the final step for you.`,
         ],
       }
     }
-    if (actions[0].id === "fwd-registrar") {
+    if (actions[0].id === "fwd-registrar" && userRole === "hod") {
       return {
         title: `Your turn — ${hodLabel} review`,
         steps: [

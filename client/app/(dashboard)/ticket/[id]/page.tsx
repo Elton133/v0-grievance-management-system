@@ -8,7 +8,7 @@ import type { TicketType } from "@/lib/types"
 import { TicketTimeline } from "@/components/ticket-timeline"
 import { PetitionReviewPanel } from "@/components/petition-review-panel"
 import { PetitionAttachments } from "@/components/petition-attachments"
-import { canUserReviewPetition } from "@/lib/reviewer-actions"
+import { isStaffReviewerRole } from "@/lib/reviewer-actions"
 import {
   petitionSubjectLabel,
   petitionTypeLabel,
@@ -280,7 +280,7 @@ export default function TicketDetailPage() {
 
             <TicketTimeline ticket={ticket} />
 
-            {user && canUserReviewPetition(user.role, settings.rolesConfig) && (
+            {user && isStaffReviewerRole(user.role, settings.rolesConfig) && (
               <PetitionReviewPanel ticket={ticket} userRole={user.role} onUpdated={setTicket} />
             )}
           </div>
