@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
 import { isSchoolBuild } from "@/lib/school-build"
 import { settingsApi } from "@/lib/api"
-import { Shield, Save, RefreshCw, Palette, Users, Settings2, GitMerge } from "lucide-react"
+import { Shield, Save, RefreshCw, Palette, Users, Settings2, GitMerge, UserCog } from "lucide-react"
+import { StaffUsersPanel } from "@/components/staff-users-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -244,6 +245,9 @@ export default function SettingsPage() {
             <TabsTrigger value="roles" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
               <Users className="w-4 h-4 mr-2" /> Actors
             </TabsTrigger>
+            <TabsTrigger value="staff" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
+              <UserCog className="w-4 h-4 mr-2" /> Staff Accounts
+            </TabsTrigger>
             <TabsTrigger value="access" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
               <Shield className="w-4 h-4 mr-2" /> Access Constraints
             </TabsTrigger>
@@ -324,6 +328,10 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="staff" className="m-0 mt-4">
+                <StaffUsersPanel />
               </TabsContent>
 
               <TabsContent value="roles" className="m-0 mt-4">

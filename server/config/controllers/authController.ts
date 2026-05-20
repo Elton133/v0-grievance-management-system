@@ -76,7 +76,7 @@ export const registerUser = async (req: Request, res: Response) => {
         errors: [
           {
             field: "role",
-            message: "Registrar/admin accounts must be created by seed, database admin, or a protected admin screen.",
+            message: "Registrar accounts must be created by a registrar in Settings → Staff Accounts.",
           },
         ],
       });

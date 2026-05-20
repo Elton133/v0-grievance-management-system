@@ -39,7 +39,7 @@ export function AdminTicketCard({ ticket, userRole }: AdminTicketCardProps) {
             <h3 className="font-semibold line-clamp-1">{petitionSubjectLabel(ticket.subject)}</h3>
             <p className="text-sm text-muted-foreground">{ref}</p>
           </div>
-          <motion.div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-1">
             <Badge className={statusClass} variant="outline">
               <Clock className="mr-1 h-3 w-3" />
               {getStatusLabel(ticket.status)}
