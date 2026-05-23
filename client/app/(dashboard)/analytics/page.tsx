@@ -134,90 +134,33 @@ export default function AnalyticsPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{analyticsData.totalTickets}</div>
-                  <p className="text-xs text-muted-foreground">All time submissions</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {analyticsData.totalTickets > 0
-                      ? Math.round(
-                          ((analyticsData.ticketsByStatus.resolved || 0) / analyticsData.totalTickets) * 100,
-                        )
-                      : 0}
-                    %
-                  </div>
-                  <p className="text-xs text-muted-foreground">Successfully resolved</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{analyticsData.responseTimeMetrics.averageResponseTime}</div>
-                  <p className="text-xs text-muted-foreground">Days to first response</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Escalation Rate</CardTitle>
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {Math.round(analyticsData.responseTimeMetrics.escalationRate * 100)}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">Require escalation</p>
-                </CardContent>
-              </Card>
-            </div>
+            <Card className="max-w-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Petitions</CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analyticsData.totalTickets}</div>
+                <p className="text-xs text-muted-foreground">All time submissions</p>
+              </CardContent>
+            </Card>
 
             {/* Charts */}
             <AnalyticsCharts data={analyticsData} />
 
-            {/* Group Performance */}
             <Card>
               <CardHeader>
-                <CardTitle>Group Performance</CardTitle>
-                <CardDescription>Petition volume and resolution metrics by department</CardDescription>
+                <CardTitle>Petitions by department</CardTitle>
+                <CardDescription>Volume of submissions per department</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {Object.entries(analyticsData.ticketsByGroup).map(([dept, countVal]) => {
                     const count = countVal as number
-                    const resolvedCount = Math.floor(count * 0.7) // Mock resolved count
-                    const resolutionRate = Math.round((resolvedCount / count) * 100)
-
                     return (
                       <div key={dept} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h4 className="font-medium">{dept}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {count} tickets • {resolvedCount} resolved
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold">{resolutionRate}%</div>
-                          <p className="text-xs text-muted-foreground">Resolution rate</p>
-                        </div>
+                        <h4 className="font-medium">{dept}</h4>
+                        <span className="text-2xl font-bold">{count}</span>
                       </div>
                     )
                   })}
@@ -231,6 +174,7 @@ export default function AnalyticsPage() {
               logs={auditLogs}
               title="System Audit Log"
               description="Complete record of all system activities and changes"
+              showFilters
             />
           </TabsContent>
         </Tabs>

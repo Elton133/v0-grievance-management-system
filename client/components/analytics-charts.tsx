@@ -1,7 +1,6 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import type { AnalyticsData } from "@/lib/analytics-store"
 import {
   BarChart,
@@ -88,32 +87,6 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Key Metrics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Key Metrics</CardTitle>
-          <CardDescription>Performance indicators</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Total Tickets</span>
-            <Badge variant="secondary">{data.totalTickets}</Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Avg Resolution Time</span>
-            <Badge variant="outline">{data.averageResolutionTime.toFixed(1)} days</Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Response Time</span>
-            <Badge variant="outline">{data.responseTimeMetrics.averageResponseTime} days</Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Escalation Rate</span>
-            <Badge variant="outline">{(data.responseTimeMetrics.escalationRate * 100).toFixed(0)}%</Badge>
-          </div>
         </CardContent>
       </Card>
 

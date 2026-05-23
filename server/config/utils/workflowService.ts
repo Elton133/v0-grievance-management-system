@@ -1,4 +1,5 @@
 import prisma from "../db";
+import { getWorkflowReviewerRoles } from "./roleUtils";
 
 /**
  * Workflow Service - Handles grievance escalation and auto-assignment logic
@@ -47,9 +48,7 @@ function parseRolesConfig(raw: unknown): RoleConfigRow[] {
 
 /** Levels from the UI/JSON may be strings; sort must be numeric. */
 function getReviewersSorted(roles: RoleConfigRow[]): RoleConfigRow[] {
-  return roles
-    .filter((r) => r.isSubmitter !== true && Number(r.level) > 0)
-    .sort((a, b) => Number(a.level) - Number(b.level));
+  return getWorkflowReviewerRoles(roles);
 }
 
 /**
@@ -200,11 +199,63 @@ const getStatusProgression = async (): Promise<Record<string, string[]>> => {
  * When several staff share the same role and department, assignment picks whoever has the
  * fewest open (non-resolved / non-rejected) tickets — not random, not always the same row order.
  */
+async function findAdvisorByLevelAssignment(
+  group: string | undefined,
+  year?: string,
+  petitionType?: string
+): Promise<{ id: string; email: string; name: string } | null> {
+  if (!group?.trim() || !year?.trim()) return null
+
+  const assignments = await prisma.advisorLevelAssignment.findMany({
+    where: {
+      department: { equals: group.trim(), mode: "insensitive" },
+    },
+    include: {
+      advisor: { select: { id: true, email: true, name: true, role: true } },
+    },
+  })
+
+  for (const row of assignments) {
+    if (!row.levels.includes(year.trim())) continue
+    const types = row.petitionTypes ?? []
+    if (
+      types.length > 0 &&
+      !types.includes("*") &&
+      petitionType &&
+      !types.includes(petitionType)
+    ) {
+      continue
+    }
+    if (row.advisor) return row.advisor
+  }
+  return null
+}
+
 export const getNextReviewer = async (
   escalationLevel: number,
-  group?: string
+  group?: string,
+  context?: { year?: string; petitionType?: string; submitterRole?: string; isAlumni?: boolean }
 ): Promise<{ userId: string; userEmail: string; userName: string } | null> => {
   try {
+    if (context?.isAlumni && escalationLevel === 1) {
+      return null
+    }
+
+    if (escalationLevel === 1 && group) {
+      const byLevel = await findAdvisorByLevelAssignment(
+        group,
+        context?.year,
+        context?.petitionType
+      )
+      if (byLevel) {
+        return {
+          userId: byLevel.id,
+          userEmail: byLevel.email,
+          userName: byLevel.name,
+        }
+      }
+    }
+
     const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
     const roles = parseRolesConfig(settings?.rolesConfig);
     const reviewersSorted = getReviewersSorted(roles);

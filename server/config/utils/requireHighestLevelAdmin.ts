@@ -1,19 +1,11 @@
 import { Response } from "express"
 import prisma from "../db"
 import { AuthRequest } from "../middleware/auth"
-
-type RoleConfig = { key: string; level: number }
-
-const DEFAULT_ROLES: RoleConfig[] = [
-  { key: "student", level: 0 },
-  { key: "advisor", level: 1 },
-  { key: "hod", level: 2 },
-  { key: "registrar", level: 3 },
-]
+import { isSystemAdminRole } from "./roleUtils"
 
 /**
- * Ensures the authenticated user has the highest role level in tenant config (e.g. registrar).
- * Returns the acting user on success; sends 401/403/404 and returns null otherwise.
+ * Ensures the authenticated user is a system administrator (role: admin).
+ * Not the same as registrar — admin manages platform settings, not petitions.
  */
 export async function requireHighestLevelAdmin(
   req: AuthRequest,
@@ -30,18 +22,9 @@ export async function requireHighestLevelAdmin(
     return null
   }
 
-  const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } })
-  const roles =
-    (settings?.rolesConfig as RoleConfig[] | undefined)?.length
-      ? (settings!.rolesConfig as RoleConfig[])
-      : DEFAULT_ROLES
-
-  const userRoleConfig = roles.find((r) => r.key === user.role)
-  const maxLevel = Math.max(...roles.map((r) => r.level))
-
-  if (!userRoleConfig || userRoleConfig.level < maxLevel) {
+  if (!isSystemAdminRole(user.role)) {
     res.status(403).json({
-      error: "Only the highest-level administrator can perform this action",
+      error: "Only system administrators can perform this action",
     })
     return null
   }

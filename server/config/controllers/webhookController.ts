@@ -2,7 +2,7 @@ import { Response } from "express"
 import prisma from "../db"
 import { AuthRequest } from "../middleware/auth"
 import { nanoid } from "nanoid"
-import { isSchoolBuild, schoolBuildDeveloperForbidden } from "../utils/schoolBuild"
+import { schoolBuildBlocksRequest, schoolBuildDeveloperForbidden } from "../utils/schoolBuild"
 
 /**
  * GET /api/settings/webhooks
@@ -10,7 +10,7 @@ import { isSchoolBuild, schoolBuildDeveloperForbidden } from "../utils/schoolBui
  */
 export const getWebhooks = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {
@@ -34,7 +34,7 @@ export const getWebhooks = async (req: AuthRequest, res: Response) => {
  */
 export const createWebhook = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {
@@ -72,7 +72,7 @@ export const createWebhook = async (req: AuthRequest, res: Response) => {
  */
 export const deleteWebhook = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {
@@ -98,7 +98,7 @@ export const deleteWebhook = async (req: AuthRequest, res: Response) => {
  */
 export const updateWebhook = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {

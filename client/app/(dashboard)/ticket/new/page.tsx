@@ -8,12 +8,22 @@ import { useSettings } from "@/lib/settings-context"
 import { submitTicket } from "@/lib/ticket-store"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, FileText, Send, Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { petitionSubjectLabel, petitionTypeLabel } from "@/lib/petition-form-options"
 import Link from "next/link"
 import { FileUpload } from "@/components/file-upload"
 import { uploadPetitionAttachments } from "@/lib/attachment-upload"
@@ -33,10 +43,13 @@ export default function NewPetitionPage() {
     subject: "",
     description: "",
     year: "",
+    feePaid: "" as "" | "yes" | "no",
+    feePaidAmount: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -66,14 +79,31 @@ export default function NewPetitionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    if (!formData.type || !formData.subject || !formData.description || !formData.year || !formData.feePaid) {
+      toast.error("Please fill in all required fields")
+      setError("Please fill in all required fields")
+      return
+    }
+    if (!formData.feePaidAmount.trim()) {
+      toast.error("Please enter the fee amount")
+      setError("Please enter the fee amount")
+      return
+    }
+
+    setConfirmOpen(true)
+  }
+
+  const handleConfirmSubmit = async () => {
+    setConfirmOpen(false)
     setIsSubmitting(true)
 
     try {
-      if (!formData.type || !formData.subject || !formData.description || !formData.year) {
-        toast.error("Please fill in all required fields")
-        setError("Please fill in all required fields")
-        return
-      }
+      const feeLine =
+        formData.feePaid === "yes"
+          ? `Fee paid: Yes — Amount: GHS ${formData.feePaidAmount.trim()}`
+          : `Fee paid: No — Amount: GHS ${formData.feePaidAmount.trim()}`
+      const fullDescription = `${feeLine}\n\n${formData.description}`
 
       const petition = await submitTicket({
         submitterId: user.submitterId!,
@@ -83,8 +113,8 @@ export default function NewPetitionPage() {
         year: formData.year,
         type: formData.type,
         priority: "medium",
-        subject: formData.subject,
-        description: formData.description,
+        subject: petitionSubjectLabel(formData.subject),
+        description: fullDescription,
       })
 
       if (selectedFiles.length > 0 && petition.id) {
@@ -199,6 +229,36 @@ export default function NewPetitionPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="fee-paid">Fee paid? *</Label>
+                <Select
+                  value={formData.feePaid}
+                  onValueChange={(value: "yes" | "no") => setFormData((prev) => ({ ...prev, feePaid: value }))}
+                >
+                  <SelectTrigger id="fee-paid">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Yes</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.feePaid && (
+                <div className="space-y-2">
+                  <Label htmlFor="fee-amount">Fee amount (GHS) *</Label>
+                  <Input
+                    id="fee-amount"
+                    type="text"
+                    placeholder="e.g. 500"
+                    value={formData.feePaidAmount}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, feePaidAmount: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
                 <Label htmlFor="description">Details *</Label>
                 <Textarea
                   id="description"
@@ -243,6 +303,48 @@ export default function NewPetitionPage() {
                 </Button>
               </div>
             </form>
+
+            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Submit this petition?</DialogTitle>
+                  <DialogDescription asChild>
+                    <div className="space-y-2 text-sm text-muted-foreground pt-2">
+                      <p>
+                        <span className="font-medium text-foreground">Type:</span>{" "}
+                        {petitionTypeLabel(formData.type)}
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Subject:</span>{" "}
+                        {petitionSubjectLabel(formData.subject)}
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Level:</span> {formData.year}
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Fee paid:</span>{" "}
+                        {formData.feePaid === "yes" ? "Yes" : "No"} — GHS {formData.feePaidAmount}
+                      </p>
+                      {selectedFiles.length > 0 && (
+                        <p>
+                          <span className="font-medium text-foreground">Attachments:</span>{" "}
+                          {selectedFiles.length} file(s)
+                        </p>
+                      )}
+                      <p>You cannot edit the petition after submission.</p>
+                    </div>
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={isSubmitting}>
+                    Go back
+                  </Button>
+                  <Button onClick={handleConfirmSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? "Submitting..." : "Confirm & submit"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
 

@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
-import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -13,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User } from "lucide-react"
+import { LogOut } from "lucide-react"
 
 export function DashboardHeader() {
   const { user, logout } = useAuth()
@@ -40,8 +39,6 @@ export function DashboardHeader() {
 
         {/* Right side — notifications + user menu */}
         <div className="flex items-center gap-2 ml-auto">
-          <NotificationBell />
-          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -70,10 +67,6 @@ export function DashboardHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />

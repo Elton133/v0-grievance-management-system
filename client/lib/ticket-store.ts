@@ -37,11 +37,14 @@ function mergeQueueWithDirectAssignments(
   queue: Ticket[],
   allTickets: Ticket[],
   userId: string | undefined,
-  userEmail: string
+  userEmail: string,
+  allowedStatuses: TicketStatus[] | null
 ): Ticket[] {
-  if (!userId) return queue
-  const assigned = allTickets.filter((t) =>
-    isTicketAssignedToUser(t, { id: userId, email: userEmail })
+  if (!userId || !allowedStatuses?.length) return queue
+  const assigned = allTickets.filter(
+    (t) =>
+      allowedStatuses.includes(t.status) &&
+      isTicketAssignedToUser(t, { id: userId, email: userEmail })
   )
   if (assigned.length === 0) return queue
   const byId = new Map<string, Ticket>()
@@ -197,8 +200,7 @@ const STATUS_QUEUE_BY_ROLE: Record<string, TicketStatus[]> = {
   advisor: ["submitted", "under_review"],
   class_advisor: ["submitted", "under_review"],
   hod: ["forwarded_to_hod"],
-  /** Include forwarded_to_hod so registrar can monitor pipeline; actions only at forwarded_to_registrar */
-  registrar: ["forwarded_to_registrar", "forwarded_to_hod"],
+  registrar: ["forwarded_to_registrar"],
 }
 
 function resolveStatusQueueForRole(
@@ -253,12 +255,16 @@ export async function getTicketsByRole(
   rolesConfig?: RoleConfig[],
   userId?: string
 ): Promise<Ticket[]> {
+  if (userRole === "admin") {
+    return []
+  }
+
   try {
     const response = await getTickets(1, 1000)
     const allTickets = response.data
 
     const reviewers = (rolesConfig ?? [])
-      .filter((r) => !r.isSubmitter && Number(r.level) > 0)
+      .filter((r) => !r.isSubmitter && Number(r.level) > 0 && r.key !== "admin")
       .sort((a, b) => Number(a.level) - Number(b.level))
 
     const roleConfig = reviewers.find((r) => r.key === userRole)
@@ -280,7 +286,13 @@ export async function getTicketsByRole(
       )
     }
 
-    return mergeQueueWithDirectAssignments(queue, allTickets, userId, userEmail)
+    return mergeQueueWithDirectAssignments(
+      queue,
+      allTickets,
+      userId,
+      userEmail,
+      statusQueue ?? null
+    )
   } catch (error) {
     console.error("Error fetching tickets by role:", error)
     return []

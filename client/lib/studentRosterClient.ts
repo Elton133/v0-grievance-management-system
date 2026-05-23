@@ -1,100 +1,71 @@
-import rosterJson from "./data/studentRoster.json"
-import { departmentsEquivalentForRoster } from "./departmentRosterMatch"
-
-/** Browser-side roster for instant feedback — keep in sync with `server/config/data/studentRoster.json`. */
-
-type RolesOnly = { rolesConfig?: { key: string; isSubmitter?: boolean }[] }
-
-export type StudentRosterRow = {
-  fullName: string
-  studentId: string
-  department?: string
-}
-
-const rows: StudentRosterRow[] = Array.isArray(rosterJson)
-  ? (rosterJson as StudentRosterRow[]).filter(
-      (r) => r && typeof r.fullName === "string" && typeof r.studentId === "string"
-    )
-  : []
-
-export function rosterValidationEnabledClient(): boolean {
-  return rows.length > 0
-}
-
-function normName(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, " ")
-}
-
-function normId(s: string): string {
-  return s.trim().toUpperCase()
-}
-
-function normDept(s: string | undefined): string {
-  return (s ?? "").trim().toLowerCase()
-}
+import { registryApi } from "./api"
 
 export type RosterValidationIssueClient = {
   path: "name" | "submitterId" | "group"
   message: string
 }
 
-export function validateStudentAgainstRosterClient(
-  fullName: string,
-  studentId: string,
-  department: string | undefined
-): RosterValidationIssueClient | null {
-  if (rows.length === 0) return null
-  const sid = normId(studentId)
-  const nameIn = normName(fullName)
-  const deptIn = normDept(department)
+let registryEnabledCache: boolean | null = null
 
-  const byId = rows.filter((r) => normId(r.studentId) === sid)
-  if (byId.length === 0) {
-    return {
-      path: "submitterId",
-      message:
-        "This Student ID is not on the school enrollment list. Contact the registrar if you believe this is an error.",
-    }
+export async function fetchRegistryValidationEnabled(): Promise<boolean> {
+  if (registryEnabledCache !== null) return registryEnabledCache
+  try {
+    const res = await registryApi.status()
+    registryEnabledCache = res.enabled === true
+    return registryEnabledCache
+  } catch {
+    registryEnabledCache = false
+    return false
   }
-
-  const row = byId[0]
-  if (normName(row.fullName) !== nameIn) {
-    return {
-      path: "name",
-      message:
-        "Full name does not match the school record for this Student ID. Use your official name as on the class list.",
-    }
-  }
-
-  if (row.department && deptIn && !departmentsEquivalentForRoster(department, row.department)) {
-    return {
-      path: "group",
-      message: `Department must match the school record for this Student ID (recorded as "${row.department}" — labels like ICT and Information Technology are treated as the same).`,
-    }
-  }
-
-  if (row.department && !deptIn) {
-    return {
-      path: "group",
-      message: `Select the department on file for this Student ID (${row.department}).`,
-    }
-  }
-
-  return null
 }
 
-/** Live checks: same rules as server when roster JSON is non-empty. */
-export function getLiveRosterRegistrationIssues(
+/** @deprecated Use fetchRegistryValidationEnabled — kept for sync callers during transition. */
+export function rosterValidationEnabledClient(): boolean {
+  return registryEnabledCache === true
+}
+
+export async function validateMemberAgainstRegistryClient(
+  memberType: string,
+  fullName: string,
+  studentId: string,
+  department?: string
+): Promise<RosterValidationIssueClient | null> {
+  const enabled = await fetchRegistryValidationEnabled()
+  if (!enabled) return null
+  try {
+    const res = await registryApi.validate({
+      memberType,
+      fullName: fullName.trim(),
+      studentId: studentId.trim(),
+      department: department?.trim(),
+    })
+    if (res.ok) return null
+    const path = (res.path === "name" || res.path === "submitterId" || res.path === "group"
+      ? res.path
+      : "submitterId") as RosterValidationIssueClient["path"]
+    return { path, message: res.message || "Registry validation failed." }
+  } catch {
+    return null
+  }
+}
+
+type RolesOnly = { rolesConfig?: { key: string; isSubmitter?: boolean }[] }
+
+/** Live checks against the registry API (student and alumni). */
+export async function getLiveRosterRegistrationIssues(
   data: { role: string; name: string; submitterId?: string; group?: string },
-  settings: RolesOnly
-): Partial<Record<"name" | "submitterId" | "group", string>> {
-  const submitterKey = (settings.rolesConfig ?? []).find((r) => r.isSubmitter)?.key ?? "student"
-  if (data.role !== submitterKey) return {}
-  if (!rosterValidationEnabledClient()) return {}
+  _settings: RolesOnly
+): Promise<Partial<Record<"name" | "submitterId" | "group", string>>> {
+  if (data.role !== "student" && data.role !== "alumni") return {}
   const sid = data.submitterId?.trim()
   const name = data.name?.trim()
   if (!sid || !name) return {}
-  const issue = validateStudentAgainstRosterClient(name, sid, data.group?.trim())
+  const issue = await validateMemberAgainstRegistryClient(
+    data.role === "alumni" ? "alumni" : "student",
+    name,
+    sid,
+    data.group?.trim()
+  )
   if (!issue) return {}
   return { [issue.path]: issue.message }
 }

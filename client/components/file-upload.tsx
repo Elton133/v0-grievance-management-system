@@ -1,14 +1,19 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { X, Upload, File } from "lucide-react"
 import { toast } from "sonner"
+import Image from "next/image"
 
 interface FileUploadProps {
   onFilesChange: (files: File[]) => void
   selectedFiles: File[]
   disabled?: boolean
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith("image/")
 }
 
 export function FileUpload({
@@ -17,21 +22,32 @@ export function FileUpload({
   disabled = false,
 }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+
+  useEffect(() => {
+    const urls = selectedFiles.map((file) =>
+      isImageFile(file) ? URL.createObjectURL(file) : ""
+    )
+    setPreviewUrls(urls)
+    return () => {
+      urls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url)
+      })
+    }
+  }, [selectedFiles])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
 
-    // Validate file sizes
-    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+    const MAX_FILE_SIZE = 10 * 1024 * 1024
     const invalidFiles = files.filter((file) => file.size > MAX_FILE_SIZE)
-    
+
     if (invalidFiles.length > 0) {
       toast.error(`Some files exceed the 10MB limit`)
       return
     }
 
-    // Validate file types
     const allowedTypes = [
       "image/jpeg",
       "image/png",
@@ -43,7 +59,7 @@ export function FileUpload({
       "text/plain",
     ]
     const invalidTypes = files.filter((file) => !allowedTypes.includes(file.type))
-    
+
     if (invalidTypes.length > 0) {
       toast.error("Some files have unsupported types. Allowed: PDF, images, Word docs, text files")
       return
@@ -101,16 +117,24 @@ export function FileUpload({
             {selectedFiles.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-3 border rounded-lg bg-muted/50"
+                className="flex items-start gap-3 p-3 border rounded-lg bg-muted/50"
               >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </p>
+                {previewUrls[index] ? (
+                  <div className="relative h-16 w-16 flex-shrink-0 rounded overflow-hidden border bg-background">
+                    <Image
+                      src={previewUrls[index]}
+                      alt={file.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   </div>
+                ) : (
+                  <File className="h-8 w-8 text-muted-foreground flex-shrink-0 mt-1" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                 </div>
                 <Button
                   type="button"

@@ -2,11 +2,25 @@ import { z } from "zod"
 import { registrationPasswordSchema } from "./passwordPolicy"
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains"
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes"
-import { rosterValidationEnabled, validateStudentAgainstRoster } from "../utils/studentRoster"
 
-// Default valid roles
-const DEFAULT_ROLES = ["student", "advisor", "hod", "registrar"]
 const DEFAULT_ALLOWED_EMAIL_DOMAINS = ["st.rmu.edu.gh", "rmu.edu.gh"]
+
+/** Roles allowed on the public registration form (never staff roles). */
+function getPublicRegistrationRoleKeys(
+  rolesConfig?: Array<{ key: string; isSubmitter?: boolean }>
+): string[] {
+  const keys = new Set<string>(["student", "alumni"])
+  for (const r of rolesConfig ?? []) {
+    if (r.isSubmitter === true || r.key === "student") {
+      keys.add(r.key)
+    }
+  }
+  // Legacy tenants used "submitter" as the student role key
+  if (rolesConfig?.some((r) => r.key === "submitter" && r.isSubmitter)) {
+    keys.add("submitter")
+  }
+  return Array.from(keys)
+}
 
 // Index number validation based on group
 const validateIndexNumber = (indexNumber: string, group: string, prefixes: Record<string, string[]>): boolean => {
@@ -29,16 +43,17 @@ export const createRegistrationSchema = (tenantSettings?: {
 }) => {
   const emailDomains = normalizeAllowedEmailDomains(tenantSettings?.allowedEmailDomains)
 
-  const validRoles = tenantSettings?.roles?.length
-    ? tenantSettings.roles
-    : DEFAULT_ROLES
+  const rolesConfig = tenantSettings?.rolesConfig
+  const validRoles = getPublicRegistrationRoleKeys(rolesConfig)
 
-  const submitterRole = tenantSettings?.submitterRoleKey || "student"
+  const submitterRole =
+    rolesConfig?.find((r) => r.key === "student")?.key ??
+    rolesConfig?.find((r) => r.isSubmitter)?.key ??
+    tenantSettings?.submitterRoleKey ??
+    "student"
 
   const deptPrefixes = effectiveGroupPrefixes(tenantSettings?.groupPrefixes)
   const allowedDepartments = Object.keys(deptPrefixes)
-
-  const rolesConfig = tenantSettings?.rolesConfig
 
   /** Staff need a department (`group`) unless explicitly not department-scoped (e.g. registrar). Undefined groupScoped = required. */
   const staffRoleRequiresGroup = (role: string): boolean => {
@@ -72,10 +87,13 @@ export const createRegistrationSchema = (tenantSettings?: {
       )
     : z.string().email("Invalid email format")
 
+  const isMemberRole = (role: string) =>
+    role === "student" || role === submitterRole
+
   return z
     .object({
       name: z.string().min(2, "Name must be at least 2 characters"),
-      email: emailSchema,
+      email: z.string().email("Invalid email format"),
       password: registrationPasswordSchema,
       role: z.string().refine((val) => validRoles.includes(val), {
         message: `Role must be one of: ${validRoles.join(", ")}`,
@@ -83,27 +101,39 @@ export const createRegistrationSchema = (tenantSettings?: {
       submitterId: z.string().optional(),
       group: z.string().optional(),
     })
+    .superRefine((data, ctx) => {
+      // Alumni have graduated and use personal emails — skip domain restriction
+      if (data.role === "alumni") return
+      if (normalizedDomains.length === 0) return
+      if (!normalizedDomains.some((domain) => hostMatchesAllowedDomain(data.email, domain))) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Email must be from one of: ${normalizedDomains.join(", ")}`,
+          path: ["email"],
+        })
+      }
+    })
     .refine(
       (data) => {
-        if (data.role === submitterRole) {
+        if (isMemberRole(data.role)) {
           return !!data.submitterId && data.submitterId.trim().length > 0
         }
         return true
       },
       {
-        message: "Student ID is required for students",
+        message: "ID is required",
         path: ["submitterId"],
       }
     )
     .refine(
       (data) => {
-        if (data.role === submitterRole) {
+        if (isMemberRole(data.role)) {
           return !!data.group && data.group.trim().length > 0
         }
         return true
       },
       {
-        message: "Department is required for submitters",
+        message: "Department is required",
         path: ["group"],
       }
     )
@@ -134,7 +164,8 @@ export const createRegistrationSchema = (tenantSettings?: {
       }
     )
     .superRefine((data, ctx) => {
-      if (data.role === submitterRole && data.submitterId && data.group) {
+      // Alumni mapping uses the student branch
+      if (isMemberRole(data.role) && data.submitterId && data.group) {
         if (!validateIndexNumber(data.submitterId, data.group, deptPrefixes)) {
           const prefixes = deptPrefixes[data.group] || []
           if (prefixes.length > 0) {
@@ -147,20 +178,8 @@ export const createRegistrationSchema = (tenantSettings?: {
         }
       }
     })
-    .superRefine((data, ctx) => {
-      if (data.role !== submitterRole || !rosterValidationEnabled()) return
-      const sid = data.submitterId?.trim()
-      if (!sid) return
-      const issue = validateStudentAgainstRoster(data.name.trim(), sid, data.group?.trim())
-      if (issue) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: issue.message,
-          path: [issue.path],
-        })
-      }
-    })
 }
+
 
 // Default registration schema (backward compatible)
 export const registrationSchema = createRegistrationSchema()

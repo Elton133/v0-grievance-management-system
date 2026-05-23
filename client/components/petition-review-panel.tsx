@@ -74,10 +74,16 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
       return
     }
 
+    let finalComment = trimmed
+    if (action.id.startsWith("fwd-registrar-")) {
+      const prefix = `HOD Recommendation: ${action.label}`
+      finalComment = trimmed ? `${prefix}\n\n${trimmed}` : prefix
+    }
+
     setIsSubmitting(true)
     setPendingAction(action.id)
     try {
-      const ok = await updateTicketStatus(ticket.id, action.status, trimmed || undefined)
+      const ok = await updateTicketStatus(ticket.id, action.status, finalComment || undefined)
       if (!ok) {
         toast.error("Could not update petition")
         return
@@ -99,7 +105,7 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
     }
   }
 
-  const primaryForward = actions.find((a) => a.id.startsWith("fwd"))
+  const forwardActions = actions.filter((a) => a.id.startsWith("fwd"))
   const registrarActions = actions.filter((a) => a.id === "resolve" || a.id === "reject")
 
   return (
@@ -111,7 +117,7 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
         </CardTitle>
         {!guide.readOnlyNote && (
           <CardDescription>
-            Only one forward action per stage. Write your comment, then use the button below.
+            Only one action per stage. Write an optional comment, then use the buttons below.
           </CardDescription>
         )}
       </CardHeader>
@@ -160,10 +166,10 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
             <div className="space-y-2">
               <label htmlFor="review-comment" className="text-sm font-medium">
                 {userRole === "registrar" ? "Your note" : "Your comment"}{" "}
-                {primaryForward || registrarActions.some((a) => a.requiresComment) ? (
+                {forwardActions.some((a) => a.requiresComment) || registrarActions.some((a) => a.requiresComment) ? (
                   <span className="text-destructive">*</span>
                 ) : (
-                  <span className="text-muted-foreground font-normal">(optional for approval)</span>
+                  <span className="text-muted-foreground font-normal">(optional)</span>
                 )}
               </label>
               <Textarea
@@ -180,23 +186,31 @@ export function PetitionReviewPanel({ ticket, userRole, onUpdated }: PetitionRev
               />
             </div>
 
-            {primaryForward && (
+            {forwardActions.length > 0 && (
               <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 space-y-3">
                 <p className="text-sm font-medium text-foreground">Ready to send onward?</p>
-                <p className="text-xs text-muted-foreground">{primaryForward.description}</p>
-                <Button
-                  type="button"
-                  className="w-full sm:w-auto"
-                  disabled={isSubmitting}
-                  onClick={() => void runAction(primaryForward)}
-                >
-                  {isSubmitting && pendingAction === primaryForward.id ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                  )}
-                  {primaryForward.label}
-                </Button>
+                {forwardActions.length === 1 && (
+                  <p className="text-xs text-muted-foreground">{forwardActions[0].description}</p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {forwardActions.map((action) => (
+                    <Button
+                      key={action.id}
+                      type="button"
+                      variant={action.variant ?? "default"}
+                      className="flex-1"
+                      disabled={isSubmitting}
+                      onClick={() => void runAction(action)}
+                    >
+                      {isSubmitting && pendingAction === action.id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                      )}
+                      {action.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
 

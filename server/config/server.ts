@@ -6,6 +6,8 @@ import ticketRoutes from "./routes/ticketRoutes";
 import settingsRoutes from "./routes/settingsRoutes";
 import auditRoutes from "./routes/auditRoutes";
 import usersRoutes from "./routes/usersRoutes";
+import registryRoutes from "./routes/registryRoutes";
+import advisorAssignmentRoutes from "./routes/advisorAssignmentRoutes";
 import v1TicketRoutes from "./routes/v1/ticketRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
 import { requireApiToken } from "./middleware/apiAuthMiddleware";
@@ -27,6 +29,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes); // Internal React App Routes
 app.use("/api/settings", settingsRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/registry", registryRoutes);
+app.use("/api/advisor-assignments", advisorAssignmentRoutes);
 app.use("/api/audit-logs", auditRoutes);
 
 // External Developer APIs (v1)
@@ -42,13 +46,12 @@ app.get("/api/email/status", (req: express.Request, res: express.Response) => {
   const config = checkEmailConfiguration();
   res.json({
     configured: config.isConfigured,
-    host: config.smtpHost,
-    port: config.smtpPort,
-    user: config.smtpUser || null,
-    from: config.smtpFrom || null,
+    provider: config.provider,
+    providerKey: config.providerKey,
+    from: config.from,
     message: config.isConfigured
-      ? "Email service is configured"
-      : "Email service is not configured. Set SMTP_USER and SMTP_PASS environment variables.",
+      ? `Email service is configured (${config.provider})`
+      : "Email is not configured. Set EMAIL_PROVIDER and credentials in server .env (see .env.example — Brevo recommended for demos).",
   });
 });
 
