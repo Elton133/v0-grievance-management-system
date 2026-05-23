@@ -7,14 +7,12 @@
  * name matching when prefix alone is not enough.
  */
 export const DEFAULT_RMU_GROUP_PREFIXES: Record<string, string[]> = {
-  "Information Technology": ["BIT", "DIT", "BCS"],
-  "Nautical Science Department": ["BNS", "DNS", "GPR"],
-  "Marine Engineering Department": ["BME", "DME", "BOC", "BNA"],
-  "Mechanical Engineering": ["BSME", "BSMEC"],
-  "Computer Engineering": ["BEE", "DEE", "BCE"],
+  ICT: ["BIT", "DIT", "BCS"],
+  "Marine Engineering": ["BME", "DME", "BOC", "BNA"],
+  "Electrical Engineering": ["BEE", "DEE", "BCE"],
   "Department of Transport": ["BLG", "BPS", "DPS"],
-  "Postgraduate Programmes": ["MSC", "MEV", "MSE", "MCM"],
-  "Vocational Programmes": ["VOC", "MEM", "SCW", "RAC", "WLD", "PIA"],
+  "Graduate School": ["MSC", "MEV", "MSE", "MCM"],
+  "Nautical Science Department": ["BNS", "DNS", "GPR"],
 }
 
 export function normalizeGroupPrefixesJson(value: unknown): Record<string, string[]> {

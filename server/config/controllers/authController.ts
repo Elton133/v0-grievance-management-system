@@ -8,17 +8,22 @@ import prisma from "../db";
 import { createRegistrationSchema } from "../validation/registrationSchema";
 import { registrationPasswordSchema } from "../validation/passwordPolicy";
 import { sanitizeInput } from "../utils/sanitize";
-import { sendEmail, emailTemplates, isEmailSendingConfigured } from "../utils/emailService";
+import {
+  sendEmail,
+  sendVerificationEmail,
+  emailTemplates,
+  isEmailSendingConfigured,
+} from "../utils/emailService";
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
+import { validateAgainstRegistry } from "../utils/registryService";
 
 type PublicRoleConfig = { key: string; isSubmitter?: boolean; groupScoped?: boolean };
 
 function isPublicRegistrableRole(role: PublicRoleConfig): boolean {
   const key = role.key.toLowerCase();
-  if (key.includes("registrar") || key.includes("admin")) return false;
-  return role.isSubmitter === true || role.groupScoped !== false;
+  return key === "student" || key === "alumni" || key === "submitter" || role.isSubmitter === true;
 }
 
 export const registerUser = async (req: Request, res: Response) => {
@@ -28,14 +33,20 @@ export const registerUser = async (req: Request, res: Response) => {
     try {
       const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
       if (settings) {
-        const roles = (settings.rolesConfig as Array<{ key: string }>) || [];
-        const submitterRole = (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean }>)?.find(r => r.isSubmitter);
+        const rolesConfig =
+          (settings.rolesConfig as Array<{
+            key: string
+            isSubmitter?: boolean
+            groupScoped?: boolean
+          }>) || [];
+        const submitterRole =
+          rolesConfig.find((r) => r.key === "student") ??
+          rolesConfig.find((r) => r.isSubmitter);
         tenantConfig = {
           allowedEmailDomains: normalizeAllowedEmailDomains(settings.allowedEmailDomains),
-          roles: roles.map(r => r.key),
           groupPrefixes: effectiveGroupPrefixes(settings.groupPrefixes),
           submitterRoleKey: submitterRole?.key || "student",
-          rolesConfig: (settings.rolesConfig as Array<{ key: string; isSubmitter?: boolean; groupScoped?: boolean }>) || [],
+          rolesConfig,
         };
       }
     } catch {
@@ -60,6 +71,22 @@ export const registerUser = async (req: Request, res: Response) => {
 
     const { name, email, password, role, submitterId, group } = validationResult.data;
 
+    if (role === "student" || role === "alumni") {
+      const memberType = role === "alumni" ? "alumni" : "student";
+      const rosterCheck = await validateAgainstRegistry(
+        memberType,
+        name.trim(),
+        submitterId ?? "",
+        group
+      );
+      if (!rosterCheck.ok) {
+        return res.status(400).json({
+          msg: "Validation failed",
+          errors: [{ field: rosterCheck.path, message: rosterCheck.message }],
+        });
+      }
+    }
+
     const configuredRoles: PublicRoleConfig[] =
       tenantConfig?.rolesConfig?.length
         ? tenantConfig.rolesConfig
@@ -70,13 +97,30 @@ export const registerUser = async (req: Request, res: Response) => {
             { key: "registrar", groupScoped: false },
           ];
     const publicRoleKeys = configuredRoles.filter(isPublicRegistrableRole).map((r) => r.key);
+    // Treat "student" and "submitter" as equivalent (rename-script migration compat)
+    if (publicRoleKeys.includes("submitter") && !publicRoleKeys.includes("student")) {
+      publicRoleKeys.push("student");
+    }
+    if (publicRoleKeys.includes("student") && !publicRoleKeys.includes("submitter")) {
+      publicRoleKeys.push("submitter");
+    }
+    // Alumni are a public-registration variant of student — always allowed alongside student
+    if (publicRoleKeys.includes("student") && !publicRoleKeys.includes("alumni")) {
+      publicRoleKeys.push("alumni");
+    }
+    console.log("[Auth] Registration role check:", {
+      incomingRole: role,
+      publicRoleKeys,
+      configuredRoleKeys: configuredRoles.map((r) => r.key),
+      hasTenantConfig: !!tenantConfig?.rolesConfig?.length,
+    });
     if (!publicRoleKeys.includes(role)) {
       return res.status(403).json({
         msg: "This role cannot be created from public registration",
         errors: [
           {
             field: "role",
-            message: "Registrar accounts must be created by a registrar in Settings → Staff Accounts.",
+            message: "This role must be created by a system administrator in Settings → Staff Accounts.",
           },
         ],
       });
@@ -101,6 +145,7 @@ export const registerUser = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const roleToSave = (role === "submitter" || role === "alumni") ? "student" : role;
 
     // Generate email verification token (32 bytes = 64 hex characters)
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
@@ -112,7 +157,7 @@ export const registerUser = async (req: Request, res: Response) => {
         name: sanitizeInput(name),
         email: email.toLowerCase().trim(),
         passwordHash: hashedPassword,
-        role,
+        role: roleToSave,
         submitterId: submitterIdNormalized ?? undefined,
         group: group ? sanitizeInput(group) : undefined,
         emailVerified: false, // Email verification disabled until email service is configured
@@ -121,20 +166,21 @@ export const registerUser = async (req: Request, res: Response) => {
       },
     });
 
-    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken, user.email);
     const mailReady = isEmailSendingConfigured();
     let verificationEmailSent = false;
+
     if (mailReady) {
-      verificationEmailSent = await sendEmail({
-        to: user.email,
-        subject: emailTemplate.subject,
-        html: emailTemplate.html,
-      });
-      if (!verificationEmailSent) {
-        console.error(
-          "[Auth] Verification email failed after registration — check server logs (Resend domain / SMTP credentials)."
-        );
-      }
+      // Respond quickly; send in background so a slow SMTP handshake does not fail registration.
+      void sendVerificationEmail(user.name, user.email, emailVerificationToken)
+        .then((sent) => {
+          if (!sent) {
+            console.error(
+              `[Auth] Verification email failed for ${user.email} — check MAIL_FROM (verified in Brevo), spam folder, or use Resend on login page.`
+            );
+          }
+        })
+        .catch((err) => console.error("[Auth] Verification email error:", err));
+      verificationEmailSent = true; // queued — user should check inbox; login has resend if missing
     }
 
     // Auto-verify when mail is not configured (local demo)
@@ -148,14 +194,10 @@ export const registerUser = async (req: Request, res: Response) => {
     }
 
     res.status(201).json({
-      msg: "User registered",
+      msg: mailReady
+        ? "Account created. Check your inbox (and spam) for the verification link."
+        : "User registered",
       verificationEmailSent: mailReady ? verificationEmailSent : undefined,
-      ...(mailReady && !verificationEmailSent
-        ? {
-            warning:
-              "Account created but the verification email could not be sent. Fix Resend/SMTP in .env, then use “Resend verification” on the login page.",
-          }
-        : {}),
       user: {
         id: user.id,
         name: user.name,
@@ -309,13 +351,7 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
       },
     });
 
-    // Send verification email — await so client can show a real error if mail is not configured
-    const emailTemplate = await emailTemplates.emailVerification(user.name, emailVerificationToken, user.email);
-    const sent = await sendEmail({
-      to: user.email,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-    });
+    const sent = await sendVerificationEmail(user.name, user.email, emailVerificationToken);
     if (!sent) {
       return res.status(503).json({
         msg: "Could not send email. Check Resend/SMTP configuration on the server, then try again.",

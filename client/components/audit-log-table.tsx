@@ -1,14 +1,34 @@
+import { useMemo, useState } from "react"
 import type { AuditLog } from "@/lib/analytics-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { FileText, User, Settings, ArrowRight, CheckCircle, XCircle } from "lucide-react"
+import { formatDateTimeDDMMYYYY } from "@/lib/date-format"
 
 interface AuditLogTableProps {
   logs: AuditLog[]
   title?: string
   description?: string
+  showFilters?: boolean
+}
+
+function formatAuditLabel(action: string): string {
+  return action
+    .replace(/_/g, " ")
+    .replace(/\./g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 const actionIcons: Record<string, typeof FileText> = {
@@ -43,7 +63,37 @@ export function AuditLogTable({
   logs,
   title = "Audit Log",
   description = "System activity and changes",
+  showFilters = false,
 }: AuditLogTableProps) {
+  const [actionFilter, setActionFilter] = useState<string>("all")
+  const [roleFilter, setRoleFilter] = useState<string>("all")
+  const [search, setSearch] = useState("")
+
+  const actionOptions = useMemo(
+    () => Array.from(new Set(logs.map((l) => l.action))).sort(),
+    [logs]
+  )
+  const roleOptions = useMemo(
+    () => Array.from(new Set(logs.map((l) => l.userRole))).sort(),
+    [logs]
+  )
+
+  const filtered = useMemo(() => {
+    return logs.filter((log) => {
+      if (actionFilter !== "all" && log.action !== actionFilter) return false
+      if (roleFilter !== "all" && log.userRole !== roleFilter) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return (
+          log.details.toLowerCase().includes(q) ||
+          log.userId.toLowerCase().includes(q) ||
+          formatAuditLabel(log.action).toLowerCase().includes(q)
+        )
+      }
+      return true
+    })
+  }, [logs, actionFilter, roleFilter, search])
+
   return (
     <Card>
       <CardHeader>
@@ -51,6 +101,34 @@ export function AuditLogTable({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
+        {showFilters && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Input
+              placeholder="Search details..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-xs"
+            />
+            <Select value={actionFilter} onValueChange={setActionFilter}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Action" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actions</SelectItem>
+                {actionOptions.map((a) => (
+                  <SelectItem key={a} value={a}>{formatAuditLabel(a)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Role" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                {roleOptions.map((r) => (
+                  <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <ScrollArea className="h-96">
           <Table>
             <TableHeader>
@@ -71,7 +149,7 @@ export function AuditLogTable({
                   </TableCell>
                 </TableRow>
               )}
-              {logs.map((log) => {
+              {filtered.map((log) => {
                 const ActionIcon = actionIcons[log.action as keyof typeof actionIcons] || Settings
                 const actionColor = actionColors[log.action as keyof typeof actionColors] || "bg-gray-100 text-gray-800"
 
@@ -79,10 +157,7 @@ export function AuditLogTable({
                   <TableRow key={log.id}>
                     <TableCell className="font-mono text-sm">
                       <div>
-                        <div>{log.timestamp.toLocaleDateString()}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {log.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </div>
+                        <div>{formatDateTimeDDMMYYYY(log.timestamp)}</div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -96,7 +171,7 @@ export function AuditLogTable({
                     <TableCell>
                       <Badge className={actionColor} variant="outline">
                         <ActionIcon className="mr-1 h-3 w-3" />
-                        {log.action.replace(/_/g, " ")}
+                        {formatAuditLabel(log.action)}
                       </Badge>
                     </TableCell>
                     <TableCell className="max-w-xs">

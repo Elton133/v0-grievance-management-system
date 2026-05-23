@@ -3,9 +3,11 @@
 import { useState, useMemo, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
+import { isSystemAdminRole, isPetitionReviewerRole } from "@/lib/role-utils"
 import { getTicketsBySubmitter, getTickets, type Ticket } from "@/lib/ticket-store"
 import type { TicketStatus, TicketType } from "@/lib/types"
-import { TicketCard } from "@/components/ticket-card"
+import { StudentPetitionsTable } from "@/components/student-petitions-table"
+import { AdminTicketCard } from "@/components/admin-ticket-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -34,7 +36,7 @@ export default function DashboardPage() {
     hasNext: false,
     hasPrev: false,
   })
-  const itemsPerPage = 12
+  const itemsPerPage = 10
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -128,26 +130,53 @@ export default function DashboardPage() {
   }
 
   if (!isSubmitterRole(user.role)) {
-    return (
-      <>
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Administrative Access
-            </CardTitle>
-            <CardDescription>
-              You have administrative privileges. Access the admin portal to manage petitions in your department.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/admin">Go to Admin Portal</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </>
-    )
+    if (isSystemAdminRole(user.role)) {
+      return (
+        <>
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                System administration
+              </CardTitle>
+              <CardDescription>
+                Manage organization settings, staff accounts, analytics, and developer tools. Petition review is handled by advisors, HODs, and the registrar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button asChild className="w-full">
+                <Link href="/settings">Open Settings</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/analytics">View Analytics</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      )
+    }
+    if (isPetitionReviewerRole(user.role, settings.rolesConfig)) {
+      return (
+        <>
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Staff portal
+              </CardTitle>
+              <CardDescription>
+                Review and manage petitions in your queue from the staff dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/admin">Go to petition queue</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      )
+    }
   }
 
   return (
@@ -292,11 +321,15 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-              {paginatedTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} />
-              ))}
-            </div>
+            {isSubmitterRole(user.role) ? (
+              <StudentPetitionsTable tickets={paginatedTickets} />
+            ) : (
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {paginatedTickets.map((ticket) => (
+                  <AdminTicketCard key={ticket.id} ticket={ticket} userRole={user.role} />
+                ))}
+              </div>
+            )}
             {filteredPagination.totalPages > 1 && (
               <Pagination
                 page={filteredPagination.page}

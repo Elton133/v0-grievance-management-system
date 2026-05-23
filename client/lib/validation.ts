@@ -2,7 +2,6 @@ import { z } from "zod"
 import { registrationPasswordSchema } from "./password-policy"
 import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
 import { effectiveGroupPrefixes, DEFAULT_RMU_GROUP_PREFIXES } from "./rmu-departments"
-import { rosterValidationEnabledClient, validateStudentAgainstRosterClient } from "./studentRosterClient"
 
 export { DEFAULT_RMU_GROUP_PREFIXES as DEPARTMENT_INDEX_PREFIXES }
 
@@ -50,7 +49,7 @@ export function getLiveStudentIdPrefixError(
   settings: RegistrationFormSettings
 ): string | undefined {
   const submitterKey = getSubmitterRoleKey(settings)
-  if (data.role !== submitterKey) return undefined
+  if (!isMemberRole(data.role, submitterKey)) return undefined
   const g = data.group?.trim()
   const sid = data.submitterId?.trim()
   if (!g || !sid) return undefined
@@ -69,18 +68,22 @@ function hostMatchesAllowedDomain(email: string, domain: string): boolean {
   return host === d || host.endsWith(`.${d}`)
 }
 
-function buildEmailSchema(settings: RegistrationFormSettings) {
+function buildEmailSchema(settings: RegistrationFormSettings, role?: string) {
+  const base = z.string().email("Invalid email format")
+  const submitterKey = getSubmitterRoleKey(settings)
+  if (role !== "student" && role !== submitterKey) return base
   const normalizedRaw = normalizeAllowedEmailDomains(settings.allowedEmailDomains)
   const normalized = normalizedRaw.length > 0 ? normalizedRaw : DEFAULT_ALLOWED_EMAIL_DOMAINS
-  return z
-    .string()
-    .email("Invalid email format")
-    .refine(
-      (email) => normalized.some((domain) => hostMatchesAllowedDomain(email, domain)),
-      {
-        message: `Email must be from: ${normalized.join(", ")}`,
-      }
-    )
+  return base.refine(
+    (email) => normalized.some((domain) => hostMatchesAllowedDomain(email, domain)),
+    {
+      message: `Email must be from: ${normalized.join(", ")}`,
+    }
+  )
+}
+
+function isMemberRole(role: string, submitterKey: string): boolean {
+  return role === "student" || role === submitterKey
 }
 
 type RegistrationRolesContext = Pick<RegistrationFormSettings, "rolesConfig">
@@ -97,7 +100,7 @@ function getSubmitterRoleKey(settings: RegistrationRolesContext): string {
 export function registrationRoleRequiresGroup(role: string, settings: RegistrationRolesContext): boolean {
   const roles = settings.rolesConfig ?? []
   const submitterKey = getSubmitterRoleKey(settings)
-  if (role === submitterKey) return true
+  if (role === "student" || role === submitterKey) return true
   const rc = roles.find((r) => r.key === role)
   if (rc !== undefined) return rc.groupScoped !== false
   if (role === "registrar") return false
@@ -107,26 +110,37 @@ export function registrationRoleRequiresGroup(role: string, settings: Registrati
 /** Registration form validation aligned with server `createRegistrationSchema`. */
 export function createRegistrationFormSchema(settings: RegistrationFormSettings) {
   const submitterKey = getSubmitterRoleKey(settings)
-  const emailSchema = buildEmailSchema(settings)
   const allowedDepartments = Object.keys(effectiveGroupPrefixes(settings.groupPrefixes ?? null))
 
   return z
     .object({
       name: z.string().min(2, "Name must be at least 2 characters"),
-      email: emailSchema,
+      email: z.string().email("Invalid email format"),
       password: registrationPasswordSchema,
       confirmPassword: z.string(),
       role: z.string(),
       submitterId: z.string().optional(),
       group: z.string().optional(),
     })
+    .superRefine((data, ctx) => {
+      // Removed alumni check
+      const emailSchema = buildEmailSchema(settings, data.role)
+      const r = emailSchema.safeParse(data.email)
+      if (!r.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: r.error.errors[0]?.message ?? "Invalid email",
+          path: ["email"],
+        })
+      }
+    })
     .refine(
       (data) => {
-        if (data.role !== submitterKey) return true
+        if (!isMemberRole(data.role, submitterKey)) return true
         return !!data.submitterId && data.submitterId.trim().length > 0
       },
       {
-        message: "Student ID is required for students",
+        message: "ID is required",
         path: ["submitterId"],
       }
     )
@@ -158,7 +172,8 @@ export function createRegistrationFormSchema(settings: RegistrationFormSettings)
       path: ["confirmPassword"],
     })
     .superRefine((data, ctx) => {
-      if (data.role !== submitterKey) return
+      // Removed alumni check
+      if (!isMemberRole(data.role, submitterKey)) return
       const sid = data.submitterId?.trim()
       const g = data.group?.trim()
       if (!sid || !g) return
@@ -170,19 +185,6 @@ export function createRegistrationFormSchema(settings: RegistrationFormSettings)
           code: z.ZodIssueCode.custom,
           message: `Student ID must start with one of: ${prefixes.join(", ")} for ${g}`,
           path: ["submitterId"],
-        })
-      }
-    })
-    .superRefine((data, ctx) => {
-      if (data.role !== submitterKey || !rosterValidationEnabledClient()) return
-      const sid = data.submitterId?.trim()
-      if (!sid) return
-      const issue = validateStudentAgainstRosterClient(data.name.trim(), sid, data.group?.trim())
-      if (issue) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: issue.message,
-          path: [issue.path],
         })
       }
     })

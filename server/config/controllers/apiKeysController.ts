@@ -2,7 +2,7 @@ import { Response } from "express"
 import prisma from "../db"
 import { AuthRequest } from "../middleware/auth"
 import { nanoid } from "nanoid"
-import { isSchoolBuild, schoolBuildDeveloperForbidden } from "../utils/schoolBuild"
+import { schoolBuildBlocksRequest, schoolBuildDeveloperForbidden } from "../utils/schoolBuild"
 
 /**
  * GET /api/settings/keys
@@ -10,7 +10,7 @@ import { isSchoolBuild, schoolBuildDeveloperForbidden } from "../utils/schoolBui
  */
 export const getApiKeys = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {
@@ -42,7 +42,7 @@ export const getApiKeys = async (req: AuthRequest, res: Response) => {
  */
 export const createApiKey = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {
@@ -89,7 +89,7 @@ export const createApiKey = async (req: AuthRequest, res: Response) => {
  */
 export const deleteApiKey = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildDeveloperForbidden(res)
     }
     if (!req.user) {

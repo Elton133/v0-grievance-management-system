@@ -1,6 +1,7 @@
 import type { Ticket } from "@/lib/types"
 import type { RoleConfig, TenantSettings } from "@/lib/settings-context"
 import { WORKFLOW_STATUS_KEYS } from "@/lib/timeline-utils"
+import { getWorkflowReviewerRoles, isSystemAdminRole } from "@/lib/role-utils"
 
 export type ReviewAction = {
   id: string
@@ -19,9 +20,7 @@ export type ReviewGuide = {
 }
 
 export function getReviewers(rolesConfig: RoleConfig[] | undefined) {
-  return (rolesConfig ?? [])
-    .filter((r) => !r.isSubmitter && Number(r.level) > 0)
-    .sort((a, b) => Number(a.level) - Number(b.level))
+  return getWorkflowReviewerRoles(rolesConfig)
 }
 
 /** True when workflow includes a middle HOD step (advisor → HOD → registrar). */
@@ -34,6 +33,7 @@ export function getAdvisorForwardStatus(rolesConfig?: RoleConfig[]): string {
 }
 
 export function isStaffReviewerRole(userRole: string, rolesConfig?: RoleConfig[]): boolean {
+  if (isSystemAdminRole(userRole)) return false
   if (["advisor", "class_advisor", "hod", "registrar"].includes(userRole)) return true
   return getReviewers(rolesConfig).some((r) => r.key === userRole)
 }
@@ -134,12 +134,28 @@ export function getPetitionReviewActions(
   ) {
     return [
       {
-        id: "fwd-registrar",
-        label: `Forward to ${regLabel}`,
+        id: "fwd-registrar-approve",
+        label: "Approved",
         status: "forwarded_to_registrar",
-        requiresComment: true,
+        requiresComment: false,
         variant: "default",
-        description: `Sends your comment to the ${regLabel} for a final decision. You cannot approve or reject at this stage.`,
+        description: "Recommends approval to the Registrar.",
+      },
+      {
+        id: "fwd-registrar-reject",
+        label: "Not Approved",
+        status: "forwarded_to_registrar",
+        requiresComment: false,
+        variant: "destructive",
+        description: "Recommends rejection to the Registrar.",
+      },
+      {
+        id: "fwd-registrar-further",
+        label: "Further Action",
+        status: "forwarded_to_registrar",
+        requiresComment: false,
+        variant: "outline",
+        description: "Recommends further action to the Registrar.",
       },
     ]
   }
@@ -203,23 +219,19 @@ export function getPetitionReviewGuide(
         ],
       }
     }
-    if (actions[0].id === "fwd-registrar" && userRole === "hod") {
+    if (actions.some(a => a.id.startsWith("fwd-registrar")) && userRole === "hod") {
       return {
         title: `Your turn — ${hodLabel} review`,
         steps: [
           "Read the advisor’s comments and the petition details.",
-          `Write your comment (required) for the ${regLabel} and student.`,
-          `Click “${actions[0].label}” when you are done. You cannot approve or reject — only the ${regLabel} can close the petition.`,
+          `Select a recommendation (Approved, Not Approved, or Further Action) to forward to the ${regLabel}.`,
+          `You cannot approve or reject — only the ${regLabel} can close the petition.`,
         ],
       }
     }
     return {
       title: `Your turn — ${regLabel} decision`,
-      steps: [
-        "Read all advisor and HOD comments below.",
-        "Add a note if helpful (required only when rejecting).",
-        "Choose Approve & resolve or Reject petition.",
-      ],
+      steps: [],
     }
   }
 

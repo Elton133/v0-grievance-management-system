@@ -1,5 +1,12 @@
 import nodemailer from "nodemailer";
-import { sendEmailViaResend, isResendConfigured } from "./resendService";
+import { sendEmailViaResend } from "./resendService";
+import {
+  getActiveEmailProvider,
+  getEmailConfigurationSummary,
+  getMailFromAddress,
+  getSmtpTransportConfig,
+  isEmailSendingConfigured,
+} from "./emailProvider";
 import prisma from "../db";
 import {
   type EmailBranding,
@@ -15,11 +22,7 @@ import {
   getStudentPetitionUpdateCopy,
 } from "./workflowLabels";
 
-/** True when the app can attempt to send mail (Resend API key or full SMTP credentials). */
-export function isEmailSendingConfigured(): boolean {
-  if (isResendConfigured()) return true;
-  return !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS);
-}
+export { isEmailSendingConfigured } from "./emailProvider";
 
 // Cache settings to avoid DB query on every email
 let cachedSettings: {
@@ -77,32 +80,64 @@ const getTenantBranding = async (): Promise<EmailBranding> => {
   };
 };
 
-// Email service configuration
-const createTransporter = () => {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587");
-  const isSecure = port === 465;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+import type nodemailerType from "nodemailer";
 
-  if (!user || !pass) {
-    throw new Error("SMTP_USER and SMTP_PASS environment variables are required");
+let cachedSmtpTransporter: nodemailerType.Transporter | null = null;
+let cachedSmtpProviderKey: string | null = null;
+
+function resetSmtpTransporter(): void {
+  if (cachedSmtpTransporter) {
+    try {
+      cachedSmtpTransporter.close();
+    } catch {
+      /* ignore */
+    }
+    cachedSmtpTransporter = null;
+    cachedSmtpProviderKey = null;
+  }
+}
+
+function getSmtpTransporter(): nodemailerType.Transporter {
+  const provider = getActiveEmailProvider();
+  if (!provider || provider === "resend") {
+    throw new Error("SMTP transport is not configured for the active EMAIL_PROVIDER");
   }
 
-  if (host.includes("gmail.com")) {
-    return nodemailer.createTransport({
+  if (cachedSmtpTransporter && cachedSmtpProviderKey === provider) {
+    return cachedSmtpTransporter;
+  }
+
+  resetSmtpTransporter();
+
+  const cfg = getSmtpTransportConfig();
+  if (!cfg) {
+    throw new Error("SMTP transport is not configured for the active EMAIL_PROVIDER");
+  }
+
+  if (cfg.host.includes("gmail.com")) {
+    cachedSmtpTransporter = nodemailer.createTransport({
       service: "gmail",
-      auth: { user, pass },
+      pool: true,
+      maxConnections: 1,
+      auth: cfg.auth,
+    });
+  } else {
+    cachedSmtpTransporter = nodemailer.createTransport({
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+      auth: cfg.auth,
+      pool: true,
+      maxConnections: 1,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     });
   }
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: isSecure,
-    auth: { user, pass },
-  });
-};
+  cachedSmtpProviderKey = provider;
+  return cachedSmtpTransporter;
+}
 
 interface EmailOptions {
   to: string;
@@ -110,50 +145,96 @@ interface EmailOptions {
   html: string;
 }
 
-export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<boolean> => {
+const SMTP_SEND_TIMEOUT_MS = 20000;
+
+async function sendViaSmtpOnce(
+  provider: string,
+  to: string,
+  subject: string,
+  html: string
+): Promise<boolean> {
   const startTime = Date.now();
-
-  // Prefer Resend if configured
-  if (isResendConfigured()) {
-    console.log(`[Email Service] Using Resend to send email to ${to}`);
-    const success = await sendEmailViaResend(to, subject, html);
-    if (success) {
-      const duration = Date.now() - startTime;
-      console.log(`[Email Service] ✅ Email sent via Resend (${duration}ms)`);
-      return true;
-    }
-    console.log(`[Email Service] ⚠️ Resend failed, falling back to SMTP`);
-  }
-
   try {
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
+    const transporter = getSmtpTransporter();
+    const fromAddress = getMailFromAddress();
 
-    if (!smtpUser || !smtpPass) {
-      console.error(`[Email Service] ❌ Neither Resend nor SMTP configured. Cannot send email to ${to}`);
-      return false;
-    }
+    console.log(`[Email Service] Using ${provider} (SMTP) → ${to}`);
 
-    const transporter = createTransporter();
-    const fromAddress = process.env.SMTP_FROM || `"Grievance Management System" <${smtpUser}>`;
-
-    const sendTimeout = 30000;
-    const info = await Promise.race([
+    const info = (await Promise.race([
       transporter.sendMail({ from: fromAddress, to, subject, html }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Email send timeout after ${sendTimeout}ms`)), sendTimeout)
-      )
-    ]) as any;
+        setTimeout(
+          () => reject(new Error(`Email send timeout after ${SMTP_SEND_TIMEOUT_MS}ms`)),
+          SMTP_SEND_TIMEOUT_MS
+        )
+      ),
+    ])) as { messageId?: string };
 
-    const duration = Date.now() - startTime;
-    console.log(`[Email Service] ✅ Email sent via SMTP (${duration}ms) - ID: ${info.messageId || "N/A"}`);
+    console.log(
+      `[Email Service] ✅ Sent via ${provider} (${Date.now() - startTime}ms) ID: ${info.messageId || "N/A"}`
+    );
     return true;
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`[Email Service] ❌ Error sending email (took ${duration}ms):`, error.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[Email Service] ❌ ${provider} error (${Date.now() - startTime}ms):`, msg);
+    if (msg.includes("timeout") || msg.includes("ETIMEDOUT") || msg.includes("ECONNRESET")) {
+      resetSmtpTransporter();
+    }
+    if (/sender|from|verified|authenticate/i.test(msg)) {
+      console.error(
+        "[Email Service] Tip: set MAIL_FROM to an address verified in Brevo → Senders (not the @smtp-brevo.com login)."
+      );
+    }
     return false;
   }
+}
+
+export const sendEmail = async (
+  { to, subject, html }: EmailOptions,
+  options?: { retries?: number }
+): Promise<boolean> => {
+  const provider = getActiveEmailProvider();
+  const retries = options?.retries ?? 0;
+
+  if (!provider) {
+    console.error(`[Email Service] ❌ No email provider configured. Cannot send to ${to}`);
+    return false;
+  }
+
+  if (provider === "resend") {
+    const startTime = Date.now();
+    console.log(`[Email Service] Using Resend → ${to}`);
+    const success = await sendEmailViaResend(to, subject, html);
+    if (success) {
+      console.log(`[Email Service] ✅ Sent via Resend (${Date.now() - startTime}ms)`);
+      return true;
+    }
+    console.error(`[Email Service] ❌ Resend failed for ${to}`);
+    return false;
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      console.log(`[Email Service] Retrying SMTP send to ${to} (attempt ${attempt + 1})`);
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    if (await sendViaSmtpOnce(provider, to, subject, html)) return true;
+  }
+  return false;
 };
+
+/** Send account verification email (retries once on SMTP timeout). */
+export async function sendVerificationEmail(
+  userName: string,
+  userEmail: string,
+  verificationToken: string
+): Promise<boolean> {
+  const template = await emailTemplates.emailVerification(userName, verificationToken, userEmail);
+  return sendEmail(
+    { to: userEmail, subject: template.subject, html: template.html },
+    { retries: 1 }
+  );
+}
 
 // Email templates — branded layout, fonts, logo (TenantSettings), HTML-escaped dynamic text
 export const emailTemplates = {
@@ -471,27 +552,18 @@ export const emailTemplates = {
  * Check email service configuration status
  */
 export const checkEmailConfiguration = () => {
-  const resendConfigured = isResendConfigured();
-  const smtpConfigured = !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
-
-  const config = {
-    provider: resendConfigured ? "Resend" : smtpConfigured ? "SMTP" : "None",
-    resendApiKey: process.env.RESEND_API_KEY ? "✅ SET" : "❌ NOT SET",
-    resendFromEmail: process.env.RESEND_FROM_EMAIL || "Using default",
-    smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
-    smtpPort: process.env.SMTP_PORT || "587",
-    smtpUser: process.env.SMTP_USER,
-    smtpPass: process.env.SMTP_PASS ? "***" : undefined,
-    smtpFrom: process.env.SMTP_FROM,
-    isConfigured: isEmailSendingConfigured(),
-  };
+  const config = getEmailConfigurationSummary();
 
   console.log("[Email Service] Configuration Status:");
-  console.log(`  Provider: ${config.provider}`);
-  if (resendConfigured) {
-    console.log(`  RESEND_API_KEY: ${config.resendApiKey}`);
-    console.log(`  RESEND_FROM_EMAIL: ${config.resendFromEmail}`);
+  console.log(`  Active provider: ${config.provider}`);
+  console.log(`  From: ${config.from}`);
+  if (config.explicitProvider) {
+    console.log(`  EMAIL_PROVIDER (explicit): ${config.explicitProvider}`);
   }
+  console.log(`  Brevo ready: ${config.brevo ? "yes" : "no"}`);
+  console.log(`  SendGrid ready: ${config.sendgrid ? "yes" : "no"}`);
+  console.log(`  SMTP ready: ${config.smtp ? "yes" : "no"}`);
+  console.log(`  Resend ready: ${config.resend ? "yes" : "no"}`);
   console.log(`  Status: ${config.isConfigured ? "✅ CONFIGURED" : "❌ NOT CONFIGURED"}`);
 
   return config;

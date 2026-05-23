@@ -23,9 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  BookUser,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { isSchoolBuild } from "@/lib/school-build"
+import { getStaffHomePath, isSystemAdminRole } from "@/lib/role-utils"
 
 interface NavItem {
   label: string
@@ -48,21 +49,13 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
   if (!user) return null
 
   const isSubmitter = isSubmitterRole(user.role)
-  // Match settings page: only the highest role level in tenant config (e.g. registrar), not every level ≥ 2
-  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => Number(r.level)) ?? []))
-  const canAccessOrgSettings =
-    !isSubmitter &&
-    Boolean(
-      user &&
-        settings?.rolesConfig?.some(
-          (r) => r.key === user.role && Number(r.level) === maxRoleLevel
-        )
-    )
+  const isAdmin = isSystemAdminRole(user.role)
+  const staffHome = getStaffHomePath(user.role, isSubmitterRole)
 
   const navItems: NavItem[] = [
     {
-      label: "Dashboard",
-      href: isSubmitter ? "/dashboard" : "/admin",
+      label: isAdmin ? "Overview" : "Dashboard",
+      href: staffHome,
       icon: <LayoutDashboard className="h-5 w-5" />,
     },
     ...(isSubmitter
@@ -83,8 +76,13 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
           },
         ]
       : []),
-    ...(canAccessOrgSettings && !isSchoolBuild()
+    ...(isAdmin
       ? [
+          {
+            label: "Registry",
+            href: "/settings/registry",
+            icon: <BookUser className="h-5 w-5" />,
+          },
           {
             label: "Settings",
             href: "/settings",
@@ -100,6 +98,15 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
   ]
 
   const isActive = (href: string) => {
+    if (href === "/settings/developer") {
+      return pathname.startsWith("/settings/developer")
+    }
+    if (href === "/settings/registry") {
+      return pathname.startsWith("/settings/registry")
+    }
+    if (href === "/settings") {
+      return pathname === "/settings"
+    }
     if (href === "/dashboard" || href === "/admin") {
       return pathname === href
     }

@@ -16,6 +16,7 @@ export function createStaffUserSchema(tenantSettings?: {
         { key: "advisor", groupScoped: true },
         { key: "hod", groupScoped: true },
         { key: "registrar", groupScoped: false },
+        { key: "admin", groupScoped: false },
       ]
 
   const staffRoleKeys = rolesConfig.filter((r) => r.isSubmitter !== true).map((r) => r.key)

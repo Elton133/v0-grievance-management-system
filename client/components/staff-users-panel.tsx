@@ -116,7 +116,7 @@ export function StaffUsersPanel() {
       <div>
         <h3 className="text-lg font-medium">Create staff account</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Add advisors, heads of department, and registrars without using the database or seed script.
+          Add advisors, HODs, registrars, and system administrators without using the database or seed script.
           Accounts are created with a verified email so they can sign in immediately.
         </p>
       </div>

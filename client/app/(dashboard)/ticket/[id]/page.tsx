@@ -28,6 +28,9 @@ import { AppLoader } from "@/components/ui/app-loader"
 import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
 import { formatTicketRef } from "@/lib/ticket-ref"
+import { getStaffHomePath } from "@/lib/role-utils"
+import { PetitionProgressBar } from "@/components/petition-progress-bar"
+import { formatDateTimeDDMMYYYY, formatDateDDMMYYYY } from "@/lib/date-format"
 
 export default function TicketDetailPage() {
   const params = useParams()
@@ -138,8 +141,7 @@ export default function TicketDetailPage() {
     }
   }
 
-  const canEditOrDelete =
-    !!user && isSubmitterRole(user.role) && ticket?.status === "submitted" && ticket?.submitterId === user?.id
+  const canEditOrDelete = false
 
   // Show loading state while checking auth or fetching ticket
   if (authLoading || isLoading) {
@@ -196,7 +198,7 @@ export default function TicketDetailPage() {
       <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href={user && isSubmitterRole(user.role) ? "/dashboard" : "/admin"}>
+            <Link href={user ? getStaffHomePath(user.role, isSubmitterRole) : "/dashboard"}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Dashboard
             </Link>
@@ -210,28 +212,6 @@ export default function TicketDetailPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              {canEditOrDelete && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditDialogOpen(true)}
-                    className="flex-1 sm:flex-initial"
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    className="flex-1 sm:flex-initial"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </div>
-              )}
               <div className="flex gap-2 flex-wrap">
                 <Badge className="text-xs" style={{ backgroundColor: getStatusColor(ticket.status), color: '#fff' }}>
                   {getStatusLabel(ticket.status).toUpperCase()}
@@ -240,6 +220,8 @@ export default function TicketDetailPage() {
             </div>
           </div>
         </div>
+
+        <PetitionProgressBar ticket={ticket} settings={settings} />
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
@@ -326,7 +308,7 @@ export default function TicketDetailPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Submitted</p>
-                    <p className="text-sm text-muted-foreground">{ticket.submittedAt.toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">{formatDateDDMMYYYY(ticket.submittedAt)}</p>
                   </div>
                 </div>
 
@@ -334,7 +316,7 @@ export default function TicketDetailPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Last Updated</p>
-                    <p className="text-sm text-muted-foreground">{ticket.updatedAt.toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">{formatDateDDMMYYYY(ticket.updatedAt)}</p>
                   </div>
                 </div>
 

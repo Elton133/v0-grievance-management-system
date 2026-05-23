@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getSettings, updateSettings, resetSettings } from "../controllers/settingsController";
 import { getApiKeys, createApiKey, deleteApiKey } from "../controllers/apiKeysController";
 import { getWebhooks, createWebhook, deleteWebhook, updateWebhook } from "../controllers/webhookController";
+import { getEmailStatus, sendTestEmail } from "../controllers/emailController";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
@@ -14,6 +15,10 @@ router.put("/", authMiddleware, updateSettings);
 
 // Protected — reset to defaults
 router.post("/reset", authMiddleware, resetSettings);
+
+// --- Email (registrar / highest-level admin) ---
+router.get("/email/status", authMiddleware, getEmailStatus);
+router.post("/email/test", authMiddleware, sendTestEmail);
 
 // --- Developer Settings (Admin Only) ---
 

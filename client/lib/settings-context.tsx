@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
     { key: "hod", label: "Head of Department", level: 2, isSubmitter: false, groupScoped: true },
     { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
+    { key: "admin", label: "System Administrator", level: 4, isSubmitter: false, groupScoped: false },
   ],
   escalationConfig: [],
   ticketTypesConfig: [
@@ -166,14 +167,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const getReviewerRoles = (): RoleConfig[] => {
-    return settings.rolesConfig.filter(r => !r.isSubmitter).sort((a, b) => a.level - b.level)
+    return settings.rolesConfig
+      .filter((r) => !r.isSubmitter && r.key !== "admin")
+      .sort((a, b) => a.level - b.level)
   }
 
   const isSubmitterRole = useCallback((roleKey: string): boolean => {
-    const submitter = (settings.rolesConfig ?? []).find((r) => r.isSubmitter)
-    if (submitter?.key === roleKey) return true
-    if (submitter?.key === "student" && roleKey === "submitter") return true
-    if (submitter?.key === "submitter" && roleKey === "student") return true
+    const roles = settings.rolesConfig ?? []
+    const role = roles.find((r) => r.key === roleKey)
+    if (role?.isSubmitter === true) return true
+    // Legacy alias between "student" and "submitter" keys
+    if (roleKey === "submitter" && roles.some((r) => r.key === "student" && r.isSubmitter)) return true
+    if (roleKey === "student" && roles.some((r) => r.key === "submitter" && r.isSubmitter)) return true
     return false
   }, [settings.rolesConfig])
 

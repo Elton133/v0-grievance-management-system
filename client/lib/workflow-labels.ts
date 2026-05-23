@@ -5,6 +5,7 @@ export const WORKFLOW_ROLE_LABELS: Record<string, string> = {
   class_advisor: "Class Advisor",
   hod: "Head of Department (HOD)",
   registrar: "Registrar",
+  admin: "System Administrator",
 }
 
 export function formatWorkflowRole(roleKey: string): string {

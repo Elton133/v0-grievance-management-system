@@ -8,6 +8,7 @@ import { isSchoolBuild } from "@/lib/school-build"
 import { settingsApi } from "@/lib/api"
 import { Shield, Save, RefreshCw, Palette, Users, Settings2, GitMerge, UserCog } from "lucide-react"
 import { StaffUsersPanel } from "@/components/staff-users-panel"
+import { AdvisorLevelPanel } from "@/components/advisor-level-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import Image from "next/image"
 import type { TenantSettings, RoleConfig, StatusConfig, TicketTypeConfig, EscalationConfig } from "@/lib/settings-context"
+import { isSystemAdminRole } from "@/lib/role-utils"
 
 /** Derive a readable internal key from a display name; ensures uniqueness among existing keys. */
 function suggestUniqueRoleKey(existing: { key: string }[], baseLabel: string): string {
@@ -41,8 +43,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!isSchoolBuild() || !user) return
-    router.replace(isSubmitterRole(user.role) ? "/dashboard" : "/admin")
-  }, [user, router, isSubmitterRole])
+    if (isSubmitterRole(user.role)) router.replace("/dashboard")
+    else if (!isSystemAdminRole(user.role)) router.replace("/admin")
+  }, [user, router, isSubmitterRole, isSystemAdminRole])
 
   const [formData, setFormData] = useState<TenantSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -55,18 +58,7 @@ export default function SettingsPage() {
     }
   }, [settings, settingsLoading])
 
-  // Match server: only the highest role level can update settings (e.g. registrar in default RMU setup)
-  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => r.level) ?? []))
-  const isSuperAdmin =
-    user && settings?.rolesConfig?.some((r) => r.key === user.role && r.level === maxRoleLevel)
-
-  if (isSchoolBuild()) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  const isSuperAdmin = user && isSystemAdminRole(user.role)
 
   if (!user || settingsLoading || !formData) {
     return (
@@ -85,7 +77,7 @@ export default function SettingsPage() {
           <CardContent className="pt-6 text-center">
             <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-            <p className="text-muted-foreground">You need super admin privileges to access organization settings.</p>
+            <p className="text-muted-foreground">Only system administrators can access organization settings.</p>
           </CardContent>
         </Card>
       </>
@@ -248,6 +240,9 @@ export default function SettingsPage() {
             <TabsTrigger value="staff" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
               <UserCog className="w-4 h-4 mr-2" /> Staff Accounts
             </TabsTrigger>
+            <TabsTrigger value="advisors" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
+              <Users className="w-4 h-4 mr-2" /> Level Advisors
+            </TabsTrigger>
             <TabsTrigger value="access" className="flex-1 sm:flex-none min-w-[120px] py-2.5">
               <Shield className="w-4 h-4 mr-2" /> Access Constraints
             </TabsTrigger>
@@ -332,6 +327,10 @@ export default function SettingsPage() {
 
               <TabsContent value="staff" className="m-0 mt-4">
                 <StaffUsersPanel />
+              </TabsContent>
+
+              <TabsContent value="advisors" className="m-0 mt-4">
+                <AdvisorLevelPanel />
               </TabsContent>
 
               <TabsContent value="roles" className="m-0 mt-4">

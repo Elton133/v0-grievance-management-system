@@ -17,6 +17,7 @@ import {
 import Link from "next/link"
 import { Eye } from "lucide-react"
 import { canUserActOnPetition } from "@/lib/reviewer-actions"
+import { formatDateDDMMYYYY } from "@/lib/date-format"
 
 type AdminPetitionsTableProps = {
   petitions: Ticket[]
@@ -53,15 +54,10 @@ export function AdminPetitionsTable({ petitions, userRole }: AdminPetitionsTable
                 <Badge variant="outline">{getStatusLabel(p.status)}</Badge>
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {p.submittedAt.toLocaleDateString()}
+                {formatDateDDMMYYYY(p.submittedAt)}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
-                  {canUserActOnPetition(p, userRole, settings.rolesConfig) && (
-                    <Badge className="bg-primary text-primary-foreground text-xs">
-                      Decide
-                    </Badge>
-                  )}
                   <Button asChild size="sm" variant={canUserActOnPetition(p, userRole, settings.rolesConfig) ? "default" : "ghost"}>
                     <Link href={`/ticket/${p.id}`}>
                       <Eye className="mr-1 h-4 w-4" />

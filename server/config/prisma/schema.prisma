@@ -61,6 +61,7 @@ model User {
   statusHistory   TicketStatusHistory[]
   notifications   Notification[]
   auditLogs       AuditLog[]
+  levelAssignments AdvisorLevelAssignment[]
 
   @@index([role, group])
   @@index([email])
@@ -184,6 +185,38 @@ model AuditLog {
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())
+}
+
+// Official student / alumni registry (replaces JSON roster files)
+model RegistryStudent {
+  id         String   @id @default(uuid())
+  memberType String   // student | alumni
+  studentId  String   @unique
+  fullName   String
+  department String
+  email      String?
+  level      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([department])
+  @@index([memberType])
+  @@index([fullName])
+}
+
+// Assign advisors to academic levels (and optional petition types) per department
+model AdvisorLevelAssignment {
+  id            String   @id @default(uuid())
+  advisorId     String
+  advisor       User     @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  department    String
+  levels        String[] @default([])
+  petitionTypes String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([advisorId, department])
+  @@index([department])
 }
 
 // Developer API Tokens

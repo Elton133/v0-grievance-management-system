@@ -9,7 +9,7 @@ import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains"
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes"
 import { requireHighestLevelAdmin } from "../utils/requireHighestLevelAdmin"
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors"
-import { isSchoolBuild, schoolBuildSettingsForbidden } from "../utils/schoolBuild"
+import { schoolBuildBlocksRequest, schoolBuildSettingsForbidden } from "../utils/schoolBuild"
 
 type RoleConfig = { key: string; isSubmitter?: boolean; groupScoped?: boolean }
 
@@ -27,7 +27,7 @@ async function loadTenantStaffConfig() {
 /** GET /api/users/staff — list staff accounts (advisor, hod, registrar, etc.) */
 export const listStaffUsers = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildSettingsForbidden(res)
     }
 
@@ -64,7 +64,7 @@ export const listStaffUsers = async (req: AuthRequest, res: Response) => {
 /** POST /api/users/staff — create advisor, HOD, or registrar account */
 export const createStaffUser = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
+    if (await schoolBuildBlocksRequest(req, res)) {
       return schoolBuildSettingsForbidden(res)
     }
 

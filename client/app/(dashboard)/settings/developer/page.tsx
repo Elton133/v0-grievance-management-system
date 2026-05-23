@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
 import { isSchoolBuild } from "@/lib/school-build"
-import { Shield, Key, Webhook, Plus, Trash2, Code2, Copy, CheckCircle2 } from "lucide-react"
+import { isSystemAdminRole } from "@/lib/role-utils"
+import { Shield, Key, Webhook, Plus, Trash2, Code2, Copy, CheckCircle2, Mail } from "lucide-react"
+import { EmailTestPanel } from "@/components/email-test-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,18 +40,11 @@ export default function DeveloperSettingsPage() {
 
   useEffect(() => {
     if (!isSchoolBuild() || !user) return
-    router.replace(isSubmitterRole(user.role) ? "/dashboard" : "/admin")
+    if (isSubmitterRole(user.role)) router.replace("/dashboard")
+    else if (!isSystemAdminRole(user.role)) router.replace("/admin")
   }, [user, router, isSubmitterRole])
 
-  const maxRoleLevel = Math.max(0, ...(settings?.rolesConfig?.map((r) => Number(r.level)) ?? []))
-  const canAccessOrgSettings =
-    Boolean(user) &&
-    !isSubmitterRole(user.role) &&
-    Boolean(
-      settings?.rolesConfig?.some(
-        (r) => r.key === user.role && Number(r.level) === maxRoleLevel
-      )
-    )
+  const canAccessOrgSettings = Boolean(user) && isSystemAdminRole(user.role)
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([])
@@ -156,14 +151,6 @@ export default function DeveloperSettingsPage() {
     }
   }
 
-  if (isSchoolBuild()) {
-    return (
-      <div className="flex justify-center items-center h-[50vh] text-muted-foreground">
-        Loading...
-      </div>
-    )
-  }
-
   if (!user || settingsLoading) {
     return (
       <div className="flex justify-center items-center h-[50vh] text-muted-foreground">
@@ -179,7 +166,7 @@ export default function DeveloperSettingsPage() {
           <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
           <p className="text-muted-foreground">
-            Developer tools are only available to the top organization role (same as Settings).
+            Developer tools are only available to system administrators.
           </p>
         </CardContent>
       </Card>
@@ -210,6 +197,9 @@ export default function DeveloperSettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="webhooks">
             <Webhook className="w-4 h-4 mr-2" /> Webhooks
+          </TabsTrigger>
+          <TabsTrigger value="email">
+            <Mail className="w-4 h-4 mr-2" /> Email
           </TabsTrigger>
           <TabsTrigger value="docs">
             <Code2 className="w-4 h-4 mr-2" /> API Docs
@@ -369,6 +359,20 @@ export default function DeveloperSettingsPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email" className="space-y-4 m-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>Email provider</CardTitle>
+              <CardDescription>
+                Verify delivery to students and staff before your defense. Configure Brevo or SendGrid in the server environment file.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EmailTestPanel />
             </CardContent>
           </Card>
         </TabsContent>

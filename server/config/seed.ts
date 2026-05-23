@@ -26,6 +26,7 @@ async function main() {
         { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
         { key: "hod", label: "Head of Department", level: 2, isSubmitter: false, groupScoped: true },
         { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
+        { key: "admin", label: "System Administrator", level: 4, isSubmitter: false, groupScoped: false },
       ],
       escalationConfig: [
         { fromStatus: "submitted", toStatuses: ["under_review", "forwarded_to_hod"] },
@@ -171,6 +172,35 @@ async function main() {
     console.log(`✅ Created registrar: ${registrar.name}`);
   }
 
+  // System administrator (platform settings — not petition workflow)
+  console.log("⚙️ Creating system administrator...");
+  const adminData = [
+    {
+      name: "System Administrator",
+      email: "admin@rmu.edu.gh",
+      password: "Admin@123",
+      role: "admin",
+      group: null,
+    },
+  ];
+
+  for (const admin of adminData) {
+    const passwordHash = await hashPassword(admin.password);
+    await prisma.user.upsert({
+      where: { email: admin.email },
+      update: {},
+      create: {
+        name: admin.name,
+        email: admin.email,
+        passwordHash,
+        role: admin.role,
+        group: admin.group,
+        emailVerified: true,
+      },
+    });
+    console.log(`✅ Created system admin: ${admin.name}`);
+  }
+
   console.log("\n✨ Seed completed successfully!");
   console.log("\n📝 Login Credentials Summary:");
   console.log("\n👨‍🎓 Submitters:");
@@ -181,6 +211,8 @@ async function main() {
   console.log("  - Email: eltonmorden@icloud.com | Password: HOD@123");
   console.log("\n🏛️ Registrar:");
   console.log("  - Email: registrar@rmu.edu.gh | Password: Registrar@123");
+  console.log("\n⚙️ System admin:");
+  console.log("  - Email: admin@rmu.edu.gh | Password: Admin@123");
 }
 
 main()

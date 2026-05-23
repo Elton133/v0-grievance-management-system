@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import prisma from "../db";
 import { AuthRequest } from "../middleware/auth";
 import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
-import { isSchoolBuild, schoolBuildSettingsForbidden } from "../utils/schoolBuild";
+import { schoolBuildBlocksRequest, schoolBuildSettingsForbidden } from "../utils/schoolBuild";
 import {
   DEFAULT_RMU_GROUP_PREFIXES,
   effectiveGroupPrefixes,
 } from "../utils/defaultGroupPrefixes";
+import { isSystemAdminRole } from "../utils/roleUtils";
 
 // Default configuration values for a new tenant (RMU defaults)
 const DEFAULT_SETTINGS = {
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS = {
     { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
     { key: "hod", label: "Head of Department", level: 2, isSubmitter: false, groupScoped: true },
     { key: "registrar", label: "Registrar", level: 3, isSubmitter: false, groupScoped: false },
+    { key: "admin", label: "System Administrator", level: 4, isSubmitter: false, groupScoped: false },
   ],
   escalationConfig: [
     { fromStatus: "submitted", toStatuses: ["under_review", "forwarded_to_hod"] },
@@ -80,29 +82,21 @@ export const getSettings = async (_req: Request, res: Response) => {
  */
 export const updateSettings = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
-      return schoolBuildSettingsForbidden(res);
-    }
-
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Check if user has admin privileges (highest role level)
+    if (await schoolBuildBlocksRequest(req, res)) {
+      return schoolBuildSettingsForbidden(res);
+    }
+
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Get current settings to check admin role
-    const currentSettings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
-    const roles = (currentSettings?.rolesConfig as Array<{ key: string; level: number }>) || DEFAULT_SETTINGS.rolesConfig;
-    const userRoleConfig = roles.find(r => r.key === user.role);
-    const maxLevel = Math.max(...roles.map(r => r.level));
-
-    // Only highest-level role can edit settings (e.g., registrar)
-    if (!userRoleConfig || userRoleConfig.level < maxLevel) {
-      return res.status(403).json({ error: "Only the highest-level administrator can modify settings" });
+    if (!isSystemAdminRole(user.role)) {
+      return res.status(403).json({ error: "Only system administrators can modify settings" });
     }
 
     const {
@@ -162,12 +156,12 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
  */
 export const resetSettings = async (req: AuthRequest, res: Response) => {
   try {
-    if (isSchoolBuild()) {
-      return schoolBuildSettingsForbidden(res);
-    }
-
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (await schoolBuildBlocksRequest(req, res)) {
+      return schoolBuildSettingsForbidden(res);
     }
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });

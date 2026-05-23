@@ -10,6 +10,7 @@ import Link from "next/link"
 import { formatTicketRef } from "@/lib/ticket-ref"
 import { petitionSubjectLabel, petitionTypeLabel } from "@/lib/petition-form-options"
 import { canUserActOnPetition } from "@/lib/reviewer-actions"
+import { formatDateDDMMYYYY } from "@/lib/date-format"
 
 interface AdminTicketCardProps {
   ticket: Ticket
@@ -64,7 +65,7 @@ export function AdminTicketCard({ ticket, userRole }: AdminTicketCardProps) {
           <span>{petitionTypeLabel(ticket.type)}</span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {ticket.submittedAt.toLocaleDateString()}
+            {formatDateDDMMYYYY(ticket.submittedAt)}
           </span>
         </div>
         <Button asChild size="sm" className="w-full">

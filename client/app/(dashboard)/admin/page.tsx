@@ -19,6 +19,7 @@ import { Search, FileText, Clock, CheckCircle, Users, Shield, Loader2 } from "lu
 import { AppLoader } from "@/components/ui/app-loader"
 import { Pagination } from "@/components/ui/pagination"
 import { PETITION_TYPES } from "@/lib/petition-form-options"
+import { isSystemAdminRole } from "@/lib/role-utils"
 
 export default function AdminPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -31,10 +32,16 @@ export default function AdminPage() {
   const [initialLoad, setInitialLoad] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 12
+  const itemsPerPage = 10
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login")
+  }, [authLoading, user, router])
+
+  useEffect(() => {
+    if (!authLoading && user && isSystemAdminRole(user.role)) {
+      router.replace("/settings")
+    }
   }, [authLoading, user, router])
 
   const loadPetitions = useCallback(
@@ -131,6 +138,14 @@ export default function AdminPage() {
 
   if (!user) return null
 
+  if (isSystemAdminRole(user.role)) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <AppLoader message="Redirecting to system settings..." />
+      </div>
+    )
+  }
+
   if (isSubmitterRole(user.role)) {
     return (
       <Card className="w-full max-w-md mx-auto">
@@ -167,11 +182,10 @@ export default function AdminPage() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-3 mb-8">
         <StatCard title="In your queue" value={stats.assigned} icon={<Users className="h-4 w-4" />} />
         <StatCard title="Pending" value={stats.pending} icon={<Clock className="h-4 w-4" />} />
         <StatCard title="Resolved" value={stats.resolved} icon={<CheckCircle className="h-4 w-4" />} />
-        <StatCard title="Total in queue" value={stats.total} icon={<FileText className="h-4 w-4" />} />
       </div>
 
       <div className="space-y-6">

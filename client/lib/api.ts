@@ -393,6 +393,122 @@ export const usersApi = {
   },
 }
 
+export type EmailConfigStatus = {
+  provider: string
+  providerKey: string | null
+  explicitProvider: string | null
+  from: string
+  isConfigured: boolean
+  brevo: boolean
+  sendgrid: boolean
+  smtp: boolean
+  resend: boolean
+  requireEmailVerification: boolean
+}
+
+export const registryApi = {
+  list: async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    memberType?: string
+    department?: string
+  }) => {
+    const q = new URLSearchParams()
+    if (params.page) q.set("page", String(params.page))
+    if (params.limit) q.set("limit", String(params.limit))
+    if (params.search) q.set("search", params.search)
+    if (params.memberType) q.set("memberType", params.memberType)
+    if (params.department) q.set("department", params.department)
+    return apiRequest<{
+      data: Array<{
+        id: string
+        memberType: string
+        studentId: string
+        fullName: string
+        department: string
+        email: string | null
+        level: string | null
+      }>
+      pagination: {
+        page: number
+        limit: number
+        total: number
+        totalPages: number
+        hasNext: boolean
+        hasPrev: boolean
+      }
+    }>(`/registry?${q.toString()}`)
+  },
+
+  create: async (data: {
+    memberType: string
+    studentId: string
+    fullName: string
+    department: string
+    email?: string
+    level?: string
+  }) =>
+    apiRequest(`/registry`, { method: "POST", body: JSON.stringify(data) }),
+
+  bulkUpload: async (csv: string) =>
+    apiRequest<{ created: number; updated: number; total: number }>(`/registry/bulk`, {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    }),
+
+  remove: async (id: string) =>
+    apiRequest(`/registry/${id}`, { method: "DELETE" }),
+
+  status: async () => apiRequest<{ enabled: boolean }>("/registry/status"),
+
+  validate: async (data: {
+    memberType: string
+    fullName: string
+    studentId: string
+    department?: string
+  }) =>
+    apiRequest<{ ok: boolean; path?: string; message?: string }>("/registry/validate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+}
+
+export const advisorAssignmentApi = {
+  list: async (department?: string) => {
+    const q = department ? `?department=${encodeURIComponent(department)}` : ""
+    return apiRequest<{
+      data: Array<{
+        id: string
+        advisorId: string
+        department: string
+        levels: string[]
+        petitionTypes: string[]
+        advisor: { id: string; name: string; email: string; role: string; group: string | null }
+      }>
+    }>(`/advisor-assignments${q}`)
+  },
+  upsert: async (data: {
+    advisorId: string
+    department: string
+    levels: string[]
+    petitionTypes?: string[]
+  }) =>
+    apiRequest(`/advisor-assignments`, { method: "POST", body: JSON.stringify(data) }),
+  remove: async (id: string) =>
+    apiRequest(`/advisor-assignments/${id}`, { method: "DELETE" }),
+}
+
+export const emailApi = {
+  getStatus: async () => apiRequest<EmailConfigStatus>("/settings/email/status"),
+
+  sendTest: async (to: string) =>
+    apiRequest<{ msg: string; provider: string; from: string }>("/settings/email/test", {
+      method: "POST",
+      body: JSON.stringify({ to }),
+    }),
+}
+
 // Developer API
 export const developerApi = {
   getKeys: async () => apiRequest<any[]>("/settings/keys"),

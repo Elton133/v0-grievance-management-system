@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { toast } from "sonner"
@@ -21,16 +21,18 @@ import {
   type RegistrationFormData,
 } from "@/lib/validation"
 import { departmentSelectOptions } from "@/lib/rmu-departments"
-import { getLiveRosterRegistrationIssues, rosterValidationEnabledClient } from "@/lib/studentRosterClient"
+import {
+  fetchRegistryValidationEnabled,
+  getLiveRosterRegistrationIssues,
+} from "@/lib/studentRosterClient"
 import { REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy"
 import { PasswordStrengthMeter } from "@/components/password-strength-meter"
 import Link from "next/link"
 
-function isPublicRegistrableRole(role: { key: string; isSubmitter?: boolean; groupScoped?: boolean }) {
-  const key = role.key.toLowerCase()
-  if (key.includes("registrar") || key.includes("admin")) return false
-  return role.isSubmitter === true || role.groupScoped !== false
-}
+const PUBLIC_REGISTER_ROLES = [
+  { key: "student", label: "Student" },
+  { key: "alumni", label: "Alumni" },
+] as const
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState<RegistrationFormData>({
@@ -48,13 +50,36 @@ export default function RegisterPage() {
   const { settings, isSubmitterRole } = useSettings()
   const router = useRouter()
 
-  const publicRoleOptions = useMemo(
-    () => (settings?.rolesConfig ?? []).filter(isPublicRegistrableRole),
-    [settings?.rolesConfig]
-  )
+  const publicRoleOptions = useMemo(() => {
+    const fromSettings = (settings?.rolesConfig ?? []).filter(
+      (r) => r.key === "student"
+    )
+    if (fromSettings.length >= 1) {
+      // Add alumni option back for the UI, copying student config
+      const studentConfig = fromSettings[0];
+      return [
+        studentConfig,
+        { ...studentConfig, key: "alumni", label: "Alumni" }
+      ];
+    }
+    return PUBLIC_REGISTER_ROLES.map((r) => ({
+      key: r.key,
+      label: r.label,
+      level: 0,
+      isSubmitter: true,
+      groupScoped: true,
+    }))
+  }, [settings?.rolesConfig])
 
   const publicRegistrationSettings = useMemo(
-    () => ({ ...settings, rolesConfig: publicRoleOptions }),
+    () =>
+      settings
+        ? { ...settings, rolesConfig: publicRoleOptions }
+        : {
+            rolesConfig: publicRoleOptions,
+            allowedEmailDomains: [],
+            groupPrefixes: undefined,
+          },
     [settings, publicRoleOptions]
   )
 
@@ -68,17 +93,53 @@ export default function RegisterPage() {
     [formData.role, formData.submitterId, formData.group, publicRegistrationSettings]
   )
 
-  const rosterIssues = useMemo(
-    () => getLiveRosterRegistrationIssues(formData, publicRegistrationSettings),
-    [formData.name, formData.role, formData.submitterId, formData.group, publicRegistrationSettings]
-  )
+  const [rosterIssues, setRosterIssues] = useState<
+    Partial<Record<"name" | "submitterId" | "group", string>>
+  >({})
+  const [registryEnabled, setRegistryEnabled] = useState(false)
+
+  useEffect(() => {
+    void fetchRegistryValidationEnabled().then(setRegistryEnabled)
+  }, [])
+
+  useEffect(() => {
+    if (formData.role !== "student" && formData.role !== "alumni") {
+      setRosterIssues({})
+      return
+    }
+    const sid = formData.submitterId?.trim()
+    const name = formData.name?.trim()
+    if (!sid || !name) {
+      setRosterIssues({})
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void getLiveRosterRegistrationIssues(formData, publicRegistrationSettings).then((issues) => {
+        if (!cancelled) setRosterIssues(issues)
+      })
+    }, 400)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    formData.name,
+    formData.role,
+    formData.submitterId,
+    formData.group,
+    publicRegistrationSettings,
+  ])
 
   const nameMessage = errors.name ?? rosterIssues.name
   const groupMessage = errors.group ?? rosterIssues.group
   const submitterIdMessage = errors.submitterId ?? rosterIssues.submitterId ?? liveStudentIdPrefixError
 
+  const isMember = formData.role === "student" || formData.role === "alumni"
   const studentBlockingIssue =
-    isSubmitterRole(formData.role) &&
+    isMember &&
     !!(liveStudentIdPrefixError || rosterIssues.name || rosterIssues.group || rosterIssues.submitterId)
 
   const availableGroups = departmentSelectOptions(settings?.groupPrefixes)
@@ -114,18 +175,18 @@ export default function RegisterPage() {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      submitterId: isSubmitterRole(formData.role) ? formData.submitterId : undefined,
+      submitterId: isMember ? formData.submitterId?.trim() || undefined : undefined,
       group: needsGroup ? formData.group?.trim() || undefined : undefined,
     })
 
     if (result.success) {
       toast.success("Account created successfully!", {
-        description: "Redirecting to login page...",
+        description:
+          result.verificationEmailSent !== false
+            ? "We are sending a verification link to your email. Check inbox and spam before logging in."
+            : "You can log in — email verification is not required for this environment.",
       })
-      if (result.warning) {
-        toast.warning("Verification email", { description: result.warning })
-      }
-      router.push("/login?registered=true")
+      router.push(`/login?registered=true&email=${encodeURIComponent(formData.email)}`)
     } else {
       const errorMsg = result.error || "Registration failed. Please try again."
       toast.error("Registration failed", {
@@ -159,6 +220,39 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="role">I am registering as *</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      role: value,
+                      submitterId: "",
+                      group: "",
+                    }))
+                    setRosterIssues({})
+                    setErrors((prev) => ({
+                      ...prev,
+                      submitterId: undefined,
+                      group: undefined,
+                      name: undefined,
+                    }))
+                  }}
+                >
+                  <SelectTrigger id="role" className="w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="z-[200] w-[var(--radix-select-trigger-width)]">
+                    {publicRoleOptions.map((r) => (
+                      <SelectItem key={r.key} value={r.key}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
@@ -205,31 +299,16 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value, submitterId: "", group: "" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {publicRoleOptions.map((r) => (
-                      <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {needsDepartment && (
                 <div className="space-y-2">
                   <Label htmlFor="department">Department *</Label>
                   <p className="text-xs text-muted-foreground">
-                    {isSubmitterRole(formData.role)
-                      ? rosterValidationEnabledClient()
-                        ? "Select your department first — your full name and Student ID must match the school's official class list (e.g. ICT and Information Technology count as the same department)."
-                        : "Select your department first — your Student ID prefix must match this department."
+                    {formData.role === "student" || formData.role === "alumni"
+                      ? registryEnabled
+                        ? "Select your department first — your full name and ID must match the school registry."
+                        : formData.role === "alumni"
+                          ? "Select the department you graduated from."
+                          : "Select your department first — your Student ID prefix must match this department."
                       : "Select the department you belong to."}
                   </p>
                   <Select
@@ -238,16 +317,16 @@ export default function RegisterPage() {
                       setFormData((prev) => ({
                         ...prev,
                         group: value,
-                        ...(isSubmitterRole(prev.role) ? { submitterId: "" } : {}),
+                        ...(prev.role === "student" || prev.role === "alumni" ? { submitterId: "" } : {}),
                       }))
                       if (errors.group) setErrors({ ...errors, group: undefined })
                       if (errors.submitterId) setErrors({ ...errors, submitterId: undefined })
                     }}
                   >
-                    <SelectTrigger id="department">
+                    <SelectTrigger id="department" className="w-full">
                       <SelectValue placeholder="Select department / programme" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="z-[200] w-[var(--radix-select-trigger-width)]">
                       {availableGroups.map((g) => (
                         <SelectItem key={g} value={g}>
                           {g}
@@ -261,9 +340,11 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {isSubmitterRole(formData.role) && (
+              {isMember && (
                 <div className="space-y-2">
-                  <Label htmlFor="submitterId">Student ID *</Label>
+                  <Label htmlFor="submitterId">
+                    {formData.role === "alumni" ? "Alumni / former student ID *" : "Student ID *"}
+                  </Label>
                   <Input
                     id="submitterId"
                     type="text"

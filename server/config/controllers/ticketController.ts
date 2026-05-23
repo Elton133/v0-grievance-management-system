@@ -9,6 +9,7 @@ import {
   getNextReviewer,
 } from "../utils/workflowService";
 import { sendEmail, emailTemplates } from "../utils/emailService";
+import { isSystemAdminRole } from "../utils/roleUtils";
 import { sanitizeInput, sanitizeText } from "../utils/sanitize";
 import { dispatchWebhookEvent } from "../utils/webhookService";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
@@ -37,9 +38,36 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
     const ticketGroup = group ? sanitizeInput(group) : (user.group || "Unknown");
     const ticketYear = year ? sanitizeInput(year) : "Unknown";
 
+    const terminalStatuses = ["resolved", "rejected"];
+    const existingOpen = await prisma.ticket.findFirst({
+      where: {
+        submitterId: req.user.id,
+        type,
+        status: { notIn: terminalStatuses },
+      },
+    });
+    if (existingOpen) {
+      return res.status(400).json({
+        error: "You already have an open petition in this category",
+        message:
+          "Only one pending petition per category is allowed. Resolve or wait for your existing petition before submitting another of the same type.",
+      });
+    }
+
+    // Check if user is alumni via registry memberType (alumni = graduated student, role is still 'student')
+    let isAlumni = false;
+    if (user.submitterId) {
+      const registryEntry = await prisma.registryStudent.findUnique({
+        where: { studentId: user.submitterId },
+        select: { memberType: true },
+      });
+      isAlumni = registryEntry?.memberType === "alumni";
+    }
+    const initialStatus = isAlumni ? "forwarded_to_hod" : "submitted";
+    const initialEscalationLevel = isAlumni ? 2 : 1;
+
     const referenceCode = await allocatePetitionReference();
 
-    // Create ticket
     const ticket = await prisma.ticket.create({
       data: {
         referenceCode,
@@ -52,8 +80,8 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
         subject: sanitizedSubject,
         description: sanitizedDescription,
         priority: priority || "medium",
-        status: "submitted",
-        escalationLevel: 1, // Start at level 1 (Class Advisor)
+        status: initialStatus,
+        escalationLevel: initialEscalationLevel,
       },
     });
 
@@ -74,11 +102,11 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
       data: {
         ticketId: ticket.id,
         previousStatus: null,
-        newStatus: "submitted",
+        newStatus: initialStatus,
         changedBy: req.user.id,
         changedByName: user.name,
         changedByRole: user.role,
-        comment: null,
+        comment: isAlumni ? "Alumni petition — routed directly to Head of Department" : null,
       },
     });
 
@@ -94,14 +122,20 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
         type,
         group: ticketGroup,
         year: ticketYear,
-        status: "submitted",
+        status: initialStatus,
       },
       req,
     });
 
-    // Auto-assign to first reviewer (Class Advisor) - optimized to get reviewer in one query
-    const reviewer = await getNextReviewer(1, ticketGroup);
-    const assigned = reviewer ? await autoAssignTicket(ticket.id, 1, ticketGroup) : false;
+    const reviewer = await getNextReviewer(initialEscalationLevel, ticketGroup, {
+      year: ticketYear,
+      petitionType: type,
+      submitterRole: user.role,
+      isAlumni,
+    });
+    const assigned = reviewer
+      ? await autoAssignTicket(ticket.id, initialEscalationLevel, ticketGroup)
+      : false;
 
     if (assigned && reviewer) {
       await recordAuditLog({
@@ -115,7 +149,7 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
           assignedTo: reviewer.userId,
           assignedToName: reviewer.userName,
           assignedToEmail: reviewer.userEmail,
-          escalationLevel: 1,
+          escalationLevel: initialEscalationLevel,
         },
         req,
       });
@@ -364,6 +398,13 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (isSystemAdminRole(user.role)) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "System administrators manage platform settings, not petitions.",
+      });
     }
 
     const ticket = await prisma.ticket.findUnique({ where: { id } });
