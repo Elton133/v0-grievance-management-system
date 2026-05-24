@@ -1,8 +1,9 @@
 import { isResendConfigured } from "./resendService"
+import { isBrevoApiConfigured } from "./brevoApiService"
 
-export type EmailProvider = "smtp" | "brevo" | "sendgrid" | "resend"
+export type EmailProvider = "smtp" | "brevo" | "brevo-api" | "sendgrid" | "resend"
 
-const PROVIDERS: EmailProvider[] = ["smtp", "brevo", "sendgrid", "resend"]
+const PROVIDERS: EmailProvider[] = ["smtp", "brevo", "brevo-api", "sendgrid", "resend"]
 
 export function isSmtpCredentialsConfigured(): boolean {
   return !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim())
@@ -50,6 +51,7 @@ export function getActiveEmailProvider(): EmailProvider | null {
     return null
   }
 
+  if (isBrevoApiConfigured()) return "brevo-api"
   if (isBrevoConfigured()) return "brevo"
   if (isSendgridConfigured()) return "sendgrid"
   if (isSmtpCredentialsConfigured()) return "smtp"
@@ -59,6 +61,8 @@ export function getActiveEmailProvider(): EmailProvider | null {
 
 export function isProviderConfigured(provider: EmailProvider): boolean {
   switch (provider) {
+    case "brevo-api":
+      return isBrevoApiConfigured()
     case "brevo":
       return isBrevoConfigured()
     case "sendgrid":
@@ -78,6 +82,8 @@ export function isEmailSendingConfigured(): boolean {
 
 export function getEmailProviderLabel(provider: EmailProvider): string {
   switch (provider) {
+    case "brevo-api":
+      return "Brevo (API)"
     case "brevo":
       return "Brevo (SMTP)"
     case "sendgrid":
@@ -105,10 +111,11 @@ export function getSmtpTransportConfig(): SmtpTransportConfig | null {
 
   if (provider === "brevo") {
     if (!isBrevoConfigured()) return null
+    const port = parseInt(process.env.BREVO_SMTP_PORT || "587", 10)
     return {
       host: process.env.BREVO_SMTP_HOST || "smtp-relay.brevo.com",
-      port: parseInt(process.env.BREVO_SMTP_PORT || "587", 10),
-      secure: false,
+      port,
+      secure: port === 465,
       auth: {
         user: process.env.BREVO_SMTP_USER!.trim(),
         pass: process.env.BREVO_SMTP_KEY!.trim(),
