@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { sendEmailViaResend } from "./resendService";
+import { sendEmailViaBrevoApi } from "./brevoApiService";
 import {
   getActiveEmailProvider,
   getEmailConfigurationSummary,
@@ -199,6 +200,13 @@ export const sendEmail = async (
   if (!provider) {
     console.error(`[Email Service] ❌ No email provider configured. Cannot send to ${to}`);
     return false;
+  }
+
+  if (provider === "brevo-api") {
+    console.log(`[Email Service] Using Brevo (API) → ${to}`);
+    const success = await sendEmailViaBrevoApi(to, subject, html);
+    if (!success) console.error(`[Email Service] ❌ Brevo API failed for ${to}`);
+    return success;
   }
 
   if (provider === "resend") {
