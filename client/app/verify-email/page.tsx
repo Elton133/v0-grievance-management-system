@@ -10,10 +10,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
-import Image from "next/image"
 import { authApi } from "@/lib/api"
+import { useSettings } from "@/lib/settings-context"
 
 export default function VerifyEmailPage() {
+  const { settings } = useSettings()
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
   const [resendEmail, setResendEmail] = useState("")
   const [isResending, setIsResending] = useState(false)
@@ -74,7 +75,7 @@ export default function VerifyEmailPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
+            <img src={settings.logoUrl || "/logo.png"} alt={`${settings.organizationName} logo`} className="size-[120px] object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Email Verification</h1>
         </div>

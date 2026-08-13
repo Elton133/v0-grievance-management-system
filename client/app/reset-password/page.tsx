@@ -10,11 +10,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, ArrowLeft, Lock } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
-import Image from "next/image"
+import { useSettings } from "@/lib/settings-context"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
 export default function ResetPasswordPage() {
+  const { settings } = useSettings()
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -88,7 +89,7 @@ export default function ResetPasswordPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
+              <img src={settings.logoUrl || "/logo.png"} alt={`${settings.organizationName} logo`} className="size-[120px] object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Password Reset Successful</h1>
             <p className="text-muted-foreground mt-2">Redirecting to login...</p>
@@ -116,7 +117,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="School Logo" width={120} height={120} className="object-contain" />
+            <img src={settings.logoUrl || "/logo.png"} alt={`${settings.organizationName} logo`} className="size-[120px] object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Reset Password</h1>
           <p className="text-muted-foreground mt-2">Enter your new password</p>

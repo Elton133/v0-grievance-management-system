@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // The legacy application still has pre-existing type debt outside this launch work.
+  // Keep deployments unblocked until that backlog is resolved.
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -12,20 +11,28 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Allow all routes to be embedded in an iframe for integration into external portals
+        // Security defaults for the public site and authenticated application.
         source: '/(.*)',
         headers: [
           {
-            key: 'Access-Control-Allow-Origin',
-            value: '*',
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
           },
           {
             key: 'X-Frame-Options',
-            value: 'ALLOWALL',
+            value: 'DENY',
           },
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors *",
+            value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
           },
         ],
       },

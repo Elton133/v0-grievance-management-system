@@ -10,8 +10,12 @@ import { Toaster } from "sonner"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Grievance Management System",
-  description: "Institutional portal for managing grievances and tickets",
+  title: {
+    default: "Resolve — Turn concerns into action",
+    template: "%s | Resolve",
+  },
+  description: "A transparent grievance and case-resolution platform for institutions that want to listen, respond and improve.",
+  keywords: ["grievance management", "case management", "student services", "institutional accountability"],
 }
 
 export default function RootLayout({

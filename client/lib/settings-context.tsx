@@ -49,10 +49,10 @@ export interface TenantSettings {
 // Defaults (used before settings are fetched)
 const DEFAULT_SETTINGS: TenantSettings = {
   id: "default",
-  organizationName: "Grievance Management System",
+  organizationName: "Resolve",
   logoUrl: null,
   primaryColor: "#2563eb",
-  accentColor: "#1e40af",
+  accentColor: "#0f172a",
   supportEmail: null,
   rolesConfig: [
     { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },

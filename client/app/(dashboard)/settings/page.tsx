@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import Image from "next/image"
 import type { TenantSettings, RoleConfig, StatusConfig, TicketTypeConfig, EscalationConfig } from "@/lib/settings-context"
 import { isSystemAdminRole } from "@/lib/role-utils"
 
@@ -90,8 +89,10 @@ export default function SettingsPage() {
       // API expects a partial object, we just send all formData keys
       await settingsApi.update({
         organizationName: formData.organizationName,
+        logoUrl: formData.logoUrl,
         primaryColor: formData.primaryColor,
         accentColor: formData.accentColor,
+        supportEmail: formData.supportEmail,
         rolesConfig: formData.rolesConfig,
         ticketTypesConfig: formData.ticketTypesConfig,
         statusLabelsConfig: formData.statusLabelsConfig,
@@ -274,18 +275,30 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Logo</Label>
-                      <p className="text-sm text-muted-foreground">
-                        The app uses the static file <code className="text-xs bg-muted px-1 rounded">public/logo.png</code>. Replace that file in the project to change the logo everywhere.
-                      </p>
-                      <Image
-                        src="/logo.png"
-                        alt=""
-                        width={56}
-                        height={56}
-                        className="mt-2 rounded-md object-contain border bg-background p-1"
+                      <Label>Logo URL</Label>
+                      <Input
+                        value={formData.logoUrl || ""}
+                        onChange={e => setFormData({ ...formData, logoUrl: e.target.value || null })}
+                        placeholder="https://example.edu/logo.png or /logo.png"
+                      />
+                      <p className="text-xs text-muted-foreground">Use a public HTTPS image URL, or a path from the client public folder.</p>
+                      <img
+                        src={formData.logoUrl || "/logo.png"}
+                        alt="Logo preview"
+                        className="mt-2 size-16 rounded-md border bg-background object-contain p-1"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Support Email</Label>
+                    <Input
+                      type="email"
+                      value={formData.supportEmail || ""}
+                      onChange={e => setFormData({ ...formData, supportEmail: e.target.value || null })}
+                      placeholder="support@example.edu"
+                    />
+                    <p className="text-xs text-muted-foreground">Shown as the public contact address and used for support messaging.</p>
                   </div>
                   
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -321,6 +334,25 @@ export default function SettingsPage() {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/30 p-4">
+                    <div className="mr-auto">
+                      <p className="text-sm font-medium">Modern Blue preset</p>
+                      <p className="text-xs text-muted-foreground">Bright blue actions with a deep navy foundation.</p>
+                    </div>
+                    <div className="flex overflow-hidden rounded-full border bg-background">
+                      <span className="size-8 bg-[#2563eb]" />
+                      <span className="size-8 bg-[#0f172a]" />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, primaryColor: "#2563eb", accentColor: "#0f172a" })}
+                    >
+                      Apply preset
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
