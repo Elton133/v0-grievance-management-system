@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/lib/settings-context"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -121,11 +120,9 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
         isCollapsed && !isMobile && "justify-center px-2"
       )}>
         <div className="flex-shrink-0">
-          <Image
-            src="/logo.png"
+          <img
+            src={settings.logoUrl || "/logo.png"}
             alt="Logo"
-            width={40}
-            height={40}
             className="w-8 h-8 rounded-md object-contain"
           />
         </div>

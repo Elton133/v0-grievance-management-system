@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
-import Image from "next/image"
 import { useSettings } from "@/lib/settings-context"
 import {
   createRegistrationFormSchema,
@@ -201,12 +200,10 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image 
-              src="/logo.png" 
+            <img
+              src={settings?.logoUrl || "/logo.png"}
               alt={settings?.organizationName || "School Logo"} 
-              width={120} 
-              height={120} 
-              className="object-contain" 
+              className="size-[120px] object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-foreground">{settings?.organizationName || "Grievance Portal"}</h1>
@@ -443,4 +440,3 @@ export default function RegisterPage() {
     </div>
   )
 }
-

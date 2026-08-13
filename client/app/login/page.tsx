@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff } from "lucide-react"
-import Image from "next/image"
 import Link from "next/link"
 import { useSettings } from "@/lib/settings-context"
 import { getStaffHomePath } from "@/lib/role-utils"
@@ -106,12 +105,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Image 
-              src="/logo.png" 
+            <img
+              src={settings?.logoUrl || "/logo.png"}
               alt={settings?.organizationName || "School Logo"} 
-              width={120} 
-              height={120} 
-              className="object-contain" 
+              className="size-[120px] object-contain"
             />
           </div>
           <h1 className="text-2xl font-bold text-foreground">

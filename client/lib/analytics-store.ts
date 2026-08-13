@@ -30,51 +30,37 @@ export interface AuditLog {
   ipAddress?: string
 }
 
-export async function getAnalyticsData(): Promise<AnalyticsData> {
-  const result = await getTickets(1, 1000)
-  const tickets = result.data
+import type { Ticket } from "./types"
 
+export function computeAnalytics(tickets: Ticket[]): AnalyticsData {
   const totalTickets = tickets.length
 
-  const ticketsByStatus = tickets.reduce(
-    (acc, ticket) => {
-      acc[ticket.status] = (acc[ticket.status] || 0) + 1
-      return acc
-    },
-    {} as Record<TicketStatus, number>
-  )
+  const ticketsByStatus = tickets.reduce((acc, t) => {
+    acc[t.status] = (acc[t.status] || 0) + 1
+    return acc
+  }, {} as Record<TicketStatus, number>)
 
-  const ticketsByType = tickets.reduce(
-    (acc, ticket) => {
-      acc[ticket.type] = (acc[ticket.type] || 0) + 1
-      return acc
-    },
-    {} as Record<TicketType, number>
-  )
+  const ticketsByType = tickets.reduce((acc, t) => {
+    acc[t.type] = (acc[t.type] || 0) + 1
+    return acc
+  }, {} as Record<TicketType, number>)
 
-  const ticketsByPriority = tickets.reduce(
-    (acc, ticket) => {
-      acc[ticket.priority] = (acc[ticket.priority] || 0) + 1
-      return acc
-    },
-    {} as Record<string, number>
-  )
+  const ticketsByPriority = tickets.reduce((acc, t) => {
+    acc[t.priority] = (acc[t.priority] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
-  const ticketsByGroup = tickets.reduce(
-    (acc, ticket) => {
-      acc[ticket.group] = (acc[ticket.group] || 0) + 1
-      return acc
-    },
-    {} as Record<string, number>
-  )
+  const ticketsByGroup = tickets.reduce((acc, t) => {
+    acc[t.group] = (acc[t.group] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   const resolvedTickets = tickets.filter((p) => p.resolvedAt)
   const averageResolutionTime =
     resolvedTickets.length > 0
-      ? resolvedTickets.reduce((acc, ticket) => {
-          const end = ticket.resolvedAt ?? ticket.updatedAt
-          const resolutionTime = end.getTime() - ticket.submittedAt.getTime()
-          return acc + resolutionTime / (1000 * 60 * 60 * 24)
+      ? resolvedTickets.reduce((acc, t) => {
+          const end = t.resolvedAt ?? t.updatedAt
+          return acc + (end.getTime() - t.submittedAt.getTime()) / (1000 * 60 * 60 * 24)
         }, 0) / resolvedTickets.length
       : 0
 
@@ -92,16 +78,12 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .slice(-6)
 
   const withResponse = tickets.filter((t) => t.firstResponseAt)
-  const responseDays = withResponse.map(
-    (t) => (t.firstResponseAt!.getTime() - t.submittedAt.getTime()) / (1000 * 60 * 60 * 24)
-  )
-  responseDays.sort((a, b) => a - b)
+  const responseDays = withResponse
+    .map((t) => (t.firstResponseAt!.getTime() - t.submittedAt.getTime()) / (1000 * 60 * 60 * 24))
+    .sort((a, b) => a - b)
   const averageResponseTime =
     responseDays.length > 0 ? responseDays.reduce((a, b) => a + b, 0) / responseDays.length : 0
-  const medianResponseTime =
-    responseDays.length > 0
-      ? responseDays[Math.floor(responseDays.length / 2)]
-      : 0
+  const medianResponseTime = responseDays.length > 0 ? responseDays[Math.floor(responseDays.length / 2)] : 0
   const escalated = tickets.filter((t) => t.escalationLevel >= 2).length
   const escalationRate = totalTickets > 0 ? escalated / totalTickets : 0
 
@@ -113,12 +95,18 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     ticketsByGroup,
     averageResolutionTime,
     monthlyTrends,
-    responseTimeMetrics: {
-      averageResponseTime,
-      medianResponseTime,
-      escalationRate,
-    },
+    responseTimeMetrics: { averageResponseTime, medianResponseTime, escalationRate },
   }
+}
+
+export async function getAnalyticsData(): Promise<AnalyticsData> {
+  const result = await getTickets(1, 1000)
+  return computeAnalytics(result.data)
+}
+
+export async function getRawTickets() {
+  const result = await getTickets(1, 1000)
+  return result.data
 }
 
 /** Load audit entries from the database (written by recordAuditLog on the server). */
