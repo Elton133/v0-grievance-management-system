@@ -18,6 +18,7 @@ export const getWebhooks = async (req: AuthRequest, res: Response) => {
     }
 
     const webhooks = await prisma.webhookEndpoint.findMany({
+      where: { organizationId: req.user.organizationId },
       orderBy: { createdAt: "desc" },
     })
 
@@ -52,6 +53,7 @@ export const createWebhook = async (req: AuthRequest, res: Response) => {
 
     const webhook = await prisma.webhookEndpoint.create({
       data: {
+        organizationId: req.user.organizationId,
         url,
         events,
         secret,
@@ -81,9 +83,10 @@ export const deleteWebhook = async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params
 
-    await prisma.webhookEndpoint.delete({
-      where: { id },
+    const result = await prisma.webhookEndpoint.deleteMany({
+      where: { id, organizationId: req.user.organizationId },
     })
+    if (result.count === 0) return res.status(404).json({ error: "Webhook not found" })
 
     res.json({ success: true, message: "Webhook removed" })
   } catch (err) {
@@ -112,8 +115,12 @@ export const updateWebhook = async (req: AuthRequest, res: Response) => {
     if (isActive !== undefined) updateData.isActive = isActive
     if (events !== undefined) updateData.events = events
 
+    const existing = await prisma.webhookEndpoint.findFirst({
+      where: { id, organizationId: req.user.organizationId },
+    })
+    if (!existing) return res.status(404).json({ error: "Webhook not found" })
     const webhook = await prisma.webhookEndpoint.update({
-      where: { id },
+      where: { id: existing.id },
       data: updateData,
     })
 

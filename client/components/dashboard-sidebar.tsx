@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Code2,
   BookUser,
+  Building2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getStaffHomePath, isSystemAdminRole } from "@/lib/role-utils"
@@ -93,6 +94,9 @@ export function DashboardSidebar({ isCollapsed, onCollapsedChange }: DashboardSi
             icon: <Code2 className="h-5 w-5" />,
           },
         ]
+      : []),
+    ...(user.isPlatformOwner
+      ? [{ label: "Platform", href: "/platform", icon: <Building2 className="h-5 w-5" /> }]
       : []),
   ]
 

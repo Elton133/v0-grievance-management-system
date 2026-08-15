@@ -5,7 +5,7 @@ import { autoAssignTicket, getNextReviewer } from "../../utils/workflowService"
 // Temporary stub for the v1 Request interface extending from Express Request
 interface ApiRequest extends Request {
   apiToken?: import(".prisma/client").ApiToken
-  tenantId?: string
+  organizationId?: string
 }
 
 /**
@@ -26,7 +26,13 @@ export const createTicketV1 = async (req: ApiRequest, res: Response): Promise<vo
 
     // Attempt to match an existing user by email, or create a stub reference
     // For a headless external API, we might just use the submitterEmail as the identifier if no user exists.
-    let user = await prisma.user.findUnique({ where: { email: submitterEmail } })
+    if (!req.organizationId) {
+      res.status(401).json({ success: false, error: { message: "Organization context is missing" } })
+      return
+    }
+    let user = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId: req.organizationId, email: submitterEmail } },
+    })
 
     // We strictly need a submitterId for our current schema. 
     // In a real multi-tenant scenario, we might create a guest user if they don't exist.

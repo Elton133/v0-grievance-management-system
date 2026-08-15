@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { converter, formatCss } from "culori"
 import { normalizeAllowedEmailDomains } from "./allowed-email-domains"
 import { DEFAULT_RMU_GROUP_PREFIXES } from "./rmu-departments"
+import { organizationHeaders } from "./organization"
 
 // Types for tenant settings
 export interface RoleConfig {
@@ -31,6 +32,17 @@ export interface EscalationConfig {
   toStatuses: string[]
 }
 
+export interface MarketingContent {
+  heroBadge: string
+  heroTitle: string
+  heroHighlight: string
+  heroDescription: string
+  primaryCta: string
+  demoTitle: string
+  demoDescription: string
+  footerTagline: string
+}
+
 export interface TenantSettings {
   id: string
   organizationName: string
@@ -38,6 +50,7 @@ export interface TenantSettings {
   primaryColor: string
   accentColor: string
   supportEmail: string | null
+  marketingContent: MarketingContent
   rolesConfig: RoleConfig[]
   escalationConfig: EscalationConfig[]
   ticketTypesConfig: TicketTypeConfig[]
@@ -54,6 +67,16 @@ const DEFAULT_SETTINGS: TenantSettings = {
   primaryColor: "#2563eb",
   accentColor: "#0f172a",
   supportEmail: null,
+  marketingContent: {
+    heroBadge: "Built for institutions that listen",
+    heroTitle: "Turn every concern into",
+    heroHighlight: "meaningful action.",
+    heroDescription: "Give students, staff and leadership one transparent system to raise issues, coordinate responses and build a more accountable institution.",
+    primaryCta: "See the platform in action",
+    demoTitle: "Make listening part of how your institution works.",
+    demoDescription: "Tell us about your organization. We’ll show you how the platform can fit your teams and workflows.",
+    footerTagline: "Clear concerns. Accountable teams. Better institutions.",
+  },
   rolesConfig: [
     { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
     { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
@@ -102,11 +125,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/settings`)
+      const response = await fetch(`${API_BASE_URL}/settings`, { headers: organizationHeaders() })
       if (response.ok) {
         const data = await response.json()
         setSettings({
           ...data,
+          marketingContent: {
+            ...DEFAULT_SETTINGS.marketingContent,
+            ...(data.marketingContent || {}),
+          },
           allowedEmailDomains: normalizeAllowedEmailDomains(data.allowedEmailDomains),
         })
 

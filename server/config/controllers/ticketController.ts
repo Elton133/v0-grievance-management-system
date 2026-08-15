@@ -58,7 +58,12 @@ export const createTicket = async (req: AuthRequest, res: Response) => {
     let isAlumni = false;
     if (user.submitterId) {
       const registryEntry = await prisma.registryStudent.findUnique({
-        where: { studentId: user.submitterId },
+        where: {
+          organizationId_studentId: {
+            organizationId: req.user.organizationId,
+            studentId: user.submitterId,
+          },
+        },
         select: { memberType: true },
       });
       isAlumni = registryEntry?.memberType === "alumni";
@@ -854,7 +859,7 @@ export const updateTicket = async (req: AuthRequest, res: Response) => {
     let sanitizedGroup = ticket.group;
     if (group !== undefined && group !== null && String(group).trim() !== "") {
       const g = sanitizeInput(String(group));
-      const tenant = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+      const tenant = await prisma.tenantSettings.findFirst();
       const allowed = Object.keys(effectiveGroupPrefixes(tenant?.groupPrefixes));
       if (!allowed.includes(g)) {
         return res.status(400).json({

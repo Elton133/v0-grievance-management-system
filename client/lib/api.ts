@@ -4,6 +4,7 @@
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+import { organizationHeaders } from "./organization";
 
 // Get auth token from localStorage
 export const getToken = (): string | null => {
@@ -35,6 +36,7 @@ async function apiRequest<T>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...organizationHeaders(),
     ...(options.headers as Record<string, string>),
   };
 
@@ -130,6 +132,7 @@ export const authApi = {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        ...organizationHeaders(),
         Authorization: `Bearer ${token}`,
       },
     });
@@ -149,6 +152,9 @@ export const authApi = {
         submitterId?: string | null;
         group?: string | null;
         emailVerified?: boolean;
+        organizationId?: string;
+        organizationSlug?: string;
+        isPlatformOwner?: boolean;
       };
     }>;
   },
@@ -336,6 +342,41 @@ export const settingsApi = {
     });
   },
 };
+
+export type PlatformOrganization = {
+  id: string
+  name: string
+  slug: string
+  status: string
+  subscriptionTier: string
+  createdAt: string
+  _count: { users: number; tickets: number }
+}
+
+export type WorkspaceRequest = {
+  id: string
+  organizationName: string
+  preferredSlug: string
+  contactName: string
+  contactEmail: string
+  message: string | null
+  status: string
+  source: string | null
+  createdAt: string
+}
+
+export const platformApi = {
+  organizations: () => apiRequest<{ data: PlatformOrganization[] }>("/platform/organizations"),
+  workspaceRequests: () => apiRequest<{ data: WorkspaceRequest[] }>("/platform/workspace-requests"),
+  createOrganization: (data: Record<string, unknown>) => apiRequest<{ organization: PlatformOrganization; workspaceUrl: string }>("/platform/organizations", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }),
+  updateOrganization: (id: string, data: { status?: string; subscriptionTier?: string }) => apiRequest(`/platform/organizations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  }),
+}
 
 // Audit logs (staff / analytics)
 export const auditApi = {

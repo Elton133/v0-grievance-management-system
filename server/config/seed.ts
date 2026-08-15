@@ -11,13 +11,19 @@ async function main() {
     return await bcrypt.hash(password, 10);
   };
 
+  const organization = await prisma.organization.upsert({
+    where: { slug: "default" },
+    update: {},
+    create: { id: "default", name: "Resolve", slug: "default", status: "active", subscriptionTier: "starter" },
+  });
+
   // Seed default TenantSettings
   console.log("⚙️  Creating default tenant settings...");
   await prisma.tenantSettings.upsert({
-    where: { id: "default" },
+    where: { organizationId: organization.id },
     update: {},
     create: {
-      id: "default",
+      organizationId: organization.id,
       organizationName: "Submitter Grievance Portal",
       primaryColor: "#2563eb",
       accentColor: "#1e40af",
@@ -70,9 +76,10 @@ async function main() {
   for (const submitter of submitterData) {
     const passwordHash = await hashPassword(submitter.password);
     await prisma.user.upsert({
-      where: { email: submitter.email },
+      where: { organizationId_email: { organizationId: organization.id, email: submitter.email } },
       update: {},
       create: {
+        organizationId: organization.id,
         name: submitter.name,
         email: submitter.email,
         passwordHash,
@@ -100,9 +107,10 @@ async function main() {
   for (const advisor of advisorData) {
     const passwordHash = await hashPassword(advisor.password);
     await prisma.user.upsert({
-      where: { email: advisor.email },
+      where: { organizationId_email: { organizationId: organization.id, email: advisor.email } },
       update: {},
       create: {
+        organizationId: organization.id,
         name: advisor.name,
         email: advisor.email,
         passwordHash,
@@ -129,9 +137,10 @@ async function main() {
   for (const hod of hodData) {
     const passwordHash = await hashPassword(hod.password);
     await prisma.user.upsert({
-      where: { email: hod.email },
+      where: { organizationId_email: { organizationId: organization.id, email: hod.email } },
       update: {},
       create: {
+        organizationId: organization.id,
         name: hod.name,
         email: hod.email,
         passwordHash,
@@ -158,9 +167,10 @@ async function main() {
   for (const registrar of registrarData) {
     const passwordHash = await hashPassword(registrar.password);
     await prisma.user.upsert({
-      where: { email: registrar.email },
+      where: { organizationId_email: { organizationId: organization.id, email: registrar.email } },
       update: {},
       create: {
+        organizationId: organization.id,
         name: registrar.name,
         email: registrar.email,
         passwordHash,
@@ -181,19 +191,22 @@ async function main() {
       password: "Admin@123",
       role: "admin",
       group: null,
+      isPlatformOwner: true,
     },
   ];
 
   for (const admin of adminData) {
     const passwordHash = await hashPassword(admin.password);
     await prisma.user.upsert({
-      where: { email: admin.email },
-      update: {},
+      where: { organizationId_email: { organizationId: organization.id, email: admin.email } },
+      update: { isPlatformOwner: admin.isPlatformOwner },
       create: {
+        organizationId: organization.id,
         name: admin.name,
         email: admin.email,
         passwordHash,
         role: admin.role,
+        isPlatformOwner: admin.isPlatformOwner,
         group: admin.group,
         emailVerified: true,
       },

@@ -11,6 +11,9 @@ import advisorAssignmentRoutes from "./routes/advisorAssignmentRoutes";
 import v1TicketRoutes from "./routes/v1/ticketRoutes";
 import { checkEmailConfiguration } from "./utils/emailService";
 import { requireApiToken } from "./middleware/apiAuthMiddleware";
+import demoRequestRoutes from "./routes/demoRequestRoutes";
+import { organizationMiddleware } from "./middleware/organization";
+import { platformRouter, workspaceRouter } from "./routes/organizationRoutes";
 
 dotenv.config();
 
@@ -21,8 +24,18 @@ const PORT = process.env.PORT || 5000;
 app.set("trust proxy", "loopback");
 
 // Middleware
-app.use(cors());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error("Origin not allowed by CORS"));
+  },
+}));
 app.use(express.json({ limit: "15mb" }));
+app.use("/api", organizationMiddleware);
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -32,6 +45,9 @@ app.use("/api/users", usersRoutes);
 app.use("/api/registry", registryRoutes);
 app.use("/api/advisor-assignments", advisorAssignmentRoutes);
 app.use("/api/audit-logs", auditRoutes);
+app.use("/api/demo-requests", demoRequestRoutes);
+app.use("/api/workspaces", workspaceRouter);
+app.use("/api/platform", platformRouter);
 
 // External Developer APIs (v1)
 app.use("/api/v1/tickets", requireApiToken, v1TicketRoutes);

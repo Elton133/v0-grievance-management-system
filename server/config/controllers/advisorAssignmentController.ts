@@ -54,7 +54,7 @@ export const upsertAdvisorAssignment = async (req: AuthRequest, res: Response) =
     }
 
     const row = await prisma.advisorLevelAssignment.upsert({
-      where: { advisorId_department: { advisorId, department } },
+      where: { organizationId_advisorId_department: { organizationId: req.user!.organizationId, advisorId, department } },
       create: { advisorId, department, levels, petitionTypes },
       update: { levels, petitionTypes },
       include: {

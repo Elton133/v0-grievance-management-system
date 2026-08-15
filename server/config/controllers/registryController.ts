@@ -11,6 +11,7 @@ import {
   isRegistrySchemaMissing,
 } from "../utils/registryService"
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors"
+import { currentTenant } from "../utils/tenantContext"
 
 const createSchema = z.object({
   memberType: z.enum(["student", "alumni"]),
@@ -152,7 +153,12 @@ export const bulkUploadRegistry = async (req: AuthRequest, res: Response) => {
     let updated = 0
     for (const row of rows) {
       const existing = await prisma.registryStudent.findUnique({
-        where: { studentId: row.studentId },
+        where: {
+          organizationId_studentId: {
+            organizationId: req.user!.organizationId,
+            studentId: row.studentId,
+          },
+        },
       })
       if (existing) {
         await prisma.registryStudent.update({
@@ -176,7 +182,9 @@ export const bulkUploadRegistry = async (req: AuthRequest, res: Response) => {
 /** GET /api/registry/status — whether registry validation is active (public). */
 export const registryStatus = async (_req: AuthRequest, res: Response) => {
   try {
-    const enabled = await registryHasEntries()
+    const organizationId = currentTenant()?.organizationId
+    if (!organizationId) return res.status(400).json({ enabled: false, error: "Workspace is required" })
+    const enabled = await registryHasEntries(organizationId)
     res.json({ enabled })
   } catch (err) {
     if (respondIfDatabaseUnavailable(res, err)) return
@@ -200,7 +208,10 @@ export const validateRegistryMember = async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ ok: false, errors: parsed.error.flatten() })
     }
     const { memberType, fullName, studentId, department } = parsed.data
+    const organizationId = currentTenant()?.organizationId
+    if (!organizationId) return res.status(400).json({ ok: false, message: "Workspace is required" })
     const result = await validateAgainstRegistry(
+      organizationId,
       memberType,
       fullName,
       studentId,

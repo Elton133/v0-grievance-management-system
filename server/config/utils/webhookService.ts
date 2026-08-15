@@ -7,14 +7,14 @@ import prisma from "../db"
  * 
  * @param eventType Set to exactly match the documented webhook event strings (e.g., "ticket.created")
  * @param payload The JSON object to send
- * @param tenantId The tenant dispatching the event (defaults to "default" for now)
+ * @param organizationId The organization dispatching the event.
  */
-export const dispatchWebhookEvent = async (eventType: string, payload: any, tenantId: string = "default") => {
+export const dispatchWebhookEvent = async (eventType: string, payload: any, organizationId: string = "default") => {
   try {
     // Find all active endpoints listening to this event or a wildcard "*"
     const endpoints = await prisma.webhookEndpoint.findMany({
       where: {
-        tenantId,
+        organizationId,
         isActive: true,
       }
     })

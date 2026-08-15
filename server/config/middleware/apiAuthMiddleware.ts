@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from "express"
 import prisma from "../db"
+import crypto from "crypto"
+import type { OrganizationRequest } from "./organization"
 
 /**
  * Middleware for Developer APIs (v1)
  * Extracts Bearer token, hashes it, and verifies it exists in the ApiToken table.
  */
 export const requireApiToken = async (
-  req: Request,
+  req: OrganizationRequest,
   res: Response,
   next: NextFunction
 ) => {
@@ -23,16 +25,13 @@ export const requireApiToken = async (
 
     const token = authHeader.split(" ")[1]
 
-    // In a real production system, this should hash the raw token and compare.
-    // Assuming for now the token sent IS the hash we check.
-    // Example: `const tokenHash = crypto.createHash('sha256').update(token).digest('hex')`
-    const tokenHash = token
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
 
     const apiToken = await prisma.apiToken.findUnique({
       where: { tokenHash },
     })
 
-    if (!apiToken) {
+    if (!apiToken || apiToken.organizationId !== req.organization?.id) {
       res.status(401).json({
         success: false,
         error: { message: "Invalid or revoked API token" },
@@ -46,9 +45,9 @@ export const requireApiToken = async (
       data: { lastUsed: new Date() }
     }).catch(e => console.error("Failed to update token lastUsed", e))
 
-      // Attach the tenant/token context to the request (since we're single-tenant right now, this is just for future-proofing)
+      // Attach the organization/token context to the request.
       ; (req as any).apiToken = apiToken
-      ; (req as any).tenantId = apiToken.tenantId
+      ; (req as any).organizationId = apiToken.organizationId
 
     next()
   } catch (error) {

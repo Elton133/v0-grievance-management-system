@@ -44,7 +44,7 @@ export default function DeveloperSettingsPage() {
     else if (!isSystemAdminRole(user.role)) router.replace("/admin")
   }, [user, router, isSubmitterRole])
 
-  const canAccessOrgSettings = Boolean(user) && isSystemAdminRole(user.role)
+  const canAccessOrgSettings = user ? isSystemAdminRole(user.role) : false
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([])

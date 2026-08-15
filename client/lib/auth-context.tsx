@@ -15,6 +15,9 @@ export interface User {
   role: UserRole
   submitterId?: string
   group?: string
+  organizationId?: string
+  organizationSlug?: string
+  isPlatformOwner?: boolean
 }
 
 interface AuthContextType {
@@ -193,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role?: string
     submitterId?: string
     group?: string
-  }): Promise<{ success: boolean; error?: string; warning?: string }> => {
+  }): Promise<{ success: boolean; error?: string; warning?: string; verificationEmailSent?: boolean }> => {
     setIsLoading(true)
     try {
       const response = await authApi.register(data)
