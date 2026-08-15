@@ -19,9 +19,9 @@ export type RegistryRow = {
   level?: string | null
 }
 
-export async function registryHasEntries(): Promise<boolean> {
+export async function registryHasEntries(organizationId: string): Promise<boolean> {
   try {
-    const count = await prisma.registryStudent.count()
+    const count = await prisma.registryStudent.count({ where: { organizationId } })
     return count > 0
   } catch (err) {
     if (isRegistrySchemaMissing(err)) return false
@@ -30,19 +30,20 @@ export async function registryHasEntries(): Promise<boolean> {
 }
 
 export async function validateAgainstRegistry(
+  organizationId: string,
   memberType: string,
   fullName: string,
   studentId: string,
   department?: string
 ): Promise<{ ok: true } | { ok: false; message: string; path: string }> {
-  const hasDb = await registryHasEntries()
+  const hasDb = await registryHasEntries(organizationId)
   if (!hasDb) return { ok: true }
 
   const sid = studentId.trim().toUpperCase()
   let row: Awaited<ReturnType<typeof prisma.registryStudent.findUnique>>
   try {
     row = await prisma.registryStudent.findUnique({
-      where: { studentId: sid },
+      where: { organizationId_studentId: { organizationId, studentId: sid } },
     })
   } catch (err) {
     if (isRegistrySchemaMissing(err)) return { ok: true }

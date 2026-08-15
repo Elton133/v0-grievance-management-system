@@ -1,10 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // The legacy application still has pre-existing type debt outside this launch work.
-  // Keep deployments unblocked until that backlog is resolved.
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
   },

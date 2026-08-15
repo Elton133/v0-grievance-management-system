@@ -93,6 +93,7 @@ export default function SettingsPage() {
         primaryColor: formData.primaryColor,
         accentColor: formData.accentColor,
         supportEmail: formData.supportEmail,
+        marketingContent: formData.marketingContent,
         rolesConfig: formData.rolesConfig,
         ticketTypesConfig: formData.ticketTypesConfig,
         statusLabelsConfig: formData.statusLabelsConfig,
@@ -353,6 +354,47 @@ export default function SettingsPage() {
                     >
                       Apply preset
                     </Button>
+                  </div>
+
+                  <div className="space-y-4 border-t pt-6">
+                    <div>
+                      <h3 className="text-lg font-medium">Marketing Website</h3>
+                      <p className="text-sm text-muted-foreground">Edit the public landing-page message without changing code.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Hero Eyebrow</Label>
+                        <Input value={formData.marketingContent.heroBadge} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, heroBadge: e.target.value } })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Primary Button</Label>
+                        <Input value={formData.marketingContent.primaryCta} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, primaryCta: e.target.value } })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Hero Headline</Label>
+                        <Input value={formData.marketingContent.heroTitle} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, heroTitle: e.target.value } })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Highlighted Headline</Label>
+                        <Input value={formData.marketingContent.heroHighlight} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, heroHighlight: e.target.value } })} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hero Description</Label>
+                      <textarea className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm" value={formData.marketingContent.heroDescription} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, heroDescription: e.target.value } })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Demo Section Headline</Label>
+                      <Input value={formData.marketingContent.demoTitle} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, demoTitle: e.target.value } })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Demo Section Description</Label>
+                      <textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={formData.marketingContent.demoDescription} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, demoDescription: e.target.value } })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Footer Tagline</Label>
+                      <Input value={formData.marketingContent.footerTagline} onChange={e => setFormData({ ...formData, marketingContent: { ...formData.marketingContent, footerTagline: e.target.value } })} />
+                    </div>
                   </div>
                 </div>
               </TabsContent>

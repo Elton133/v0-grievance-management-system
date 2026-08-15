@@ -14,7 +14,7 @@ import { schoolBuildBlocksRequest, schoolBuildSettingsForbidden } from "../utils
 type RoleConfig = { key: string; isSubmitter?: boolean; groupScoped?: boolean }
 
 async function loadTenantStaffConfig() {
-  const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } })
+  const settings = await prisma.tenantSettings.findFirst()
   const rolesConfig = (settings?.rolesConfig as RoleConfig[]) || []
   return {
     allowedEmailDomains: normalizeAllowedEmailDomains(settings?.allowedEmailDomains),
@@ -90,7 +90,9 @@ export const createStaffUser = async (req: AuthRequest, res: Response) => {
     const { name, email, password, role, group } = validationResult.data
     const normalizedEmail = email.toLowerCase().trim()
 
-    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
+    const existingUser = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId: req.user!.organizationId, email: normalizedEmail } },
+    })
     if (existingUser) {
       return res.status(400).json({
         msg: "User already exists",

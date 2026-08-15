@@ -3,6 +3,7 @@ import prisma from "../db"
 import { AuthRequest } from "../middleware/auth"
 import { nanoid } from "nanoid"
 import { schoolBuildBlocksRequest, schoolBuildDeveloperForbidden } from "../utils/schoolBuild"
+import crypto from "crypto"
 
 /**
  * GET /api/settings/keys
@@ -19,6 +20,7 @@ export const getApiKeys = async (req: AuthRequest, res: Response) => {
 
     // Single-tenant right now
     const keys = await prisma.apiToken.findMany({
+      where: { organizationId: req.user.organizationId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -58,13 +60,11 @@ export const createApiKey = async (req: AuthRequest, res: Response) => {
     // Generate a secure, unique API key (e.g. gms_live_1234abcd5678)
     const rawToken = `gms_live_${nanoid(24)}`
 
-    // In production, we should hash this before storing:
-    // const crypto = require('crypto');
-    // const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    const tokenHash = rawToken // Storing raw for now for simplicity of demo, but labeled as hash
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex")
 
     const newKey = await prisma.apiToken.create({
       data: {
+        organizationId: req.user.organizationId,
         name,
         tokenHash,
       },
@@ -98,9 +98,10 @@ export const deleteApiKey = async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params
 
-    await prisma.apiToken.delete({
-      where: { id },
+    const result = await prisma.apiToken.deleteMany({
+      where: { id, organizationId: req.user.organizationId },
     })
+    if (result.count === 0) return res.status(404).json({ error: "API key not found" })
 
     res.json({ success: true, message: "API key revoked" })
   } catch (err) {

@@ -12,14 +12,72 @@ datasource db {
   directUrl = env("DIRECT_URL") // Direct connection URL (for migrations)
 }
 
+model Organization {
+  id               String @id @default(cuid())
+  name             String
+  slug             String @unique
+  status           String @default("active")
+  subscriptionTier String @default("starter")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  settings          TenantSettings?
+  users             User[]
+  tickets           Ticket[]
+  comments          TicketComment[]
+  attachments       TicketAttachment[]
+  statusHistory     TicketStatusHistory[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  registryStudents  RegistryStudent[]
+  advisorAssignments AdvisorLevelAssignment[]
+  apiTokens         ApiToken[]
+  webhooks          WebhookEndpoint[]
+}
+
+model WorkspaceRequest {
+  id                String   @id @default(uuid())
+  organizationName  String
+  preferredSlug     String
+  contactName       String
+  contactEmail      String
+  message           String?
+  status            String   @default("new")
+  source             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([contactEmail])
+}
+
+model DemoRequest {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  organization String
+  message      String
+  status       String   @default("new")
+  source       String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
 // Tenant/Organization settings — CMS-driven configuration
 model TenantSettings {
-  id               String  @id @default("default")
-  organizationName String  @default("Grievance Management System")
+  id               String  @id @default(uuid())
+  organizationId   String  @unique @default("default")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationName String  @default("Resolve")
   logoUrl          String?
   primaryColor     String  @default("#2563eb")
-  accentColor      String  @default("#1e40af")
+  accentColor      String  @default("#0f172a")
   supportEmail     String?
+  marketingContent Json    @default("{}")
 
   // Dynamic roles config: [{key: "submitter", label: "Submitter", level: 0, isSubmitter: true}, ...]
   rolesConfig         Json @default("[]")
@@ -41,11 +99,14 @@ model TenantSettings {
 // User accounts (submitters + admins)
 model User {
   id                       String    @id @default(uuid())
-  email                    String    @unique
+  organizationId           String    @default("default")
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email                    String
   passwordHash             String
   name                     String
   role                     String // Dynamic role key from TenantSettings.rolesConfig
-  submitterId              String?   @unique
+  submitterId              String?
+  isPlatformOwner          Boolean   @default(false)
   group                    String?
   emailVerified            Boolean   @default(false)
   emailVerificationToken   String?   @unique
@@ -64,7 +125,9 @@ model User {
   levelAssignments AdvisorLevelAssignment[]
 
   @@index([role, group])
-  @@index([email])
+  @@unique([organizationId, email])
+  @@unique([organizationId, submitterId])
+  @@index([organizationId, role, group])
   @@index([emailVerificationToken])
   @@index([passwordResetToken])
 }
@@ -72,7 +135,9 @@ model User {
 // Main ticket table
 model Ticket {
   id              String   @id @default(uuid())
-  referenceCode   String?  @unique // e.g. PET-2024-001
+  organizationId  String   @default("default")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  referenceCode   String? // e.g. PET-2024-001
   submitterId     String
   submitter       User     @relation("SubmitterTickets", fields: [submitterId], references: [id])
   submitterName   String
@@ -105,6 +170,8 @@ model Ticket {
   notifications Notification[]
 
   @@index([submitterId])
+  @@unique([organizationId, referenceCode])
+  @@index([organizationId, status, group])
   @@index([assignedTo])
   @@index([status])
   @@index([group, escalationLevel])
@@ -115,6 +182,8 @@ model Ticket {
 // Ticket comments
 model TicketComment {
   id         String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   ticketId   String
   ticket     Ticket   @relation(fields: [ticketId], references: [id])
   authorId   String
@@ -129,6 +198,8 @@ model TicketComment {
 // Ticket attachments
 model TicketAttachment {
   id         String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   ticketId   String
   ticket     Ticket   @relation(fields: [ticketId], references: [id])
   fileName   String
@@ -141,6 +212,8 @@ model TicketAttachment {
 // Ticket status history
 model TicketStatusHistory {
   id             String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   ticketId       String
   ticket         Ticket   @relation(fields: [ticketId], references: [id])
   previousStatus String?
@@ -156,6 +229,8 @@ model TicketStatusHistory {
 // Notifications
 model Notification {
   id        String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   ticketId  String?
@@ -167,6 +242,7 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead])
+  @@index([organizationId, userId, isRead])
   @@index([ticketId])
   @@index([createdAt])
 }
@@ -174,6 +250,8 @@ model Notification {
 // Audit logs
 model AuditLog {
   id           String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId       String?
   user         User?    @relation(fields: [userId], references: [id])
   userName     String?
@@ -190,8 +268,10 @@ model AuditLog {
 // Official student / alumni registry (replaces JSON roster files)
 model RegistryStudent {
   id         String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   memberType String   // student | alumni
-  studentId  String   @unique
+  studentId  String
   fullName   String
   department String
   email      String?
@@ -200,6 +280,8 @@ model RegistryStudent {
   updatedAt  DateTime @updatedAt
 
   @@index([department])
+  @@unique([organizationId, studentId])
+  @@index([organizationId, department])
   @@index([memberType])
   @@index([fullName])
 }
@@ -207,6 +289,8 @@ model RegistryStudent {
 // Assign advisors to academic levels (and optional petition types) per department
 model AdvisorLevelAssignment {
   id            String   @id @default(uuid())
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   advisorId     String
   advisor       User     @relation(fields: [advisorId], references: [id], onDelete: Cascade)
   department    String
@@ -215,31 +299,34 @@ model AdvisorLevelAssignment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@unique([advisorId, department])
+  @@unique([organizationId, advisorId, department])
+  @@index([organizationId, department])
   @@index([department])
 }
 
 // Developer API Tokens
 model ApiToken {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default") // currently single-tenant
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name      String   @default("Production Key")
   tokenHash String   @unique // Store hashed, show raw token only once on creation
   createdAt DateTime @default(now())
   lastUsed  DateTime?
   
-  @@index([tenantId])
+  @@index([organizationId])
 }
 
 // Webhook Endpoints
 model WebhookEndpoint {
   id        String   @id @default(uuid())
-  tenantId  String   @default("default")
+  organizationId String @default("default")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   url       String
   secret    String   // For signing webhook payloads (HMAC)
   events    String[] // e.g., ["ticket.created", "ticket.status_changed"]
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   
-  @@index([tenantId, isActive])
+  @@index([organizationId, isActive])
 }

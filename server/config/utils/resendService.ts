@@ -13,7 +13,7 @@ const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
  */
 const getFromName = async (): Promise<string> => {
   try {
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    const settings = await prisma.tenantSettings.findFirst();
     return settings?.organizationName || process.env.RESEND_FROM_NAME || "Grievance Management System";
   } catch {
     return process.env.RESEND_FROM_NAME || "Grievance Management System";

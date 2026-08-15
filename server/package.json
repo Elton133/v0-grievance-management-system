@@ -10,7 +10,8 @@
     "prisma:generate": "npx prisma generate --schema=config/prisma/schema.prisma",
     "prisma:migrate": "npx prisma migrate dev --schema=config/prisma/schema.prisma",
     "prisma:push": "npx prisma db push --schema=config/prisma/schema.prisma",
-    "seed": "ts-node config/seed.ts"
+    "seed": "ts-node config/seed.ts",
+    "test:tenant": "node --test -r ts-node/register config/tests/tenant-isolation.test.ts"
   },
   "keywords": [],
   "author": "",

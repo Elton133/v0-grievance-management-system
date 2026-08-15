@@ -56,7 +56,7 @@ export const sendTestEmail = async (req: AuthRequest, res: Response) => {
     }
 
     const { to } = parsed.data
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } })
+    const settings = await prisma.tenantSettings.findFirst()
     const orgName = settings?.organizationName || "Grievance Management System"
     const config = getEmailConfigurationSummary()
 

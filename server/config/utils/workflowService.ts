@@ -176,7 +176,7 @@ function mergeStatusProgression(
 
 const getStatusProgression = async (): Promise<Record<string, string[]>> => {
   try {
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    const settings = await prisma.tenantSettings.findFirst();
     if (settings && Array.isArray(settings.escalationConfig) && (settings.escalationConfig as any[]).length > 0) {
       const config = settings.escalationConfig as Array<{ fromStatus: string; toStatuses: string[] }>;
       const progression: Record<string, string[]> = {};
@@ -256,7 +256,7 @@ export const getNextReviewer = async (
       }
     }
 
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    const settings = await prisma.tenantSettings.findFirst();
     const roles = parseRolesConfig(settings?.rolesConfig);
     const reviewersSorted = getReviewersSorted(roles);
 

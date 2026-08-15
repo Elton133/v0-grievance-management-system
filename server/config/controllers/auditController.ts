@@ -73,8 +73,7 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const settings = await prisma.tenantSettings.findUnique({
-      where: { id: "default" },
+    const settings = await prisma.tenantSettings.findFirst({
       select: { rolesConfig: true },
     });
     const roles = Array.isArray(settings?.rolesConfig) ? (settings.rolesConfig as any[]) : [];

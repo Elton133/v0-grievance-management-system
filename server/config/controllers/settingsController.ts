@@ -8,12 +8,23 @@ import {
   effectiveGroupPrefixes,
 } from "../utils/defaultGroupPrefixes";
 import { isSystemAdminRole } from "../utils/roleUtils";
+import type { OrganizationRequest } from "../middleware/organization";
 
 // Default configuration values for a new tenant (RMU defaults)
-const DEFAULT_SETTINGS = {
-  organizationName: "Grievance Management System",
+export const DEFAULT_SETTINGS = {
+  organizationName: "Resolve",
   primaryColor: "#2563eb",
-  accentColor: "#1e40af",
+  accentColor: "#0f172a",
+  marketingContent: {
+    heroBadge: "Built for institutions that listen",
+    heroTitle: "Turn every concern into",
+    heroHighlight: "meaningful action.",
+    heroDescription: "Give students, staff and leadership one transparent system to raise issues, coordinate responses and build a more accountable institution.",
+    primaryCta: "See the platform in action",
+    demoTitle: "Make listening part of how your institution works.",
+    demoDescription: "Tell us about your organization. We’ll show you how the platform can fit your teams and workflows.",
+    footerTagline: "Clear concerns. Accountable teams. Better institutions.",
+  },
   rolesConfig: [
     { key: "student", label: "Student", level: 0, isSubmitter: true, groupScoped: true },
     { key: "advisor", label: "Advisor", level: 1, isSubmitter: false, groupScoped: true },
@@ -49,17 +60,19 @@ const DEFAULT_SETTINGS = {
  * GET /api/settings — Public endpoint
  * Returns tenant configuration for the frontend
  */
-export const getSettings = async (_req: Request, res: Response) => {
+export const getSettings = async (req: OrganizationRequest, res: Response) => {
   try {
+    const organizationId = req.organization?.id;
+    if (!organizationId) return res.status(400).json({ error: "Workspace is required" });
     let settings = await prisma.tenantSettings.findUnique({
-      where: { id: "default" },
+      where: { organizationId },
     });
 
     // Auto-create default settings if none exist
     if (!settings) {
       settings = await prisma.tenantSettings.create({
         data: {
-          id: "default",
+          organizationId,
           ...DEFAULT_SETTINGS,
         },
       });
@@ -90,7 +103,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       return schoolBuildSettingsForbidden(res);
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const user = await prisma.user.findFirst({ where: { id: req.user.id, organizationId: req.user.organizationId } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -105,6 +118,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       primaryColor,
       accentColor,
       supportEmail,
+      marketingContent,
       rolesConfig,
       escalationConfig,
       ticketTypesConfig,
@@ -120,6 +134,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     if (primaryColor !== undefined) updateData.primaryColor = primaryColor;
     if (accentColor !== undefined) updateData.accentColor = accentColor;
     if (supportEmail !== undefined) updateData.supportEmail = supportEmail;
+    if (marketingContent !== undefined) updateData.marketingContent = marketingContent;
     if (rolesConfig !== undefined) updateData.rolesConfig = rolesConfig;
     if (escalationConfig !== undefined) updateData.escalationConfig = escalationConfig;
     if (ticketTypesConfig !== undefined) updateData.ticketTypesConfig = ticketTypesConfig;
@@ -130,10 +145,10 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     if (groupPrefixes !== undefined) updateData.groupPrefixes = groupPrefixes;
 
     const settings = await prisma.tenantSettings.upsert({
-      where: { id: "default" },
+      where: { organizationId: req.user.organizationId },
       update: updateData,
       create: {
-        id: "default",
+        organizationId: req.user.organizationId,
         ...DEFAULT_SETTINGS,
         ...updateData,
       },
@@ -164,16 +179,16 @@ export const resetSettings = async (req: AuthRequest, res: Response) => {
       return schoolBuildSettingsForbidden(res);
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const user = await prisma.user.findFirst({ where: { id: req.user.id, organizationId: req.user.organizationId } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
     const settings = await prisma.tenantSettings.upsert({
-      where: { id: "default" },
+      where: { organizationId: req.user.organizationId },
       update: DEFAULT_SETTINGS,
       create: {
-        id: "default",
+        organizationId: req.user.organizationId,
         ...DEFAULT_SETTINGS,
       },
     });

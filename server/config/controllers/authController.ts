@@ -18,6 +18,7 @@ import { normalizeAllowedEmailDomains } from "../utils/allowedEmailDomains";
 import { effectiveGroupPrefixes } from "../utils/defaultGroupPrefixes";
 import { respondIfDatabaseUnavailable } from "../utils/prismaConnectionErrors";
 import { validateAgainstRegistry } from "../utils/registryService";
+import type { OrganizationRequest } from "../middleware/organization";
 
 type PublicRoleConfig = { key: string; isSubmitter?: boolean; groupScoped?: boolean };
 
@@ -26,12 +27,14 @@ function isPublicRegistrableRole(role: PublicRoleConfig): boolean {
   return key === "student" || key === "alumni" || key === "submitter" || role.isSubmitter === true;
 }
 
-export const registerUser = async (req: Request, res: Response) => {
+export const registerUser = async (req: OrganizationRequest, res: Response) => {
   try {
+    const organizationId = req.organization?.id;
+    if (!organizationId) return res.status(400).json({ msg: "Workspace is required" });
     // Load tenant settings for dynamic validation
     let tenantConfig: any = undefined;
     try {
-      const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+      const settings = await prisma.tenantSettings.findUnique({ where: { organizationId } });
       if (settings) {
         const rolesConfig =
           (settings.rolesConfig as Array<{
@@ -74,6 +77,7 @@ export const registerUser = async (req: Request, res: Response) => {
     if (role === "student" || role === "alumni") {
       const memberType = role === "alumni" ? "alumni" : "student";
       const rosterCheck = await validateAgainstRegistry(
+        organizationId,
         memberType,
         name.trim(),
         submitterId ?? "",
@@ -126,7 +130,9 @@ export const registerUser = async (req: Request, res: Response) => {
       });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId, email } },
+    });
     if (existingUser) {
       return res.status(400).json({ msg: "User already exists" });
     }
@@ -134,7 +140,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const submitterIdNormalized = submitterId ? sanitizeInput(submitterId).trim() : null;
     if (submitterIdNormalized) {
       const existingIndex = await prisma.user.findFirst({
-        where: { submitterId: submitterIdNormalized },
+        where: { organizationId, submitterId: submitterIdNormalized },
       });
       if (existingIndex) {
         return res.status(400).json({
@@ -154,6 +160,7 @@ export const registerUser = async (req: Request, res: Response) => {
 
     const user = await prisma.user.create({
       data: {
+        organizationId,
         name: sanitizeInput(name),
         email: email.toLowerCase().trim(),
         passwordHash: hashedPassword,
@@ -227,13 +234,17 @@ export const registerUser = async (req: Request, res: Response) => {
   }
 };
 
-export const loginUser = async (req: Request, res: Response) => {
+export const loginUser = async (req: OrganizationRequest, res: Response) => {
   const { email, password } = req.body;
   try {
     // Sanitize email input
     const sanitizedEmail = sanitizeInput(email).toLowerCase().trim();
 
-    const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    const organizationId = req.organization?.id;
+    if (!organizationId) return res.status(400).json({ msg: "Workspace is required" });
+    const user = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId, email: sanitizedEmail } },
+    });
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     // Require verification when mail is configured (set REQUIRE_EMAIL_VERIFICATION=false to bypass, e.g. local dev)
@@ -253,7 +264,13 @@ export const loginUser = async (req: Request, res: Response) => {
     const signOpts: SignOptions = {
       expiresIn: (process.env.JWT_EXPIRES_IN || "8h") as SignOptions["expiresIn"],
     };
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, signOpts);
+    const token = jwt.sign({
+      id: user.id,
+      email: user.email,
+      organizationId: user.organizationId,
+      organizationSlug: req.organization!.slug,
+      isPlatformOwner: user.isPlatformOwner,
+    }, process.env.JWT_SECRET!, signOpts);
 
     res.json({
       token,
@@ -265,6 +282,9 @@ export const loginUser = async (req: Request, res: Response) => {
         emailVerified: user.emailVerified,
         submitterId: user.submitterId,
         group: user.group,
+        organizationId: user.organizationId,
+        organizationSlug: req.organization!.slug,
+        isPlatformOwner: user.isPlatformOwner,
       }
     });
   } catch (err) {
@@ -318,7 +338,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 };
 
 // Resend verification email
-export const resendVerificationEmail = async (req: Request, res: Response) => {
+export const resendVerificationEmail = async (req: OrganizationRequest, res: Response) => {
   const { email } = req.body;
 
   try {
@@ -327,7 +347,11 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
     }
 
     const sanitizedEmail = sanitizeInput(email).toLowerCase().trim();
-    const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    const organizationId = req.organization?.id;
+    if (!organizationId) return res.status(400).json({ msg: "Workspace is required" });
+    const user = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId, email: sanitizedEmail } },
+    });
 
     if (!user) {
       // Don't reveal if user exists for security
@@ -369,7 +393,7 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
 };
 
 // Request password reset
-export const requestPasswordReset = async (req: Request, res: Response) => {
+export const requestPasswordReset = async (req: OrganizationRequest, res: Response) => {
   const { email } = req.body;
 
   try {
@@ -378,7 +402,11 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     }
 
     const sanitizedEmail = sanitizeInput(email).toLowerCase().trim();
-    const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    const organizationId = req.organization?.id;
+    if (!organizationId) return res.status(400).json({ msg: "Workspace is required" });
+    const user = await prisma.user.findUnique({
+      where: { organizationId_email: { organizationId, email: sanitizedEmail } },
+    });
 
     if (!user) {
       // Don't reveal if user exists for security
@@ -488,8 +516,8 @@ export const getCurrentUser = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const user = await prisma.user.findFirst({
+      where: { id: userId, organizationId: req.user?.organizationId },
       select: {
         id: true,
         name: true,
@@ -498,6 +526,8 @@ export const getCurrentUser = async (req: AuthRequest, res: Response) => {
         submitterId: true,
         group: true,
         emailVerified: true,
+        organizationId: true,
+        isPlatformOwner: true,
       },
     });
 
@@ -505,7 +535,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: "User not found" });
     }
 
-    res.json({ user });
+    res.json({ user: { ...user, organizationSlug: req.user!.organizationSlug } });
   } catch (err) {
     if (respondIfDatabaseUnavailable(res, err)) return;
     console.error("getCurrentUser error:", err);

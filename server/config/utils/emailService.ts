@@ -9,6 +9,7 @@ import {
   isEmailSendingConfigured,
 } from "./emailProvider";
 import prisma from "../db";
+import { currentTenant } from "./tenantContext";
 import {
   type EmailBranding,
   escapeHtml,
@@ -26,14 +27,14 @@ import {
 export { isEmailSendingConfigured } from "./emailProvider";
 
 // Cache settings to avoid DB query on every email
-let cachedSettings: {
+type CachedBranding = {
   organizationName: string;
   primaryColor: string;
   accentColor: string;
   logoUrl: string | null;
   supportEmail: string | null;
-} | null = null;
-let cacheTimestamp = 0;
+};
+const brandingCache = new Map<string, { value: CachedBranding; timestamp: number }>();
 const CACHE_TTL_MS = 60000; // 1 minute
 
 /**
@@ -41,26 +42,28 @@ const CACHE_TTL_MS = 60000; // 1 minute
  */
 const getTenantBranding = async (): Promise<EmailBranding> => {
   const now = Date.now();
-  if (cachedSettings && now - cacheTimestamp < CACHE_TTL_MS) {
+  const cacheKey = currentTenant()?.organizationId || "default";
+  const cached = brandingCache.get(cacheKey);
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
     return {
-      orgName: cachedSettings.organizationName,
-      primaryColor: cachedSettings.primaryColor,
-      accentColor: cachedSettings.accentColor,
-      logoAbsoluteUrl: resolveLogoUrlForEmail(cachedSettings.logoUrl),
-      supportEmail: cachedSettings.supportEmail,
+      orgName: cached.value.organizationName,
+      primaryColor: cached.value.primaryColor,
+      accentColor: cached.value.accentColor,
+      logoAbsoluteUrl: resolveLogoUrlForEmail(cached.value.logoUrl),
+      supportEmail: cached.value.supportEmail,
     };
   }
   try {
-    const settings = await prisma.tenantSettings.findUnique({ where: { id: "default" } });
+    const settings = await prisma.tenantSettings.findFirst();
     if (settings) {
-      cachedSettings = {
+      const value = {
         organizationName: settings.organizationName,
         primaryColor: settings.primaryColor,
         accentColor: settings.accentColor,
         logoUrl: settings.logoUrl,
         supportEmail: settings.supportEmail,
       };
-      cacheTimestamp = now;
+      brandingCache.set(cacheKey, { value, timestamp: now });
       return {
         orgName: settings.organizationName,
         primaryColor: settings.primaryColor,
