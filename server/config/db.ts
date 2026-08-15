@@ -38,7 +38,7 @@ function createPrismaClient() {
             scoped.where = { ...(scoped.where || {}), organizationId }
             scoped.create = { ...(scoped.create || {}), organizationId }
           }
-          return query(args)
+          return query(scoped)
         },
       },
     },
