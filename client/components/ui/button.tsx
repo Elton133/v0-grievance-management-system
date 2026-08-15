@@ -37,21 +37,22 @@ const buttonVariants = cva(
 
 const Button = React.forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<'button'> &
+  React.ComponentPropsWithoutRef<'button'> &
     VariantProps<typeof buttonVariants> & {
       asChild?: boolean
     }
 >(({ className, variant, size, asChild = false, ...props }, ref) => {
-  const Comp = asChild ? Slot : 'button'
+  const sharedProps = {
+    'data-slot': 'button',
+    className: cn(buttonVariants({ variant, size, className })),
+    ...props,
+  }
 
-  return (
-    <Comp
-      ref={ref}
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+  if (asChild) {
+    return <Slot ref={ref as React.Ref<HTMLElement>} {...sharedProps} />
+  }
+
+  return <button ref={ref} {...sharedProps} />
 })
 Button.displayName = 'Button'
 
